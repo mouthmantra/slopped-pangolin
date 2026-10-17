@@ -1,0 +1,8 @@
+prefix=/tmp/claude-1001/-home-logan-Developer-pangolin-desktop-main/0d5c815a-22b9-4e66-a9db-a1d2735dcbe0/scratchpad/river-debug
+datarootdir=${prefix}/share
+pkgdatadir=${pc_sysrootdir}${datarootdir}/river-protocols
+
+Name: river-protocols
+URL: https://isaacfreund.com/software/river
+Description: Protocol files for river, a non-monolithic Wayland compositor
+Version: 0.6.0-dev
