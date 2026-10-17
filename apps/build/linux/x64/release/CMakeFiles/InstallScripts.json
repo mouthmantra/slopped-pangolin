@@ -1,0 +1,17 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/cmake_install.cmake",
+		"/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/flutter/cmake_install.cmake",
+		"/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/runner/cmake_install.cmake",
+		"/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/plugins/handy_window/cmake_install.cmake",
+		"/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/plugins/handy_window/libhandy/cmake_install.cmake",
+		"/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/plugins/screen_retriever_linux/cmake_install.cmake",
+		"/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/plugins/url_launcher_linux/cmake_install.cmake",
+		"/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/plugins/window_manager/cmake_install.cmake",
+		"/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/plugins/yaru_window_linux/cmake_install.cmake",
+		"/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/plugins/flutter_pty/cmake_install.cmake",
+		"/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/plugins/flutter_pty/shared/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

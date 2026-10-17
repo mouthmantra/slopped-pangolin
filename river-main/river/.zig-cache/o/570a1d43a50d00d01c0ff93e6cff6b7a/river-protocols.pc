@@ -1,0 +1,8 @@
+prefix=/home/logan/.local
+datarootdir=${prefix}/share
+pkgdatadir=${pc_sysrootdir}${datarootdir}/river-protocols
+
+Name: river-protocols
+URL: https://isaacfreund.com/software/river
+Description: Protocol files for river, a non-monolithic Wayland compositor
+Version: 0.6.0-dev

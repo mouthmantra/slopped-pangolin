@@ -1,0 +1,27 @@
+.{
+    .name = .translate_c,
+
+    .version = "0.0.0",
+
+    .fingerprint = 0x1c84f6455a54f043, // Changing this has security and trust implications.
+
+    .minimum_zig_version = "0.16.0",
+
+    .dependencies = .{
+        .aro = .{
+            .url = "git+https://codeberg.org/ifreund/arocc?ref=0.16.x#1bf978f1e63d4fe66a90b6637ba709e9abc3c854",
+            .hash = "aro-0.0.0-JSD1QmbSNgDrBkBPRoDPwy1rN1ABGBa7B1NzC-lqnGxw",
+        },
+    },
+
+    .paths = .{
+        "build",
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "lib",
+        "test/cases.zig",
+        "LICENSE",
+        "README.md",
+    },
+}
