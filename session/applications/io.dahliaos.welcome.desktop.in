@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Welcome
+Comment=Get started with dahliaOS
+Exec=@BINDIR@/dahlia_apps welcome
+Icon=io.dahliaos.welcome
+Categories=System;
+Keywords=tour;introduction;getting started;
+StartupWMClass=io.dahliaos.welcome
+StartupNotify=false
+Terminal=false

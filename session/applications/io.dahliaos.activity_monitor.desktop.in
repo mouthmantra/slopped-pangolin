@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Activity Monitor
+Comment=Monitor processes and system resources
+Exec=@BINDIR@/dahlia_apps activity_monitor
+Icon=io.dahliaos.activity_monitor
+Categories=System;Monitor;
+Keywords=task manager;process;cpu;memory;kill;performance;
+StartupWMClass=io.dahliaos.activity_monitor
+StartupNotify=false
+Terminal=false

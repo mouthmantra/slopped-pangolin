@@ -1,0 +1,11 @@
+name: pangolin_displays
+description: Applies the saved display configuration in Pangolin sessions.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  display_config:
+    path: ../../packages/display_config

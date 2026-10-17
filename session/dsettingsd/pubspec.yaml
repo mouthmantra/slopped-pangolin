@@ -1,0 +1,15 @@
+name: dsettingsd
+description: The dahliaOS settings daemon (io.dahlia.DSettings) for Pangolin sessions.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  dbus: ^0.7.8
+  dsettings:
+    git:
+      url: https://github.com/dahliaos/dsettings
+      ref: 32ddb5ac46aa1d1e2257d37a08c90a51381d2d12
+  path: ^1.8.2

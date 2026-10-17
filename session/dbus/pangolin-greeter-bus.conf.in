@@ -1,0 +1,21 @@
+<!-- Copyright 2026 The dahliaOS Authors
+     SPDX-License-Identifier: Apache-2.0
+
+     The private session bus of Pangolin's login screen: only Pangolin's
+     settings daemon can be activated on it, so the toolkits' lookups of
+     desktop portals and accessibility services fail right away instead of
+     starting services that can't run there (the login screen has no
+     desktop session). -->
+<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+<busconfig>
+  <type>session</type>
+  <listen>unix:tmpdir=/tmp</listen>
+  <auth>EXTERNAL</auth>
+  <servicedir>@PREFIX@/share/pangolin/greeter-services</servicedir>
+  <policy context="default">
+    <allow send_destination="*" eavesdrop="true"/>
+    <allow eavesdrop="true"/>
+    <allow own="*"/>
+  </policy>
+</busconfig>

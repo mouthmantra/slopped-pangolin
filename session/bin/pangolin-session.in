@@ -1,0 +1,161 @@
+#!/bin/sh
+# Copyright 2026 The dahliaOS Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Starts a Pangolin desktop session: river as the compositor, Pangolin as its
+# window manager and shell. Run it from a display manager (pangolin.desktop),
+# a TTY, or inside another Wayland/X11 session for a nested desktop.
+
+PREFIX="@PREFIX@"
+
+# Nothing goes to the console: river, the shell and everything they start
+# log to /var/log/Pangolin.log when the installation made it writable for
+# this user (tool/install.sh --system-session or --greeter), to
+# ~/.local/state/pangolin/Pangolin.log otherwise. PANGOLIN_LOG=- keeps the
+# output on the terminal (for debugging), PANGOLIN_LOG=FILE picks the file.
+if [ -z "$PANGOLIN_LOGGING" ]; then
+    export PANGOLIN_LOGGING=1
+    log=${PANGOLIN_LOG:-}
+    if [ -z "$log" ]; then
+        if [ -f /var/log/Pangolin.log ] && [ -w /var/log/Pangolin.log ]; then
+            log=/var/log/Pangolin.log
+        else
+            log="${XDG_STATE_HOME:-$HOME/.local/state}/pangolin/Pangolin.log"
+            mkdir -p "${log%/*}" 2>/dev/null
+        fi
+    fi
+    if [ "$log" != - ]; then
+        # Started on a text console (by a display manager or from a TTY):
+        # clear it and hide its cursor, so that the moments it shows
+        # (between the login screen and the desktop) are plain black.
+        case "$(readlink /proc/$$/fd/1 2>/dev/null)" in
+            /dev/tty[0-9]*) printf '\033[2J\033[H\033[?25l' ;;
+        esac
+        # Kept at a reasonable size (logrotate takes care of it too where
+        # it's installed).
+        if [ -f "$log" ] && [ "$(wc -c < "$log" 2>/dev/null || echo 0)" -gt 16777216 ]; then
+            : > "$log"
+        fi
+        if { : >> "$log"; } 2>/dev/null; then
+            exec >> "$log" 2>&1 < /dev/null
+            echo "=== Pangolin session of $(id -un), $(date '+%Y-%m-%d %H:%M:%S') ==="
+        fi
+    fi
+fi
+
+# --nested: run inside an existing desktop (river opens a window there) with a
+# private session bus, so the nested shell doesn't fight the host's
+# notification daemon or settings. Remaining arguments go to river.
+if [ "$1" = "--nested" ]; then
+    shift
+    unset DBUS_SESSION_BUS_ADDRESS
+    # The host desktop owns the user's systemd session targets.
+    export PANGOLIN_NESTED=1
+fi
+
+# The wallpaper river shows from its first frame (kept up to date by the
+# shell), so the session doesn't start on a black screen.
+export PANGOLIN_SPLASH="${XDG_CACHE_HOME:-$HOME/.cache}/pangolin/splash.bgra"
+# Started by Pangolin's login screen, which hands over on the user's
+# wallpaper: the desktop starts on that same wallpaper right away. From
+# elsewhere (another display manager, a TTY) it fades in from black.
+if [ "${PANGOLIN_FROM_GREETER:-}" = 1 ]; then
+    export PANGOLIN_SPLASH_FADE="${PANGOLIN_SPLASH_FADE:-0}"
+else
+    export PANGOLIN_SPLASH_FADE="${PANGOLIN_SPLASH_FADE:-450}"
+fi
+unset PANGOLIN_FROM_GREETER
+
+# Settings Pangolin changes for other apps (dark style, GTK and cursor
+# themes, title bar buttons) go to a dconf database of its own, layered over
+# the user's: GNOME sessions keep theirs, unset keys still come from them.
+if [ -z "$PANGOLIN_NESTED" ] && [ -n "$XDG_RUNTIME_DIR" ] && [ -d "$XDG_RUNTIME_DIR" ]; then
+    profile="$XDG_RUNTIME_DIR/pangolin-dconf-profile"
+    {
+        echo "user-db:pangolin"
+        if [ -f /etc/dconf/profile/user ]; then
+            grep -v '^user-db:pangolin$' /etc/dconf/profile/user
+        else
+            echo "user-db:user"
+        fi
+    } > "$profile" 2>/dev/null && export DCONF_PROFILE="$profile"
+fi
+
+# Pointer theme for programs that read it from the environment (X11 apps,
+# some toolkits); the shell keeps the rest in sync with Settings.
+export XCURSOR_THEME="${XCURSOR_THEME:-Pangolin}"
+export XCURSOR_SIZE="${XCURSOR_SIZE:-24}"
+
+export XDG_CURRENT_DESKTOP=Pangolin
+export XDG_SESSION_DESKTOP=pangolin
+export XDG_SESSION_TYPE=wayland
+export DESKTOP_SESSION=pangolin
+
+# Toolkits: prefer native Wayland, keep X11 (Xwayland) as a fallback.
+export GDK_BACKEND=wayland,x11
+export QT_QPA_PLATFORM="wayland;xcb"
+export SDL_VIDEODRIVER=wayland,x11
+export CLUTTER_BACKEND=wayland
+export MOZ_ENABLE_WAYLAND=1
+export ELECTRON_OZONE_PLATFORM_HINT=auto
+export _JAVA_AWT_WM_NONREPARENTING=1
+
+# Desktop entries, icons and D-Bus services from the install prefix and from
+# flatpak, so the launcher and the App Store see the same apps.
+data_dirs="${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+for dir in "$PREFIX/share" "${XDG_DATA_HOME:-$HOME/.local/share}/flatpak/exports/share" /var/lib/flatpak/exports/share; do
+    case ":$data_dirs:" in
+        *":$dir:"*) ;;
+        *) data_dirs="$dir:$data_dirs" ;;
+    esac
+done
+export XDG_DATA_DIRS="$data_dirs"
+case ":$PATH:" in
+    *":$PREFIX/bin:"*) ;;
+    *) export PATH="$PREFIX/bin:$PATH" ;;
+esac
+
+# Every session component talks over the session bus. Started after the
+# environment is set up so D-Bus-activated services inherit it.
+if [ -z "$DBUS_SESSION_BUS_ADDRESS" ]; then
+    exec dbus-run-session -- "$0" "$@"
+fi
+
+# X11 apps run through Xwayland, which river starts itself (and sets DISPLAY
+# for). wlroots refuses to create its sockets when /tmp/.X11-unix isn't owned
+# by root or us, as in rootless containers, and river treats that as fatal:
+# run without X11 support then instead of failing to start.
+xwayland_usable() {
+    command -v Xwayland >/dev/null 2>&1 || return 1
+    [ -d /tmp/.X11-unix ] || return 0
+    owner=$(stat -c %u /tmp/.X11-unix 2>/dev/null) || return 1
+    [ "$owner" = 0 ] || [ "$owner" = "$(id -u)" ]
+}
+case " $* " in
+    *" -no-xwayland "*) ;;
+    *)
+        if ! xwayland_usable; then
+            echo "pangolin-session: Xwayland unavailable, X11 apps won't run" >&2
+            set -- -no-xwayland "$@"
+        fi
+        ;;
+esac
+# Never let X11 fallbacks reach a host display when nested.
+unset DISPLAY
+
+# `exec` keeps this PID for river, which lets the init script end the session
+# if the shell can't be started at all.
+export PANGOLIN_SESSION_PID=$$
+# Prefer the river installed with Pangolin (in libexec, apart from a river
+# the distribution may have) over whatever comes first on
+# PATH (e.g. an older ~/.local/bin/river).
+RIVER=river
+[ -x "$PREFIX/bin/river" ] && RIVER="$PREFIX/bin/river"
+[ -x "$PREFIX/libexec/pangolin/river" ] && RIVER="$PREFIX/libexec/pangolin/river"
+export PANGOLIN_RIVER="$RIVER"
+# river must not outlive the session: when whatever started it (dbus-run-session,
+# a display manager) goes away without stopping it, it gets SIGTERM.
+if command -v setpriv >/dev/null 2>&1; then
+    exec setpriv --pdeathsig TERM -- "$RIVER" -c "$PREFIX/libexec/pangolin/pangolin-river-init" "$@"
+fi
+exec "$RIVER" -c "$PREFIX/libexec/pangolin/pangolin-river-init" "$@"

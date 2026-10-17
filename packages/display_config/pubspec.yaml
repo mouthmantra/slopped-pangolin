@@ -1,0 +1,14 @@
+name: display_config
+description: >-
+  Saved display configurations (resolution, refresh rate, scale, layout) for
+  Pangolin sessions, keyed by the set of connected monitors, and the
+  wlr-output-management client that reads and applies them.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  wayland:
+    path: ../wayland

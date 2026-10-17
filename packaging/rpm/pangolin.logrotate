@@ -1,0 +1,10 @@
+# Pangolin's session and login screen logs.
+/var/log/Pangolin.log /var/log/PangolinGreeter.log {
+    weekly
+    rotate 2
+    maxsize 8M
+    missingok
+    notifempty
+    compress
+    copytruncate
+}

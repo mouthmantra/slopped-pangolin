@@ -1,0 +1,2 @@
+d /var/lib/pangolin-greeter 0700 pangolin-greeter pangolin-greeter -
+f /var/log/PangolinGreeter.log 0644 pangolin-greeter pangolin-greeter -

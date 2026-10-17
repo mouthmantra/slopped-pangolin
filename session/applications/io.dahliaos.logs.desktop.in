@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Logs
+Comment=View system logs
+Exec=@BINDIR@/dahlia_apps logs
+Icon=io.dahliaos.logs
+Categories=System;Monitor;
+Keywords=journal;log;dmesg;errors;
+StartupWMClass=io.dahliaos.logs
+StartupNotify=false
+Terminal=false

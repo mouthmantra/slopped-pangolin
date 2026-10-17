@@ -1,0 +1,12 @@
+# Copyright 2026 The dahliaOS Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Active while a Pangolin session runs: it brings up graphical-session.target,
+# which the desktop portals (screen sharing and recording, file choosers,
+# settings) and other session services wait for.
+
+[Unit]
+Description=Pangolin desktop session
+BindsTo=graphical-session.target
+Wants=graphical-session-pre.target
+After=graphical-session-pre.target

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Gallery
+Comment=View your pictures and screenshots
+Exec=@BINDIR@/dahlia_apps gallery %F
+Icon=io.dahliaos.gallery
+Categories=Graphics;Viewer;Photography;
+Keywords=photos;images;pictures;screenshots;
+StartupWMClass=io.dahliaos.gallery
+StartupNotify=false
+Terminal=false
+MimeType=image/png;image/jpeg;image/gif;image/webp;image/bmp;

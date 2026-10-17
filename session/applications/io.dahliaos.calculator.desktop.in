@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Calculator
+Comment=Perform arithmetic and scientific calculations
+Exec=@BINDIR@/dahlia_apps calculator
+Icon=io.dahliaos.calculator
+Categories=Utility;Calculator;
+Keywords=math;arithmetic;calculation;
+StartupWMClass=io.dahliaos.calculator
+StartupNotify=false
+Terminal=false

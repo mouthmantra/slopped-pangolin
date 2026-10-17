@@ -1,0 +1,5 @@
+# The user Pangolin's login screen runs as (like GDM's gdm).
+u pangolin-greeter - "Pangolin login screen" /var/lib/pangolin-greeter /usr/sbin/nologin
+m pangolin-greeter video
+m pangolin-greeter render
+m pangolin-greeter input

@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Pangolin
+Comment=The dahliaOS desktop, running on river
+Exec=@PREFIX@/bin/pangolin-session
+TryExec=@PREFIX@/bin/pangolin-session
+DesktopNames=Pangolin

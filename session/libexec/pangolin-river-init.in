@@ -1,0 +1,140 @@
+#!/bin/sh
+# Copyright 2026 The dahliaOS Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# river init for Pangolin sessions. river runs this once WAYLAND_DISPLAY is
+# ready; it starts the session services and keeps the shell running.
+
+PREFIX="@PREFIX@"
+LIBEXEC="$PREFIX/libexec/pangolin"
+
+# D-Bus-activated services (portals, dsettings, notification clients) need the
+# Wayland environment too.
+SESSION_VARS="WAYLAND_DISPLAY DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE
+    XDG_SESSION_DESKTOP XDG_DATA_DIRS XDG_CONFIG_DIRS GDK_BACKEND
+    QT_QPA_PLATFORM MOZ_ENABLE_WAYLAND ELECTRON_OZONE_PLATFORM_HINT
+    DCONF_PROFILE XCURSOR_THEME XCURSOR_SIZE PANGOLIN_SESSION_PID"
+# systemd's user manager too, where there is one (not with OpenRC, e.g. on
+# Alpine, where --systemd would fail the whole update).
+if command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
+    HAVE_SYSTEMD_USER=1
+else
+    HAVE_SYSTEMD_USER=0
+fi
+if command -v dbus-update-activation-environment >/dev/null 2>&1; then
+    if [ "$HAVE_SYSTEMD_USER" = 1 ]; then
+        # shellcheck disable=SC2086
+        dbus-update-activation-environment --systemd $SESSION_VARS 2>/dev/null
+    else
+        # shellcheck disable=SC2086
+        dbus-update-activation-environment $SESSION_VARS 2>/dev/null
+    fi
+fi
+
+# With systemd, activate graphical-session.target (through
+# pangolin-session.target): the desktop portals, which screen sharing and
+# recording (OBS, browsers), file choosers and dark mode go through, refuse
+# to start without it.
+systemd_session=0
+if [ -z "$PANGOLIN_NESTED" ] && [ "$HAVE_SYSTEMD_USER" = 1 ]; then
+    systemd_session=1
+    # Left over by a session that didn't end cleanly: restart the services
+    # bound to it with this session's environment.
+    systemctl --user stop pangolin-session.target 2>/dev/null
+    # shellcheck disable=SC2086
+    systemctl --user import-environment $SESSION_VARS 2>/dev/null
+    systemctl --user start pangolin-session.target 2>/dev/null ||
+        echo "pangolin-river-init: couldn't start pangolin-session.target" >&2
+    # The portal frontend isn't bound to the session: one left over from an
+    # earlier session (or activated before the import above) keeps that
+    # environment, skips pangolin-portals.conf and offers no screen capture.
+    systemctl --user try-restart xdg-desktop-portal.service \
+        xdg-desktop-portal-wlr.service 2>/dev/null
+fi
+
+# The display configuration saved in Settings, before anything is drawn (and
+# again whenever monitors are connected or disconnected).
+"$LIBEXEC/pangolin-displays"
+"$LIBEXEC/pangolin-displays" --watch &
+
+# Settings daemon shared by the shell and the dahliaOS apps. It is also
+# D-Bus-activatable; starting it here and waiting for it to claim its name
+# keeps the shell from falling back to local settings on a slow start.
+"$LIBEXEC/dsettingsd" &
+if command -v dbus-send >/dev/null 2>&1; then
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        dbus-send --session --print-reply --dest=org.freedesktop.DBus \
+            /org/freedesktop/DBus org.freedesktop.DBus.NameHasOwner \
+            string:io.dahlia.DSettings 2>/dev/null | grep -q "boolean true" && break
+        sleep 0.2
+    done
+fi
+
+# XDG autostart (user entries override system ones with the same name).
+autostart() {
+    seen=" "
+    for dir in "${XDG_CONFIG_HOME:-$HOME/.config}/autostart" /etc/xdg/autostart; do
+        for entry in "$dir"/*.desktop; do
+            [ -f "$entry" ] || continue
+            name=${entry##*/}
+            case "$seen" in *" $name "*) continue ;; esac
+            seen="$seen$name "
+            grep -qiE '^Hidden=true' "$entry" && continue
+            grep -qiE '^X-GNOME-Autostart-enabled=false' "$entry" && continue
+            if grep -qE '^OnlyShowIn=' "$entry" &&
+                ! grep -qE '^OnlyShowIn=(.*;)?Pangolin(;|$)' "$entry"; then
+                continue
+            fi
+            grep -qE '^NotShowIn=(.*;)?Pangolin(;|$)' "$entry" && continue
+            tryexec=$(sed -n 's/^TryExec=//p' "$entry" | head -n 1)
+            if [ -n "$tryexec" ] && ! command -v "$tryexec" >/dev/null 2>&1; then
+                continue
+            fi
+            cmd=$(sed -n 's/^Exec=//p' "$entry" | head -n 1 | sed 's/ *%[a-zA-Z]//g')
+            [ -n "$cmd" ] && sh -c "$cmd" >/dev/null 2>&1 &
+        done
+    done
+}
+autostart
+
+# Pangolin is river's window manager: keep it alive. A clean exit (sign out)
+# ends the loop; repeated crashes in quick succession end the session instead
+# of leaving the user stuck without a window manager.
+crashes=0
+while :; do
+    started=$(date +%s)
+    "$PREFIX/bin/pangolin"
+    status=$?
+    [ "$status" -eq 0 ] && break
+    # Ctrl+Shift+Alt+R: restart right away, it isn't a crash.
+    if [ "$status" -eq 75 ]; then
+        echo "pangolin-river-init: restarting the shell" >&2
+        export PANGOLIN_SHELL_RESTART=1
+        continue
+    fi
+    # The compositor itself went away (or was stopped): nothing to restart in.
+    [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/${WAYLAND_DISPLAY:-wayland-0}" ] || break
+    if [ $(( $(date +%s) - started )) -gt 30 ]; then
+        crashes=0
+    fi
+    crashes=$((crashes + 1))
+    echo "pangolin-river-init: pangolin exited with status $status (crash $crashes)" >&2
+    export PANGOLIN_SHELL_RESTART=1
+    if [ "$crashes" -ge 5 ]; then
+        echo "pangolin-river-init: giving up, ending the session" >&2
+        break
+    fi
+    sleep 1
+done
+
+if [ "$systemd_session" = 1 ]; then
+    systemctl --user stop pangolin-session.target 2>/dev/null
+    systemctl --user unset-environment WAYLAND_DISPLAY DISPLAY \
+        XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP PANGOLIN_SESSION_PID \
+        DCONF_PROFILE XCURSOR_THEME XCURSOR_SIZE 2>/dev/null
+fi
+
+# Signed out (river normally exits on its own) or gave up: make sure the
+# compositor doesn't outlive its window manager.
+[ -n "$PANGOLIN_SESSION_PID" ] && kill -TERM "$PANGOLIN_SESSION_PID" 2>/dev/null
+exit 0

@@ -1,0 +1,33 @@
+#!/bin/sh
+# Copyright 2026 The dahliaOS Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# river init of the login screen: sets up the displays as the desktop has
+# them, runs Pangolin in greeter mode, and ends the compositor when it exits
+# (greetd then starts the chosen session).
+
+PREFIX="@PREFIX@"
+LIBEXEC="$PREFIX/libexec/pangolin"
+
+# The display configuration of the last user's desktop (or of any user's,
+# for these monitors), else GNOME's /etc/xdg/monitors.xml, before anything
+# is drawn; and again whenever monitors are connected or disconnected.
+"$LIBEXEC/pangolin-displays" --greeter
+"$LIBEXEC/pangolin-displays" --greeter --watch &
+displays=$!
+
+# The settings daemon, up before the login screen asks it for its settings.
+"$LIBEXEC/dsettingsd" &
+if command -v dbus-send >/dev/null 2>&1; then
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        dbus-send --session --print-reply --dest=org.freedesktop.DBus \
+            /org/freedesktop/DBus org.freedesktop.DBus.NameHasOwner \
+            string:io.dahlia.DSettings 2>/dev/null | grep -q "boolean true" && break
+        sleep 0.2
+    done
+fi
+
+"$PREFIX/bin/pangolin"
+kill "$displays" 2>/dev/null
+[ -n "$PANGOLIN_SESSION_PID" ] && kill -TERM "$PANGOLIN_SESSION_PID" 2>/dev/null
+exit 0

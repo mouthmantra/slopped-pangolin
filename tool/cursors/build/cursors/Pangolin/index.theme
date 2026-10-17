@@ -1,0 +1,4 @@
+[Icon Theme]
+Name=Pangolin
+Comment=Pangolin's cursors, in the style of Chromium OS, with Adwaita's hands
+Inherits=Adwaita

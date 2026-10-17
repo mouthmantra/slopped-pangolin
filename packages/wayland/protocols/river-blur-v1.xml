@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="river_blur_v1">
+  <copyright>
+    SPDX-FileCopyrightText: © 2026 The dahliaOS Authors
+    SPDX-License-Identifier: MIT
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to
+    deal in the Software without restriction, including without limitation the
+    rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+    sell copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+    IN THE SOFTWARE.
+  </copyright>
+
+  <description summary="blur what is behind parts of a surface">
+    This protocol lets clients ask the compositor to draw a blurred copy of
+    whatever is below parts of their surfaces (frosted glass), for translucent
+    panels, menus and title bars.
+
+    Note: this is a downstream extension maintained with the Pangolin desktop,
+    it is not part of upstream river.
+  </description>
+
+  <interface name="river_blur_manager_v1" version="3">
+    <enum name="error">
+      <entry name="blur_exists" value="0"
+        summary="the surface already has a river_blur_v1 object"/>
+    </enum>
+
+    <request name="destroy" type="destructor">
+      <description summary="destroy the manager">
+        Existing river_blur_v1 objects are not affected.
+      </description>
+    </request>
+
+    <request name="get_blur">
+      <description summary="blur behind a surface">
+        Create the blur object of a surface. A surface has at most one.
+      </description>
+      <arg name="id" type="new_id" interface="river_blur_v1"/>
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </request>
+  </interface>
+
+  <interface name="river_blur_v1" version="3">
+    <request name="destroy" type="destructor">
+      <description summary="stop blurring">
+        The blur goes away with the next commit of the surface.
+      </description>
+    </request>
+
+    <request name="set_regions">
+      <description summary="set the blurred regions">
+        Set the parts of the surface behind which the compositor blurs, as a
+        list of rounded rectangles in surface-local coordinates. Each entry is
+        nine 32 bit integers: x, y, width, height, the radii of the top left,
+        top right, bottom right and bottom left corners and the opacity of the
+        blur from 0 to 10000. An empty array removes the blur.
+
+        Double-buffered state, applied on the next wl_surface.commit.
+      </description>
+      <arg name="regions" type="array"/>
+    </request>
+
+    <!-- Version 2 -->
+
+    <request name="reveal" since="2">
+      <description summary="animate a part of the surface into view">
+        Animate the given part of the surface (e.g. a popup) from the given
+        state to where it is, at the refresh rate of the outputs. Until the
+        animation ends the compositor hides that part in place and draws it
+        transformed instead, following what the surface commits; blurred
+        regions inside the part move along.
+
+        The start state is the part scaled by scale/10000 around its center,
+        moved by dx, dy, with opacity opacity/10000. The animation follows
+        the CSS timing function cubic-bezier(x1, y1, x2, y2), each value
+        divided by 10000.
+
+        Takes effect immediately, not on commit, so that the content drawn
+        by the next commit is already animated. Starting an animation ends
+        those it overlaps.
+      </description>
+      <arg name="x" type="int"/>
+      <arg name="y" type="int"/>
+      <arg name="width" type="int"/>
+      <arg name="height" type="int"/>
+      <arg name="dx" type="int"/>
+      <arg name="dy" type="int"/>
+      <arg name="scale" type="int"/>
+      <arg name="opacity" type="int"/>
+      <arg name="duration" type="uint" summary="milliseconds"/>
+      <arg name="x1" type="int"/>
+      <arg name="y1" type="int"/>
+      <arg name="x2" type="int"/>
+      <arg name="y2" type="int"/>
+    </request>
+
+    <request name="conceal" since="2">
+      <description summary="animate a part of the surface out of view">
+        Animate the given part of the surface, as currently shown, to the
+        given end state (same arguments as reveal), at the refresh rate of
+        the outputs. The compositor keeps a copy of the part and its blurred
+        regions as they are now and draws it above the surface, which goes
+        on showing what it commits (typically without the part).
+
+        Takes effect immediately, not on commit. Starting an animation ends
+        those it overlaps.
+      </description>
+      <arg name="x" type="int"/>
+      <arg name="y" type="int"/>
+      <arg name="width" type="int"/>
+      <arg name="height" type="int"/>
+      <arg name="dx" type="int"/>
+      <arg name="dy" type="int"/>
+      <arg name="scale" type="int"/>
+      <arg name="opacity" type="int"/>
+      <arg name="duration" type="uint" summary="milliseconds"/>
+      <arg name="x1" type="int"/>
+      <arg name="y1" type="int"/>
+      <arg name="x2" type="int"/>
+      <arg name="y2" type="int"/>
+    </request>
+
+    <!-- Version 3 -->
+
+    <request name="set_cutouts" since="3">
+      <description summary="round the corners of the window above">
+        For a surface drawn right below a window (a decoration below it,
+        such as a shadow): makes the window look rounded by drawing, above
+        the window, what is behind it (this surface included) where the
+        window's corners are cut off.
+
+        A list of rounded rectangles in surface-local coordinates, the
+        window's shape. Each entry is six 32 bit integers: x, y, width,
+        height, the radius of the corners, and which corners are rounded
+        (bits: 1 top left, 2 top right, 4 bottom right, 8 bottom left). An
+        empty array removes the cutouts.
+
+        Double-buffered state, applied on the next wl_surface.commit.
+      </description>
+      <arg name="cutouts" type="array"/>
+    </request>
+  </interface>
+</protocol>

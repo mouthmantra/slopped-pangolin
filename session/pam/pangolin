@@ -1,0 +1,6 @@
+# PAM configuration of Pangolin's lock screen: checks the password.
+# tool/install.sh writes /etc/pam.d/pangolin from the password-only stack of
+# the distribution (password-auth, common-auth, system-auth or login); this
+# file is the fallback for packagers.
+auth     include  login
+account  include  login

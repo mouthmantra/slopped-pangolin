@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Settings
+Comment=Configure your device and the desktop
+Exec=@BINDIR@/dahlia_apps settings
+Icon=io.dahliaos.settings
+Categories=Settings;DesktopSettings;
+Keywords=preferences;configuration;wallpaper;display;network;wifi;bluetooth;keyboard;
+StartupWMClass=io.dahliaos.settings
+StartupNotify=false
+Terminal=false

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Terminal
+Comment=Use the command line
+Exec=@BINDIR@/dahlia_apps terminal
+Icon=io.dahliaos.terminal
+Categories=System;TerminalEmulator;
+Keywords=shell;prompt;command;commandline;cmd;
+StartupWMClass=io.dahliaos.terminal
+StartupNotify=false
+Terminal=false

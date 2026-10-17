@@ -1,0 +1,4 @@
+# Where users share their wallpaper and display setup with the login
+# screen: anyone may add files, nobody may touch another user's.
+d /var/lib/pangolin 0755 root root -
+d /var/lib/pangolin/users 1777 root root -

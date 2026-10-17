@@ -1,0 +1,30 @@
+#!/bin/sh
+# Copyright 2026 The dahliaOS Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Reads the system logs for the Logs app, as root through pkexec. Fixed,
+# read-only commands, so polkit may remember the authorization for a few
+# minutes (io.dahliaos.logs.policy): never pass arguments through.
+#
+# usage: pangolin-read-logs journal|journal-follow|kernel
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+case "$1" in
+    journal)
+        exec journalctl -o json --no-pager -n 3000
+        ;;
+    journal-follow)
+        # Ends when the app closes our input: it can't signal root processes.
+        journalctl -o json -f -n 0 &
+        reader=$!
+        cat > /dev/null
+        kill "$reader" 2>/dev/null
+        ;;
+    kernel)
+        # busybox's dmesg doesn't know util-linux's options.
+        dmesg --time-format=iso --decode 2>/dev/null || exec dmesg
+        ;;
+    *)
+        echo "usage: pangolin-read-logs journal|journal-follow|kernel" >&2
+        exit 2
+        ;;
+esac

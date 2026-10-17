@@ -1,0 +1,5 @@
+# PAM configuration of Pangolin's lock screen: checks the password with
+# Fedora's password-only stack (as GDM's gdm-password does), not with the
+# fingerprint reader.
+auth     include  password-auth
+account  include  password-auth

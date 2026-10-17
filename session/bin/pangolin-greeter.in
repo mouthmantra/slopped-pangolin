@@ -1,0 +1,87 @@
+#!/bin/sh
+# Copyright 2026 The dahliaOS Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Pangolin's login screen for greetd: river with Pangolin in greeter mode.
+# greetd starts it as Pangolin's greeter user (see tool/install.sh --greeter):
+#
+#   [default_session]
+#   command = "@BINDIR@/pangolin-greeter"
+#   user = "pangolin-greeter"
+
+PREFIX="@PREFIX@"
+
+# Nothing goes to the console: everything logs to
+# /var/log/PangolinGreeter.log (created by tool/install.sh --greeter), or to
+# the greeter's state directory. PANGOLIN_LOG=FILE picks another file.
+if [ -z "$PANGOLIN_LOGGING" ]; then
+    export PANGOLIN_LOGGING=1
+    log=${PANGOLIN_LOG:-/var/log/PangolinGreeter.log}
+    { : >> "$log"; } 2>/dev/null || log=/var/lib/pangolin-greeter/PangolinGreeter.log
+    # greetd runs the greeter on its VT: clear it and hide its cursor, so
+    # that the moments it shows (before the login screen draws, and between
+    # the login screen and the desktop) are plain black.
+    case "$(readlink /proc/$$/fd/1 2>/dev/null)" in
+        /dev/tty[0-9]*) printf '\033[2J\033[H\033[?25l' ;;
+    esac
+    if [ -f "$log" ] && [ "$(wc -c < "$log" 2>/dev/null || echo 0)" -gt 8388608 ]; then
+        : > "$log"
+    fi
+    if { : >> "$log"; } 2>/dev/null; then
+        exec >> "$log" 2>&1 < /dev/null
+        echo "=== Pangolin login screen, $(date '+%Y-%m-%d %H:%M:%S') ==="
+    else
+        exec > /dev/null 2>&1 < /dev/null
+    fi
+fi
+
+# GTK talks to the session bus: give the greeter one of its own, where
+# nothing (desktop portals, accessibility) gets activated.
+if [ -z "$DBUS_SESSION_BUS_ADDRESS" ] && command -v dbus-run-session >/dev/null 2>&1; then
+    bus_config="$PREFIX/share/pangolin/pangolin-greeter-bus.conf"
+    if [ -f "$bus_config" ]; then
+        exec dbus-run-session --config-file="$bus_config" -- "$0" "$@"
+    fi
+    exec dbus-run-session -- "$0" "$@"
+fi
+export NO_AT_BRIDGE=1
+
+export PANGOLIN_GREETER=1
+# Wayland only: no X server, no X11 fallback for anything started here.
+export XDG_SESSION_TYPE=wayland
+export XDG_CURRENT_DESKTOP=Pangolin
+export GDK_BACKEND=wayland
+unset DISPLAY
+
+# Pangolin's pointers, as on the desktop (GNOME's where they're missing).
+unset XCURSOR_THEME
+for theme in Pangolin Adwaita; do
+    for dir in "$PREFIX/share/icons" /usr/local/share/icons /usr/share/icons; do
+        if [ -d "$dir/$theme/cursors" ]; then
+            export XCURSOR_THEME=$theme
+            break 2
+        fi
+    done
+done
+export XCURSOR_THEME="${XCURSOR_THEME:-default}"
+export XCURSOR_SIZE=24
+export XCURSOR_PATH="$PREFIX/share/icons:/usr/local/share/icons:/usr/share/icons:/usr/share/pixmaps"
+
+# The greeter's own state: last user and session, the cached splash image.
+STATE=/var/lib/pangolin-greeter
+if [ -d "$STATE" ] && [ -w "$STATE" ]; then
+    export HOME="$STATE"
+    export XDG_STATE_HOME="$STATE"
+    export XDG_CACHE_HOME="$STATE/cache"
+    export XDG_CONFIG_HOME="$STATE/config"
+    export PANGOLIN_SPLASH="$STATE/cache/pangolin/splash.bgra"
+fi
+# Comes in from black like the desktop does.
+export PANGOLIN_SPLASH_FADE=450
+
+RIVER=river
+[ -x "$PREFIX/bin/river" ] && RIVER="$PREFIX/bin/river"
+[ -x "$PREFIX/libexec/pangolin/river" ] && RIVER="$PREFIX/libexec/pangolin/river"
+export PANGOLIN_RIVER="$RIVER"
+export PANGOLIN_SESSION_PID=$$
+exec "$RIVER" -c "$PREFIX/libexec/pangolin/pangolin-greeter-init" -no-xwayland "$@"

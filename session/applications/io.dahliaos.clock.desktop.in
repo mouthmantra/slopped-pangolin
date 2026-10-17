@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Clock
+Comment=World clocks, alarms, timer and stopwatch
+Exec=@BINDIR@/dahlia_apps clock
+Icon=io.dahliaos.clock
+Categories=Utility;Clock;
+Keywords=time;alarm;timer;stopwatch;world;
+StartupWMClass=io.dahliaos.clock
+StartupNotify=false
+Terminal=false

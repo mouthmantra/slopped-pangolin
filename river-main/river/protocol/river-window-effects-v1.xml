@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="river_window_effects_v1">
+  <copyright>
+    SPDX-FileCopyrightText: © 2026 The dahliaOS Authors
+    SPDX-License-Identifier: MIT
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to
+    deal in the Software without restriction, including without limitation the
+    rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+    sell copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+    IN THE SOFTWARE.
+  </copyright>
+
+  <description summary="animate mirrors of windows">
+    This protocol allows the river-window-management-v1 window manager to
+    draw scaled and translucent mirrors of windows, for window animations and
+    overviews.
+
+    A mirror shows the buffers of a window without copying them. The
+    compositor animates mirrors itself, at the refresh rate of the outputs,
+    so animations stay smooth regardless of how fast the window manager
+    responds.
+
+    Mirrors are drawn above all windows and below the top layer of the layer
+    shell, in the order they were created, and never receive input.
+
+    Note: this is a downstream extension maintained with the Pangolin desktop,
+    it is not part of upstream river.
+
+    The key words "must", "must not", "required", "shall", "shall not",
+    "should", "should not", "recommended", "may", and "optional" in this
+    document are to be interpreted as described in IETF RFC 2119.
+  </description>
+
+  <interface name="river_window_effects_v1" version="1">
+    <description summary="window effects global interface">
+      This global interface should only be advertised to the client if the
+      river_window_manager_v1 global is also advertised.
+    </description>
+
+    <request name="destroy" type="destructor">
+      <description summary="destroy the river_window_effects_v1 object">
+        This request indicates that the client will no longer use the
+        river_window_effects_v1 object. Existing mirrors are not affected.
+      </description>
+    </request>
+
+    <request name="get_mirror">
+      <description summary="mirror a window">
+        Create a mirror of the window. The mirror follows the content of the
+        window until the window is destroyed or the mirror is frozen. While a
+        mirror is visible, the compositor keeps sending frame callbacks to the
+        window as if it was visible, even if it is hidden.
+
+        The mirror starts out at the current position and size of the window,
+        fully transparent.
+
+        If the window is inert the mirror is empty.
+      </description>
+      <arg name="id" type="new_id" interface="river_window_mirror_v1"/>
+      <arg name="window" type="object" interface="river_window_v1"/>
+    </request>
+
+    <request name="set_closing_mirrors">
+      <description summary="get a mirror of each window that closes">
+        If enabled is non-zero, the compositor sends a closing_mirror event
+        for every window of the window manager that is unmapped, so that the
+        window manager can animate it away. Disabled by default.
+      </description>
+      <arg name="enabled" type="uint"/>
+    </request>
+
+    <event name="closing_mirror">
+      <description summary="a window is closing">
+        The window is being unmapped. The new mirror shows its last content,
+        it starts out at the position and size the window was rendered at,
+        fully transparent.
+
+        The event is sent before the river_window_v1.closed event, while the
+        window is still rendered: making the mirror visible before finishing
+        the manage sequence in which the window is closed avoids a gap.
+      </description>
+      <arg name="id" type="new_id" interface="river_window_mirror_v1"/>
+      <arg name="window" type="object" interface="river_window_v1"/>
+      <arg name="x" type="int"/>
+      <arg name="y" type="int"/>
+      <arg name="width" type="int"/>
+      <arg name="height" type="int"/>
+    </event>
+  </interface>
+
+  <interface name="river_window_mirror_v1" version="1">
+    <description summary="a mirror of a window">
+      The geometry of a mirror maps the geometry of the window (as reported by
+      river_window_v1.dimensions) to a rectangle in the compositor's logical
+      coordinate space. Parts of the window outside its geometry, such as
+      client side shadows, are scaled the same way.
+    </description>
+
+    <request name="destroy" type="destructor">
+      <description summary="destroy the mirror">
+        The mirror stops being drawn immediately.
+      </description>
+    </request>
+
+    <request name="freeze">
+      <description summary="stop following the window">
+        Keep the current content of the window and stop following it.
+      </description>
+    </request>
+
+    <request name="place_top">
+      <description summary="draw above all other mirrors"/>
+    </request>
+
+    <request name="animate">
+      <description summary="animate the mirror to a new state">
+        Animate from the current state of the mirror to the given position,
+        size and opacity over duration milliseconds, following the CSS style
+        cubic bezier timing curve (0,0) (x1,y1) (x2,y2) (1,1). A duration of
+        0 applies the new state immediately.
+
+        A new animation replaces the current one, starting from the state the
+        mirror is drawn at.
+      </description>
+      <arg name="x" type="int"/>
+      <arg name="y" type="int"/>
+      <arg name="width" type="int"/>
+      <arg name="height" type="int"/>
+      <arg name="opacity" type="fixed" summary="0 to 1"/>
+      <arg name="duration" type="uint" summary="milliseconds"/>
+      <arg name="x1" type="fixed"/>
+      <arg name="y1" type="fixed"/>
+      <arg name="x2" type="fixed"/>
+      <arg name="y2" type="fixed"/>
+    </request>
+
+    <event name="done">
+      <description summary="the animation completed">
+        Sent when an animation with a non-zero duration completes without
+        being replaced by another one.
+      </description>
+    </event>
+  </interface>
+</protocol>

@@ -1,0 +1,13 @@
+name: pangolin_settings
+description: >-
+  Session-wide settings shared by Pangolin and the dahliaOS applications,
+  on top of the ones defined by dahlia_shared.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  dsettings:
+    git: https://github.com/dahliaos/dsettings

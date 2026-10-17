@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Text Editor
+Comment=Edit text files
+Exec=@BINDIR@/dahlia_apps text_editor %F
+Icon=io.dahliaos.text_editor
+Categories=Utility;TextEditor;
+Keywords=notes;text;editor;code;
+StartupWMClass=io.dahliaos.text_editor
+StartupNotify=false
+Terminal=false
+MimeType=text/plain;text/markdown;application/json;application/x-shellscript;

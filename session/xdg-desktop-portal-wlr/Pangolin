@@ -1,0 +1,7 @@
+# xdg-desktop-portal-wlr in Pangolin sessions: share the screen without
+# asking an external chooser program (the whole output is captured; with
+# several monitors, set output_name to pick one).
+
+[screencast]
+chooser_type=none
+max_fps=60

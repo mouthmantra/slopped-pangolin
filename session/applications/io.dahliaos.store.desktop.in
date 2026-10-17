@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=App Store
+Comment=Find and install applications from Flathub
+Exec=@BINDIR@/dahlia_apps store
+Icon=io.dahliaos.store
+Categories=System;PackageManager;
+Keywords=install;software;flatpak;flathub;apps;
+StartupWMClass=io.dahliaos.store
+StartupNotify=false
+Terminal=false
