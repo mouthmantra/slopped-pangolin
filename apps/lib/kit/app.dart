@@ -17,6 +17,7 @@ limitations under the License.
 import 'dart:async';
 import 'dart:developer' show Timeline;
 import 'dart:io';
+import 'dart:ui' show FramePhase;
 
 import 'package:dahlia_apps/kit/preferences.dart';
 import 'package:dahlia_shared/dahlia_shared.dart';
@@ -93,6 +94,7 @@ Future<void> runDahliaApp(DahliaAppSpec spec, List<String> args) async {
   ).register();
   await ServiceManager.startServices();
   await _setUpBlur();
+  _setUpBorder();
 
   if (Platform.environment["PANGOLIN_PROFILE"] != null) {
     final int appStart = Timeline.now ~/ 1000;
@@ -110,7 +112,8 @@ Future<void> runDahliaApp(DahliaAppSpec spec, List<String> args) async {
             "[INFO] FrameTiming: ${spec.name} frame: build "
             "${t.buildDuration.inMicroseconds / 1000}ms, raster "
             "${t.rasterDuration.inMicroseconds / 1000}ms, total "
-            "${t.totalSpan.inMicroseconds / 1000}ms",
+            "${t.totalSpan.inMicroseconds / 1000}ms, at "
+            "${t.timestampInMicroseconds(FramePhase.vsyncStart) ~/ 1000}ms",
           );
         }
       });
@@ -149,6 +152,30 @@ Future<void> _setUpBlur() async {
   CustomizationService.current.addListener(apply);
   PreferencesService.current.addListener(apply);
   _windowActive.addListener(apply);
+  apply();
+}
+
+/// The hairline GTK draws around the window (Settings > Appearance > Window
+/// borders): light in dark mode, dark in light mode, as macOS draws it.
+void _setUpBorder() {
+  const MethodChannel channel = MethodChannel("io.dahliaos.apps/window");
+  String? sent;
+  void apply() {
+    final bool on =
+        PreferencesService.current.get<bool>(SessionSetting.windowBorders.key) ??
+            SessionSetting.windowBorders.defaultValue;
+    final String ring = !on
+        ? ""
+        : CustomizationService.current.darkMode
+            ? "rgba(255, 255, 255, 0.16)"
+            : "rgba(0, 0, 0, 0.12)";
+    if (ring == sent) return;
+    sent = ring;
+    unawaited(channel.invokeMethod<void>("setBorder", ring).catchError((Object _) {}));
+  }
+
+  CustomizationService.current.addListener(apply);
+  PreferencesService.current.addListener(apply);
   apply();
 }
 

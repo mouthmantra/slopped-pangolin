@@ -808,6 +808,12 @@ pub fn manageFinish(window: *Window) bool {
             if (seat.focused == .window and seat.focused.window == window) {
                 break :blk true;
             }
+            // The shell holds the keyboard for a moment (Seat.window_before_layer).
+            if (seat.focused == .layer_surface) {
+                if (seat.window_before_layer) |ref| {
+                    if (ref.get() == window) break :blk true;
+                }
+            }
         }
         break :blk false;
     };

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pangolin/components/shell/shell_popups.dart';
+import 'package:pangolin/services/shell_area.dart';
 import 'package:pangolin/widgets/input_region.dart';
 import 'package:uuid/uuid.dart';
 import 'package:zenit_ui/zenit_ui.dart';
@@ -51,16 +52,24 @@ class _ContextMenuState extends State<ContextMenu> {
     widget.onClose?.call();
   }
 
+  /// On the shell surface the menu opens once the surface covers the screen
+  /// (it's a strip along the bottom while only the taskbar shows).
+  Future<void> _open(Offset position) async {
+    if (isOnShellSurface(context)) {
+      await ShellSurfaceArea.instance.ensureFull();
+      if (!mounted) return;
+    }
+    _MenuControllerRegistry.instance.open(controllerId, position: position);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.entries == null || widget.entries!.isEmpty) return widget.child;
 
     return GestureDetector(
-      onSecondaryTapUp: (details) => _MenuControllerRegistry.instance
-          .open(controllerId, position: details.localPosition),
+      onSecondaryTapUp: (details) => _open(details.localPosition),
       onLongPressDown: (details) => lastPosition = details.localPosition,
-      onLongPress: () => _MenuControllerRegistry.instance
-          .open(controllerId, position: lastPosition),
+      onLongPress: () => _open(lastPosition),
       child: ListenableBuilder(
         listenable: ZenitBlur.state,
         builder: (context, child) => MenuAnchor(
@@ -91,7 +100,9 @@ MenuStyle shellMenuStyle(BuildContext context) {
   final Color background = Theme.of(context).colorScheme.background;
   return MenuStyle(
     backgroundColor: WidgetStatePropertyAll<Color>(
-      ZenitBlur.active ? background.withValues(alpha: ZenitBlur.fillOpacity) : background,
+      ZenitBlur.active
+          ? background.withValues(alpha: ZenitBlur.fillOpacity)
+          : background,
     ),
     surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
     shape: const WidgetStatePropertyAll(
@@ -163,7 +174,8 @@ class SubmenuMenuItem extends BaseContextMenuItem {
     return SubmenuButton(
       menuStyle: shellMenuStyle(context),
       menuChildren: [
-        if (ZenitBlur.active) BlurRegion.ancestor(borderRadius: shellMenuRadius),
+        if (ZenitBlur.active)
+          BlurRegion.ancestor(borderRadius: shellMenuRadius),
         ...menuChildren.map((e) => e.buildWrapper(context)),
       ],
       leadingIcon: buildLeading(context),

@@ -163,6 +163,10 @@ abstract class WindowManagerService extends ListenableService {
   /// Touchpad swipes up and down (only emitted in session mode).
   Stream<VerticalSwipe> get verticalSwipes => const Stream.empty();
 
+  /// The corner of the primary screen the pointer just reached (session
+  /// mode): hot corners.
+  Stream<Alignment> get hotCorners => const Stream.empty();
+
   /// Area a window being dragged would snap to if released now.
   ValueListenable<Rect?> get snapPreview => _noRect;
 

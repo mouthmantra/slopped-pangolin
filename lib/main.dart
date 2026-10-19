@@ -45,6 +45,7 @@ import 'package:pangolin/services/session_lock.dart';
 import 'package:pangolin/services/splash_cache.dart';
 import 'package:pangolin/services/privacy.dart';
 import 'package:pangolin/services/vpn.dart';
+import 'package:pangolin/services/wallpaper_accent.dart';
 import 'package:pangolin/services/wallpaper_share.dart';
 import 'package:pangolin/components/greeter/greeter_screen.dart';
 import 'package:pangolin/components/lock/lock_screen.dart';
@@ -130,7 +131,9 @@ Future<void> main() async {
             "raster ${t.rasterDuration.inMicroseconds / 1000}ms, "
             "total ${t.totalSpan.inMicroseconds / 1000}ms"
             "${interval == null ? "" : ", since previous ${interval / 1000}ms"}"
-            ", at ${vsync ~/ 1000}ms",
+            ", at ${vsync ~/ 1000}ms"
+            ", vsync ${t.vsyncOverhead.inMicroseconds / 1000}ms, queued "
+            "${(t.timestampInMicroseconds(FramePhase.rasterStart) - t.timestampInMicroseconds(FramePhase.buildFinish)) / 1000}ms",
           );
         }
       }
@@ -171,6 +174,7 @@ Future<void> _runSession() async {
   unawaited(PrivacyMonitor.instance.start());
   SplashCache.follow();
   WallpaperShare.follow();
+  WallpaperAccent.follow();
 
   runWidget(const PangolinSessionRoot());
   await PangolinSession.showSurfaces();
@@ -316,7 +320,8 @@ class PangolinApp extends StatelessWidget {
         final CustomizationService service = CustomizationService.current;
         final PreferencesService prefs = PreferencesService.current;
         final Color? accent = service.accentColor.resolve();
-        final String? font = prefs.get<String>(SessionSetting.interfaceFont.key);
+        final String? font =
+            prefs.get<String>(SessionSetting.interfaceFont.key);
         final String? monospace =
             prefs.get<String>(SessionSetting.monospaceFont.key);
 

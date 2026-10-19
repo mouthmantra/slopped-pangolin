@@ -24,11 +24,19 @@ import 'package:pangolin/services/wm.dart';
 import 'package:pangolin/utils/data/app_ids.dart';
 import 'package:pangolin/widgets/context_menu.dart';
 import 'package:pangolin/widgets/resource/image/image.dart';
+import 'package:pangolin/widgets/wallpaper_blur.dart';
 import 'package:provider/provider.dart';
 
 class WallpaperLayer extends StatelessWidget
     with StatelessServiceListener<CustomizationService> {
   const WallpaperLayer({super.key});
+
+  /// river shows the wallpaper (an image) from SplashCache's copy: the
+  /// desktop surface leaves it out (PangolinSession.riverWallpaper).
+  static bool get drawnByRiver =>
+      PangolinSession.riverWallpaper &&
+      BlurredWallpaper.providerFor(CustomizationService.current.wallpaper) !=
+          null;
 
   @override
   Widget buildChild(BuildContext context, CustomizationService service) {
@@ -36,10 +44,12 @@ class WallpaperLayer extends StatelessWidget
       child: ChangeNotifierProvider.value(
         value: WindowManagerService.current.controller,
         child: _WallpaperContextMenu(
-          child: ResourceImage(
-            resource: service.wallpaper,
-            fit: BoxFit.cover,
-          ),
+          child: drawnByRiver
+              ? const SizedBox.expand()
+              : ResourceImage(
+                  resource: service.wallpaper,
+                  fit: BoxFit.cover,
+                ),
         ),
       ),
     );

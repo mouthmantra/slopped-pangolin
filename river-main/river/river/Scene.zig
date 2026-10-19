@@ -103,23 +103,32 @@ pub fn at(scene: *const Scene, lx: f64, ly: f64) ?AtResult {
     var sy: f64 = undefined;
     const node = scene.interactive_tree.node.at(lx, ly, &sx, &sy) orelse return null;
 
+    const scene_node_data = SceneNodeData.fromNode(node);
     const surface: ?*wlr.Surface = blk: {
         if (node.type == .buffer) {
             const scene_buffer = wlr.SceneBuffer.fromNode(node);
             if (wlr.SceneSurface.tryFromBuffer(scene_buffer)) |scene_surface| {
                 break :blk scene_surface.surface;
             }
+            // A clipped layer surface's input (LayerSurface.input_proxy);
+            // sx and sy are the surface's already.
+            if (scene_node_data) |data| switch (data.data) {
+                .layer_surface => |layer_surface| if (layer_surface.input_proxy == scene_buffer) {
+                    break :blk layer_surface.wlr_layer_surface.surface;
+                },
+                else => {},
+            };
         }
         break :blk null;
     };
 
-    if (SceneNodeData.fromNode(node)) |scene_node_data| {
+    if (scene_node_data) |node_data| {
         return .{
             .node = node,
             .surface = surface,
             .sx = sx,
             .sy = sy,
-            .data = scene_node_data.data,
+            .data = node_data.data,
         };
     } else {
         return null;

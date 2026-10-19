@@ -57,11 +57,16 @@ class AppLauncherButton extends StatelessWidget {
                   resource: application.icon?.main ?? "",
                   size: 64,
                 ),
-                Text(
-                  application.getLocalizedName(context.locale),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 17),
-                )
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(
+                    application.getLocalizedName(context.locale),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
               ],
             ),
           ),

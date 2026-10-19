@@ -66,14 +66,17 @@ static const struct wl_message river_blur_v1_requests[] = {
     {"set_regions", "a", river_blur_types + 2},
     {"reveal", "2iiiiiiiiuiiii", river_blur_no_types},
     {"conceal", "2iiiiiiiiuiiii", river_blur_no_types},
+    {"set_cutouts", "3a", river_blur_types + 2},
+    {"set_visible_area", "4iiii", river_blur_no_types},
+    {"set_tint", "4uiiiiuiiii", river_blur_no_types},
 };
 
 const struct wl_interface river_blur_manager_v1_interface = {
-    "river_blur_manager_v1", 2, 2, river_blur_manager_v1_requests, 0, nullptr,
+    "river_blur_manager_v1", 4, 2, river_blur_manager_v1_requests, 0, nullptr,
 };
 
 const struct wl_interface river_blur_v1_interface = {
-    "river_blur_v1", 2, 4, river_blur_v1_requests, 0, nullptr,
+    "river_blur_v1", 4, 7, river_blur_v1_requests, 0, nullptr,
 };
 }
 
@@ -83,6 +86,8 @@ constexpr uint32_t kGetBlur = 1;
 constexpr uint32_t kSetRegions = 1;
 constexpr uint32_t kReveal = 2;
 constexpr uint32_t kConceal = 3;
+constexpr uint32_t kSetVisibleArea = 5;
+constexpr uint32_t kSetTint = 6;
 
 struct wl_proxy* manager = nullptr;
 bool initialized = false;
@@ -90,8 +95,9 @@ bool initialized = false;
 void handle_global(void* data, struct wl_registry* registry, uint32_t name,
                    const char* interface, uint32_t version) {
   if (strcmp(interface, river_blur_manager_v1_interface.name) == 0) {
-    // Version 2 animates parts of surfaces; older rivers only blur.
-    const uint32_t bound = version < 2 ? version : 2;
+    // Version 2 animates parts of surfaces, 4 sets visible areas and tints;
+    // older rivers only blur.
+    const uint32_t bound = version < 4 ? version : 4;
     *static_cast<struct wl_proxy**>(data) = static_cast<struct wl_proxy*>(
         wl_registry_bind(registry, name, &river_blur_manager_v1_interface,
                          bound));
@@ -143,6 +149,8 @@ struct WindowBlur {
   // again to a new surface.
   std::vector<int32_t> regions;
   bool has_regions = false;
+  // The visible area last set (x, y, width, height; a zero size for all).
+  int32_t area[4] = {0, 0, 0, 0};
 };
 
 constexpr const char* kStateKey = "pangolin-river-blur";
@@ -201,6 +209,11 @@ struct wl_proxy* blur_for(GtkWindow* window, GdkWindow* gdk_window) {
       wl_proxy_get_version(manager), 0, nullptr, surface);
   state->surface = surface;
   if (state->has_regions) send_regions(state);
+  if (state->area[2] > 0 && wl_proxy_get_version(state->blur) >= 4) {
+    wl_proxy_marshal_flags(state->blur, kSetVisibleArea, nullptr,
+                           wl_proxy_get_version(state->blur), 0, state->area[0],
+                           state->area[1], state->area[2], state->area[3]);
+  }
   return state->blur;
 }
 
@@ -262,6 +275,44 @@ void river_blur_animate_part(GtkWindow* window, GtkWidget* widget, bool reveal,
   wl_display_flush(wayland_display());
 }
 
+bool river_blur_tints_supported() {
+  ensure_manager();
+  return manager != nullptr && wl_proxy_get_version(manager) >= 4;
+}
+
+void river_blur_set_visible_area(GtkWindow* window, int32_t x, int32_t y,
+                                 int32_t width, int32_t height) {
+  if (!river_blur_tints_supported()) return;
+  GdkWindow* gdk_window = gtk_widget_get_window(GTK_WIDGET(window));
+  if (gdk_window == nullptr || !GDK_IS_WAYLAND_WINDOW(gdk_window)) return;
+  WindowBlur* state = state_for(window);
+  state->area[0] = x;
+  state->area[1] = y;
+  state->area[2] = width > 0 && height > 0 ? width : 0;
+  state->area[3] = width > 0 && height > 0 ? height : 0;
+  struct wl_proxy* blur = blur_for(window, gdk_window);
+  if (blur == nullptr) return;
+  wl_proxy_marshal_flags(blur, kSetVisibleArea, nullptr,
+                         wl_proxy_get_version(blur), 0, state->area[0],
+                         state->area[1], state->area[2], state->area[3]);
+  // Takes effect right away, before the next frame is committed.
+  wl_display_flush(wayland_display());
+}
+
+void river_blur_set_tint(GtkWindow* window, uint32_t argb,
+                         const int32_t area[4], uint32_t duration_ms,
+                         const int32_t curve[4]) {
+  if (!river_blur_tints_supported()) return;
+  GdkWindow* gdk_window = gtk_widget_get_window(GTK_WIDGET(window));
+  if (gdk_window == nullptr || !GDK_IS_WAYLAND_WINDOW(gdk_window)) return;
+  struct wl_proxy* blur = blur_for(window, gdk_window);
+  if (blur == nullptr) return;
+  wl_proxy_marshal_flags(blur, kSetTint, nullptr, wl_proxy_get_version(blur),
+                         0, argb, area[0], area[1], area[2], area[3],
+                         duration_ms, curve[0], curve[1], curve[2], curve[3]);
+  wl_display_flush(wayland_display());
+}
+
 void river_blur_set_regions(GtkWindow* window, GtkWidget* widget,
                             const std::vector<RiverBlurRegion>& regions) {
   ensure_manager();
@@ -277,21 +328,28 @@ void river_blur_set_regions(GtkWindow* window, GtkWidget* widget,
   }
 
   WindowBlur* state = state_for(window);
-  state->regions.clear();
+  std::vector<int32_t> values;
   for (const RiverBlurRegion& region : regions) {
-    state->regions.insert(
-        state->regions.end(),
-        {region.x + dx, region.y + dy, region.width, region.height,
-         region.radii[0], region.radii[1], region.radii[2], region.radii[3],
-         region.alpha});
+    values.insert(values.end(),
+                  {region.x + dx, region.y + dy, region.width, region.height,
+                   region.radii[0], region.radii[1], region.radii[2],
+                   region.radii[3], region.alpha});
   }
+  // Unchanged (Flutter reports them after every layout): nothing to send.
+  if (state->has_regions && values == state->regions &&
+      state->blur != nullptr &&
+      state->surface == gdk_wayland_window_get_wl_surface(gdk_window)) {
+    return;
+  }
+  state->regions = std::move(values);
   state->has_regions = true;
   struct wl_proxy* blur = blur_for(window, gdk_window);
   if (blur == nullptr) return;
   send_regions(state);
   wl_display_flush(wayland_display());
-  // The regions apply with the next commit of the surface.
-  gtk_widget_queue_draw(GTK_WIDGET(window));
+  // The regions apply with the next commit of the surface: a repaint of one
+  // pixel makes one (of the whole window, it costs a full 4K repaint).
+  gtk_widget_queue_draw_area(GTK_WIDGET(window), 0, 0, 1, 1);
 }
 
 #else
@@ -306,5 +364,13 @@ void river_blur_animate_part(GtkWindow*, GtkWidget*, bool, int32_t, int32_t,
 
 void river_blur_set_regions(GtkWindow*, GtkWidget*,
                             const std::vector<RiverBlurRegion>&) {}
+
+bool river_blur_tints_supported() { return false; }
+
+void river_blur_set_visible_area(GtkWindow*, int32_t, int32_t, int32_t,
+                                 int32_t) {}
+
+void river_blur_set_tint(GtkWindow*, uint32_t, const int32_t[4], uint32_t,
+                         const int32_t[4]) {}
 
 #endif

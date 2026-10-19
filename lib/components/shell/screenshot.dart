@@ -25,6 +25,7 @@ import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:pangolin/services/notifications.dart';
 import 'package:pangolin/services/screencopy.dart';
+import 'package:pangolin/services/session.dart';
 import 'package:pangolin/services/shell.dart';
 import 'package:pangolin/services/wm.dart';
 import 'package:pangolin/widgets/surface/surface_layer.dart';
@@ -244,8 +245,7 @@ class _ScreenshotState extends ShellOverlayState<ScreenshotOverlay> {
               Positioned(
                 left: 0,
                 right: 0,
-                bottom: WindowManagerService.current.controller.wmInsets.bottom +
-                    24,
+                bottom: PangolinSession.taskbarHeight + 24,
                 child: Center(
                   child: _Toolbar(
                     mode: _mode,

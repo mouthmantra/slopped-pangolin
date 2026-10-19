@@ -16,6 +16,7 @@ limitations under the License.
 
 import 'package:dahlia_shared/dahlia_shared.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:pangolin/components/overlays/notifications/queue.dart';
 import 'package:pangolin/components/taskbar/app_list.dart';
 import 'package:pangolin/components/taskbar/launcher.dart';
@@ -44,6 +45,11 @@ class Shell extends StatefulWidget {
 }
 
 class ShellState extends State<Shell> with TickerProviderStateMixin {
+  /// Escape closes what's open (launcher, quick settings, menus...): the
+  /// keyboard comes here while an overlay is shown, unless something in it
+  /// (a search field, the overview) takes it and handles Escape itself.
+  final FocusNode _keys = FocusNode(debugLabel: "shell overlays");
+
   @override
   void initState() {
     super.initState();
@@ -61,16 +67,30 @@ class ShellState extends State<Shell> with TickerProviderStateMixin {
   @override
   void dispose() {
     ShellInputRegion.instance.claim(this, false);
+    _keys.dispose();
     super.dispose();
   }
 
   /// While an overlay is open the shell surface takes all input (clicking
   /// outside dismisses it) and the keyboard (launcher search, ...).
   void _onOverlaysChanged() {
-    ShellInputRegion.instance.claim(
-      this,
-      ShellService.current.currentlyShownOverlays.isNotEmpty,
-    );
+    final bool shown = ShellService.current.currentlyShownOverlays.isNotEmpty;
+    ShellInputRegion.instance.claim(this, shown);
+    if (shown) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_keys.hasFocus) _keys.requestFocus();
+      });
+    }
+  }
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.escape &&
+        ShellService.current.currentlyShownOverlays.isNotEmpty) {
+      ShellService.current.dismissEverything();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   void notify() {
@@ -99,43 +119,47 @@ class ShellState extends State<Shell> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox.expand(
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Positioned.fill(
-            child: Listener(
-              onPointerDown: (event) {
-                ShellService.current.dismissEverything();
-              },
-              behavior: HitTestBehavior.translucent,
+    return Focus(
+      focusNode: _keys,
+      onKeyEvent: _onKey,
+      child: SizedBox.expand(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned.fill(
+              child: Listener(
+                onPointerDown: (event) {
+                  ShellService.current.dismissEverything();
+                },
+                behavior: HitTestBehavior.translucent,
+              ),
             ),
-          ),
-          const Taskbar(
-            leading: [
-              LauncherButton(),
-              SearchButton(),
-              OverviewButton(),
-            ],
-            centerRelativeToScreen: true,
-            center: [AppListElement()],
-            trailing: [
-              //TODO: here is the keyboard button
-              //KeyboardButton(),
-              TrayMenuButton(),
-              QuickSettingsButton(),
-              NotificationsButton(),
-              ShowDesktopButton(),
-            ],
-          ),
-          ...widget.overlays,
-          Positioned(
-            width: 420,
-            right: WindowHierarchy.of(context).wmInsets.right + 8,
-            bottom: WindowHierarchy.of(context).wmInsets.bottom + 8,
-            child: const InputRegion(child: NotificationQueue()),
-          ),
-        ],
+            const Taskbar(
+              leading: [
+                LauncherButton(),
+                SearchButton(),
+                OverviewButton(),
+              ],
+              centerRelativeToScreen: true,
+              center: [AppListElement()],
+              trailing: [
+                //TODO: here is the keyboard button
+                //KeyboardButton(),
+                TrayMenuButton(),
+                QuickSettingsButton(),
+                NotificationsButton(),
+                ShowDesktopButton(),
+              ],
+            ),
+            ...widget.overlays,
+            Positioned(
+              width: 420,
+              right: WindowHierarchy.of(context).wmInsets.right + 8,
+              bottom: WindowHierarchy.of(context).wmInsets.bottom + 8,
+              child: const InputRegion(child: NotificationQueue()),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -147,11 +147,31 @@ else
     echo "==> river: zig not found, keeping the river already built (if any)"
 fi
 
+# Pangolin's build of Flutter's Linux embedder (tool/build_engine.sh): frames
+# at the display's refresh rate instead of 60 Hz, and only what changed sent
+# to the compositor. Release builds of the same engine version only.
+ENGINE_LIB="$ROOT/third_party/flutter_engine/$FLUTTER_ARCH/libflutter_linux_gtk.so"
+SDK_ENGINE=$(cat "$(dirname "$(readlink -f "$FLUTTER")")/internal/engine.version" 2>/dev/null || true)
+use_patched_engine() {
+    bundle="$1/build/linux/$FLUTTER_ARCH/$MODE/bundle/lib"
+    if [ "$MODE" != release ] || [ ! -f "$ENGINE_LIB" ]; then
+        return
+    fi
+    if [ "$SDK_ENGINE" != "$(cat "$ROOT/third_party/flutter_engine/engine.version")" ]; then
+        echo "build.sh: third_party/flutter_engine is for another engine version than the SDK's ($SDK_ENGINE): keeping the stock embedder (rebuild it with tool/build_engine.sh)" >&2
+        return
+    fi
+    cp "$ENGINE_LIB" "$bundle/libflutter_linux_gtk.so"
+    echo "    using Pangolin's Flutter embedder"
+}
+
 echo "==> Pangolin shell ($MODE)"
 (cd "$ROOT" && "$FLUTTER" pub get && "$FLUTTER" build linux "--$MODE")
+use_patched_engine "$ROOT"
 
 echo "==> dahliaOS apps ($MODE)"
 (cd "$ROOT/apps" && "$FLUTTER" pub get && "$FLUTTER" build linux "--$MODE")
+use_patched_engine "$ROOT/apps"
 
 echo "==> dsettingsd"
 (cd "$ROOT/session/dsettingsd" && "$DART" pub get &&

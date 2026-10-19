@@ -20,7 +20,7 @@ limitations under the License.
 //   dart run example/wl_input.dart move 640 360 click sleep 200 \
 //       drag 100 100 400 300 click right key ctrl+t type hello
 //
-// Commands: move X Y | click [left|right|middle] | down [btn] | up [btn] |
+// Commands: move X Y | glide X Y | click [left|right|middle] | down [btn] | up [btn] |
 //           drag X1 Y1 X2 Y2 | scroll DY | sleep MS |
 //           key [ctrl+][shift+][alt+][super+]NAME | type TEXT
 
@@ -178,6 +178,12 @@ Future<void> main(List<String> args) async {
     switch (command) {
       case 'move':
         await move(int.parse(next()), int.parse(next()));
+      case 'glide':
+        // Like a real mouse: no waiting for the compositor (use sleep).
+        pointer
+          ..motionAbsolute(time(), int.parse(next()), int.parse(next()), width, height)
+          ..frame();
+        connection.flush();
       case 'click':
         final int code = i < args.length && _buttons.containsKey(args[i])
             ? _buttons[next()]!

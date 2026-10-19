@@ -161,6 +161,33 @@ class RiverWindowManagerService extends WindowManagerService
   @override
   Stream<VerticalSwipe> get verticalSwipes => _verticalSwipes.stream;
 
+  final StreamController<Alignment> _hotCorners = StreamController.broadcast();
+
+  @override
+  Stream<Alignment> get hotCorners => _hotCorners.stream;
+
+  /// river starts a manage sequence when the pointer reaches or leaves a
+  /// corner of an output, so its position arrives here wherever it is.
+  void _checkHotCorner(_Seat seat) {
+    final _Output? output = _primaryOutput;
+    Alignment? corner;
+    if (output != null && seat.op == null) {
+      final int x = seat.pointerX - output.x;
+      final int y = seat.pointerY - output.y;
+      // Logical pixels, as river counts them.
+      final bool left = x >= 0 && x < 2;
+      final bool right = x >= output.width - 2 && x < output.width;
+      final bool top = y >= 0 && y < 2;
+      final bool bottom = y >= output.height - 2 && y < output.height;
+      if ((left || right) && (top || bottom)) {
+        corner = Alignment(left ? -1 : 1, top ? -1 : 1);
+      }
+    }
+    if (corner == seat.corner) return;
+    seat.corner = corner;
+    if (corner != null) _hotCorners.add(corner);
+  }
+
   @override
   ValueListenable<Rect?> get snapPreview => _snapPreview;
 
@@ -196,8 +223,29 @@ class RiverWindowManagerService extends WindowManagerService
       output.x.toDouble(),
       output.y.toDouble(),
       output.width.toDouble(),
-      math.max(0.0, output.height - PangolinSession.taskbarHeight),
+      math.max(0.0, output.height - _taskbarReserved),
     );
+  }
+
+  /// Kept free for the taskbar at the bottom of the primary output.
+  double _taskbarReserved = PangolinSession.taskbarReserved;
+
+  /// Maximized and snapped windows take the new work area (in place: the
+  /// stacking stays as it is).
+  void _refitToWorkArea() {
+    for (final RiverWindow w in _stack) {
+      if (w._fullscreen || (!w._maximized && w._snap == _Snap.none)) continue;
+      final Rect rect = _contentRect(
+        w,
+        w._maximized ? workArea : _snapRect(w._snap),
+      );
+      _proposeSize(w, rect.size);
+      w._x = rect.left.toInt();
+      w._y = rect.top.toInt();
+      _position(w);
+      w._notify();
+      _changed = true;
+    }
   }
 
   /// Layout coordinates to shell surface coordinates (the shell surface
@@ -307,6 +355,7 @@ class RiverWindowManagerService extends WindowManagerService
     await _connection.close();
     await _shellCommands.close();
     await _verticalSwipes.close();
+    await _hotCorners.close();
     stopHierarchy();
   }
 
@@ -357,6 +406,11 @@ class RiverWindowManagerService extends WindowManagerService
         _applyCursorTheme(seat);
       }
       _schedule(() => _normalizeDesks());
+      final double reserved = PangolinSession.taskbarReserved;
+      if (reserved != _taskbarReserved) {
+        _taskbarReserved = reserved;
+        _schedule(_refitToWorkArea);
+      }
     }
 
     prefs.addListener(apply);
@@ -597,6 +651,7 @@ class RiverWindowManagerService extends WindowManagerService
       ..onPointerPosition = (x, y) {
         seat.pointerX = x;
         seat.pointerY = y;
+        _checkHotCorner(seat);
       }
       ..onWindowInteraction = (window) {
         seat.interacted = window.userData as RiverWindow?;
@@ -2575,6 +2630,9 @@ class _Seat {
   RiverWindow? interacted;
   int pointerX = 0;
   int pointerY = 0;
+
+  /// The hot corner the pointer is in.
+  Alignment? corner;
 
   bool superTap = false;
 

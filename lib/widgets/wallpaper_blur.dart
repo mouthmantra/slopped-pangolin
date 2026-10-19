@@ -28,7 +28,7 @@ import 'package:logging/logging.dart';
 /// output resolution, unlike a live blur of a 5K surface on every frame.
 abstract final class BlurredWallpaper {
   static final Logger _logger = Logger("BlurredWallpaper");
-  static final Map<ImageResource, Future<ui.Image?>> _cache = {};
+  static final Map<Object, Future<ui.Image?>> _cache = {};
 
   /// Width of the copy that is blurred; stretched over the screen it reads
   /// as a strong blur.
@@ -36,14 +36,22 @@ abstract final class BlurredWallpaper {
   static const double _sigma = 6;
 
   static Future<ui.Image?> of(ImageResource resource) {
-    final Future<ui.Image?>? cached = _cache[resource];
+    final ImageProvider? base = _provider(resource);
+    if (base == null) return Future.value();
+    return ofProvider(resource, base);
+  }
+
+  /// The blurred copy of [base], kept under [key]: a few at once (the
+  /// current wallpaper and the previous one while switching, the login
+  /// screen's users).
+  static Future<ui.Image?> ofProvider(Object key, ImageProvider base) {
+    final Future<ui.Image?>? cached = _cache[key];
     if (cached != null) return cached;
-    // Only the current wallpaper (and the previous one, while switching).
-    while (_cache.length > 1) {
-      final ImageResource oldest = _cache.keys.first;
+    while (_cache.length >= 4) {
+      final Object oldest = _cache.keys.first;
       unawaited(_cache.remove(oldest)!.then((image) => image?.dispose()));
     }
-    return _cache[resource] = _make(resource);
+    return _cache[key] = _make(key, base);
   }
 
   static ImageProvider? providerFor(ImageResource resource) =>
@@ -63,9 +71,7 @@ abstract final class BlurredWallpaper {
     }
   }
 
-  static Future<ui.Image?> _make(ImageResource resource) async {
-    final ImageProvider? base = _provider(resource);
-    if (base == null) return null;
+  static Future<ui.Image?> _make(Object key, ImageProvider base) async {
     try {
       final ui.Image small = await _load(
         ResizeImage(base, width: _width, policy: ResizeImagePolicy.fit),
@@ -91,7 +97,7 @@ abstract final class BlurredWallpaper {
       small.dispose();
       return blurred;
     } catch (e) {
-      _logger.info("Couldn't blur wallpaper $resource: $e");
+      _logger.info("Couldn't blur wallpaper $key: $e");
       return null;
     }
   }

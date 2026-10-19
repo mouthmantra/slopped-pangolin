@@ -125,9 +125,38 @@ fn sendConfigures(
             if (exclusive != (mode == .exclusive)) {
                 continue;
             }
+            const surface_node = &layer_surface.scene_layer_surface.tree.node;
+            const old_x = surface_node.x;
+            const old_y = surface_node.y;
             {
                 var new_area = output.layer_shell.scheduled.non_exclusive_area;
+                const bounds = if (current.exclusive_zone == -1) output_box else new_area;
                 layer_surface.scene_layer_surface.configure(&output_box, &new_area);
+                // A mapped surface keeps showing what it drew until it draws the
+                // new size: moved right away, the old content would show at the
+                // new position for a few frames (Pangolin's shell surface
+                // growing from a strip at the bottom to the whole output
+                // flashed its taskbar at the top).
+                const width: u32 = if (current.anchor.left and current.anchor.right)
+                    @intCast(@max(0, bounds.width - current.margin.left - current.margin.right))
+                else
+                    current.desired_width;
+                const height: u32 = if (current.anchor.top and current.anchor.bottom)
+                    @intCast(@max(0, bounds.height - current.margin.top - current.margin.bottom))
+                else
+                    current.desired_height;
+                // What the surface shows now (the client may draw the new size
+                // before or after acknowledging it).
+                const shown = layer_surface.wlr_layer_surface.surface.current;
+                const drawn = shown.width == width and shown.height == height;
+                if (layer_surface.wlr_layer_surface.surface.mapped and !drawn and
+                    (surface_node.x != old_x or surface_node.y != old_y))
+                {
+                    surface_node.setPosition(old_x, old_y);
+                    layer_surface.deferred = .{ .width = width, .height = height };
+                } else if (drawn) {
+                    layer_surface.deferred = null;
+                }
                 // Clients can request bogus exclusive zones larger than the output
                 // dimensions and river must handle this gracefully. It seems reasonable
                 // to close layer shell clients that would cause the usable area of the
@@ -141,12 +170,25 @@ fn sendConfigures(
             const x = layer_surface.scene_layer_surface.tree.node.x;
             const y = layer_surface.scene_layer_surface.tree.node.y;
             layer_surface.popup_tree.node.setPosition(x, y);
-            layer_surface.scene_layer_surface.tree.node.subsurfaceTreeSetClip(&.{
+            var clip: wlr.Box = .{
                 .x = -(x - output.scheduled.x),
                 .y = -(y - output.scheduled.y),
                 .width = output_width,
                 .height = output_height,
-            });
+            };
+            // Only the part the surface asked to be drawn (river_blur_v1
+            // set_visible_area); it takes input on all of it still.
+            if (server.blur.visibleArea(layer_surface.wlr_layer_surface.surface)) |area| {
+                layer_surface.setInputProxy(clip);
+                var visible: wlr.Box = undefined;
+                clip = if (visible.intersection(&clip, &area))
+                    visible
+                else
+                    .{ .x = area.x, .y = area.y, .width = 1, .height = 1 };
+            } else {
+                layer_surface.setInputProxy(null);
+            }
+            layer_surface.scene_layer_surface.tree.node.subsurfaceTreeSetClip(&clip);
         }
     }
 }

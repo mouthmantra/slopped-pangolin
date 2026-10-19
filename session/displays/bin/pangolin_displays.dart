@@ -75,7 +75,22 @@ Future<void> main(List<String> args) async {
     });
   }
 
+  // Never all off: the monitor in use was unplugged and nothing saved
+  // turns on one that's left (an external one unplugged from a laptop
+  // whose panel was off).
+  Future<void> keepOneOn() async {
+    try {
+      final OutputHeadState? head = await configurator!.ensureOneEnabled();
+      if (head != null) {
+        stderr.writeln("pangolin-displays: no monitor was on, turned on ${head.name}");
+      }
+    } on Object catch (e) {
+      stderr.writeln("pangolin-displays: $e");
+    }
+  }
+
   await sync();
+  await keepOneOn();
   if (!watch) {
     await configurator.close();
     return;
@@ -84,6 +99,7 @@ Future<void> main(List<String> args) async {
   configurator.changes.listen(
     (_) async {
       await sync();
+      await keepOneOn();
       schedulePublish();
     },
     onDone: () => exit(0),

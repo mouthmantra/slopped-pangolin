@@ -18,6 +18,7 @@ import 'dart:async';
 
 import 'package:display_config/src/monitors_xml.dart';
 import 'package:display_config/src/profiles.dart';
+import 'package:display_config/src/scales.dart';
 import 'package:wayland/wayland.dart';
 
 /// A mode a monitor supports.
@@ -83,6 +84,10 @@ class OutputHeadState {
     return best;
   }
 }
+
+/// Whether [name] is a built-in screen's connector (laptop panels).
+bool isBuiltInOutput(String name) =>
+    name.startsWith("eDP") || name.startsWith("LVDS") || name.startsWith("DSI");
 
 /// Reads and changes the configuration of the monitors through
 /// wlr-output-management.
@@ -250,6 +255,44 @@ class DisplayConfigurator {
   Future<bool> applyProfile(List<OutputSettings> profile) => _applyIfDifferent({
         for (final OutputSettings o in profile) o.id: o,
       });
+
+  /// Turns a monitor on when none is (the one in use was unplugged and
+  /// nothing saved covers the ones left): the built-in panel if there is
+  /// one, at its preferred mode and a scale for its density. Completes with
+  /// the monitor turned on, if any.
+  Future<OutputHeadState?> ensureOneEnabled() async {
+    // State the compositor sent after a configuration just applied.
+    await _connection.roundtrip();
+    if (heads.isEmpty || heads.any((h) => h.enabled)) return null;
+    final OutputHeadState head =
+        heads.where((h) => isBuiltInOutput(h.name)).firstOrNull ?? heads.first;
+    final OutputModeState? mode =
+        head.modes.where((m) => m.preferred).firstOrNull ??
+            head.modes.fold<OutputModeState?>(
+              null,
+              (best, m) => best == null ||
+                      m.width * m.height > best.width * best.height
+                  ? m
+                  : best,
+            );
+    if (mode == null) return null;
+    final bool applied = await apply({
+      head.id: OutputSettings(
+        id: head.id,
+        enabled: true,
+        width: mode.width,
+        height: mode.height,
+        refresh: mode.refresh,
+        scale: recommendedScale(
+          mode.width,
+          mode.height,
+          head.physicalWidth,
+          head.physicalHeight,
+        ),
+      ),
+    });
+    return applied ? head : null;
+  }
 
   /// How the connected monitors are set up right now.
   List<OutputSettings> get current => [

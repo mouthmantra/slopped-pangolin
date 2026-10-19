@@ -18,8 +18,8 @@
 %global __requires_exclude ^(libflutter_linux_gtk|libapp|libhandy_flutter|lib[a-z_]+_plugin)\\.so.*$
 
 Name:           pangolin-desktop
-Version:        1.0.0
-Release:        6%{?dist}
+Version:        1.1.0
+Release:        11%{?dist}
 Summary:        The dahliaOS desktop (Pangolin) on the river Wayland compositor
 
 # Pangolin and the dahliaOS apps: Apache-2.0; river: GPL-3.0-only (its
@@ -205,6 +205,90 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %ghost %attr(0644,pangolin-greeter,pangolin-greeter) %{_localstatedir}/log/PangolinGreeter.log
 
 %changelog
+* Mon Oct 19 2026 Logan <loganctorres1@gmail.com> - 1.1.0-11
+- Login and lock screen no longer lag when typing: a keystroke or a
+  blinking cursor redrew the whole screen; now only what changed is redrawn
+  (in the apps too)
+- Settings keeps ~/.config/monitors.xml (GNOME's format) up to date with
+  the display setup
+
+* Mon Oct 19 2026 Logan <loganctorres1@gmail.com> - 1.1.0-10
+- Smoother animations at high refresh rates: the shell and the apps start
+  every frame on time (their frames started up to 2 ms late, and the
+  overview ran at half of 165 Hz)
+- No black screen between the login screen and the desktop: its wallpaper
+  stays up until the desktop shows the same
+
+* Mon Oct 19 2026 Logan <loganctorres1@gmail.com> - 1.1.0-9
+- Fixed: the lock screen turned the right password down at random (the
+  password is now checked in a process of its own)
+- New lock screen and login screen, as ChromeOS lays them out: blurred
+  wallpaper, one password field, a shelf with power and the time
+- Login screen: typing works without clicking the field first; it hands
+  over to the desktop on the same wallpaper
+- Escape closes the launcher and the other shell menus
+
+* Mon Oct 19 2026 Logan <loganctorres1@gmail.com> - 1.1.0-8
+- 4K smoothness: the shell no longer repaints the whole screen on clock
+  ticks, taskbar animations, overview opening/closing and focus changes
+  (a 10-25 ms hitch each); apps no longer repaint their whole window when
+  they lose focus
+- Dragging windows: a fast mouse no longer makes the window fall further
+  and further behind until input is dropped
+- The laptop panel turns back on when the only monitor in use is unplugged
+
+* Mon Oct 19 2026 Logan <loganctorres1@gmail.com> - 1.1.0-7
+- Fixed: the taskbar had no blur (river drew it below the screen and
+  didn't see its own wallpaper behind it)
+- Fixed: right-clicking the desktop did nothing (river only drew a pixel
+  of the desktop surface, and only took clicks there)
+
+* Sun Oct 18 2026 Logan <loganctorres1@gmail.com> - 1.1.0-6
+- Overview at 4K: the shell no longer repaints the whole screen while the
+  overview closes, desk thumbnails come from a small copy of the wallpaper
+  (a freeze on every opening), and river draws the wallpaper itself
+- Shell and apps: a full repaint no longer copies the whole window on the
+  CPU first (GTK uploaded its empty background under every Flutter frame:
+  ~20 ms per repaint at 4K)
+
+* Sun Oct 18 2026 Logan <loganctorres1@gmail.com> - 1.1.0-5
+- Pangolin's build of Flutter's Linux embedder for the shell and the apps:
+  frames at the display's refresh rate (165 Hz) instead of 60, and only
+  what changed is repainted and sent to the compositor
+  (FLUTTER_LINUX_FPS=N or unlimited in ~/.config/pangolin/session.env)
+
+* Sun Oct 18 2026 Logan <loganctorres1@gmail.com> - 1.1.0-4
+- Fixed: the taskbar flashed at the top of the screen when the shell
+  surface grew or shrank (river now moves a layer surface only once it
+  has drawn its new size)
+
+* Sun Oct 18 2026 Logan <loganctorres1@gmail.com> - 1.1.0-3
+- 4K smoothness: the shell surface only covers the screen while something
+  besides the taskbar is shown; before, every clock tick re-composited the
+  whole 4K screen (a missed refresh each second)
+- Hot corners are detected by river
+
+* Sun Oct 18 2026 Logan <loganctorres1@gmail.com> - 1.1.0-2
+- Profiling for the 4K investigation: with PANGOLIN_PROFILE=frames river
+  logs GPU time per frame and what it draws
+- ~/.config/pangolin/session.env (VAR=value lines) adds environment
+  variables to Pangolin sessions
+
+* Sat Oct 17 2026 Logan <loganctorres1@gmail.com> - 1.1.0-1
+- Quick Settings: Bluetooth devices (connect, pair, battery) and Wi-Fi
+  networks (connect, password prompt), real airplane mode
+- Accent color from the wallpaper, or a custom color
+- Lock screen fades back to the desktop when unlocking
+- Taskbar size (small, medium, large) and hide automatically
+- App menu: full screen grid, sort A to Z or by category, user avatar
+  instead of a placeholder
+- Window borders also on windows Pangolin decorates (verified)
+
+* Sat Oct 17 2026 Logan <loganctorres1@gmail.com> - 1.0.0-7
+- Optional hairline border around windows, macOS-like (Settings >
+  Appearance > Window borders)
+- dahliaOS app windows rounded at 12 px again (GTK's theme used 8 px)
+
 * Sat Oct 17 2026 Logan <loganctorres1@gmail.com> - 1.0.0-6
 - Stronger, frosted blur (wider reach, more levels, grain), closer to
   dahliaOS's acrylic

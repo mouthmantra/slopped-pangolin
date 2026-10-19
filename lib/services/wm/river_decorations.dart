@@ -127,8 +127,9 @@ class _Decoration {
   _ShadowBuffer? shadowReady;
   _ShadowBuffer? shadowAttached;
 
-  /// Size and state the shadow surface was last set up for.
-  (int, int, bool)? shadowGeometry;
+  /// Size and state the shadow surface was last set up for, with the
+  /// window's hairline (ARGB, 0 for none).
+  (int, int, bool, int)? shadowGeometry;
 
   _DecorationLook? shown;
   _DecorationLook? rendering;
@@ -555,6 +556,20 @@ extension _Decorations on RiverWindowManagerService {
     }
   }
 
+  /// The hairline around floating windows, macOS-like: light in dark mode,
+  /// dark in light mode (ARGB), or 0 when turned off in Settings.
+  int _windowBorder() {
+    final PreferencesService? prefs =
+        ServiceManager.getService<PreferencesService>();
+    if (!(prefs?.get<bool>(SessionSetting.windowBorders.key) ??
+        SessionSetting.windowBorders.defaultValue)) {
+      return 0;
+    }
+    final bool dark =
+        ServiceManager.getService<CustomizationService>()?.darkMode ?? false;
+    return dark ? 0x29FFFFFF : 0x1F000000;
+  }
+
   /// Render sequence: the shadow surface follows the window right away
   /// (stretching the shadow drawn for the previous size until the new one
   /// is ready), as do its resize ring and the corner cutouts.
@@ -567,7 +582,8 @@ extension _Decorations on RiverWindowManagerService {
         !w._fullscreen && !w._maximized && w._snap == _Snap.none;
     final int width = w._width;
     final int height = w._height + _DecorationPainter.height.round();
-    final (int, int, bool) geometry = (width, height, floating);
+    final (int, int, bool, int) geometry =
+        (width, height, floating, _windowBorder());
 
     if (!floating) {
       if (decoration.shadowGeometry?.$3 ?? true) {
@@ -629,6 +645,8 @@ extension _Decorations on RiverWindowManagerService {
           _DecorationPainter.radius.round(),
           // Bottom right and bottom left: the title bar rounds the top.
           4 | 8,
+          // river draws the hairline (color, width) along all four sides.
+          if (geometry.$4 != 0) ...[geometry.$4.toSigned(32), 1],
         ]));
         role
           ..setOffset(-m, -_DecorationPainter.height.round() - m)

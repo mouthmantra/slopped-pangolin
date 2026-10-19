@@ -22,6 +22,7 @@ import 'package:dahlia_shared/dahlia_shared.dart';
 import 'package:flutter/rendering.dart';
 import 'package:pangolin/widgets/surface/popup_transition.dart';
 import 'package:pangolin/components/overlays/quick_settings/pages/qs_account_page.dart';
+import 'package:pangolin/components/overlays/quick_settings/pages/qs_bluetooth_page.dart';
 import 'package:pangolin/components/overlays/quick_settings/pages/qs_language_page.dart';
 import 'package:pangolin/components/overlays/quick_settings/pages/qs_network_page.dart';
 import 'package:pangolin/components/overlays/quick_settings/pages/qs_theme_page.dart';
@@ -30,6 +31,7 @@ import 'package:pangolin/components/overlays/quick_settings/widgets/qs_media_car
 import 'package:pangolin/components/overlays/quick_settings/widgets/qs_slider.dart';
 import 'package:pangolin/components/overlays/quick_settings/widgets/qs_toggle_button.dart';
 import 'package:pangolin/components/overlays/quick_settings/widgets/qs_tray_item.dart';
+import 'package:pangolin/services/bluetooth.dart';
 import 'package:pangolin/services/date_time.dart';
 import 'package:pangolin/services/power.dart';
 import 'package:pangolin/services/privacy.dart';
@@ -37,9 +39,11 @@ import 'package:pangolin_settings/pangolin_settings.dart';
 import 'package:pangolin/services/display_power.dart';
 import 'package:pangolin/services/hardware_controls.dart';
 import 'package:pangolin/components/shell/screenshot.dart';
+import 'package:pangolin/services/session.dart';
 import 'package:pangolin/services/shell.dart';
 import 'package:pangolin/services/tray.dart';
 import 'package:pangolin/services/vpn.dart';
+import 'package:pangolin/services/wifi.dart';
 import 'package:pangolin/services/wm.dart';
 import 'package:pangolin/utils/action_manager/action_manager.dart';
 import 'package:pangolin/utils/data/globals.dart';
@@ -77,6 +81,7 @@ class _QuickSettingsOverlayState
     '/pages/theme': QsThemePage(),
     '/pages/language': QsLanguagePage(),
     '/pages/vpn': QsVpnPage(),
+    '/pages/bluetooth': QsBluetoothPage(),
   };
 
   late final QsControllerState qsController = QsControllerState._(this);
@@ -121,7 +126,7 @@ class _QuickSettingsOverlayState
     if (shouldHide) return const SizedBox();
 
     return Positioned(
-      bottom: WindowManagerService.current.controller.wmInsets.bottom + 8.0,
+      bottom: PangolinSession.taskbarHeight + 8.0,
       right: WindowManagerService.current.controller.wmInsets.right + 8,
       child: PopupTransition(
         animation: animation,
@@ -361,42 +366,61 @@ class _QsMainState extends State<QsMain>
       case QuickControl.vpn:
         return const _VpnTile();
       case QuickControl.network:
-        return QsToggleButton(
-          //TODO change title to "Network"
-          title: ToggleProperty.singleState(
-            strings.quicksettingsOverlay.quickControlsNetworkTitle,
-          ),
-          icon: const ToggleProperty(
-            base: Icons.wifi_off_rounded,
-            active: Icons.wifi_rounded,
-          ),
-          //TODO Capitalise
-          subtitle: ToggleProperty(
-            base: null,
-            active: strings
-                .quicksettingsOverlay.quickControlsNetworkSubtitleConnected,
-          ),
-          enabled: service.enableWifi && !service.enableAirplaneMode,
-          onPressed: (value) => service.enableWifi = value,
-          onMenuPressed: () {
-            QsController.pushRoute(context, "/pages/network");
+        // NetworkManager's Wi-Fi: on/off, the connected network, the
+        // networks page.
+        return ListenableBuilder(
+          listenable: WifiService.instance,
+          builder: (context, _) {
+            final WifiService wifi = WifiService.instance;
+            return QsToggleButton(
+              title: ToggleProperty.singleState(
+                strings.quicksettingsOverlay.quickControlsNetworkTitle,
+              ),
+              icon: const ToggleProperty(
+                base: Icons.wifi_off_rounded,
+                active: Icons.wifi_rounded,
+              ),
+              subtitle: ToggleProperty(
+                base: strings.global.off,
+                active: wifi.connected?.ssid ?? strings.global.on,
+              ),
+              enabled: wifi.enabled,
+              onPressed: (value) => unawaited(wifi.setEnabled(value)),
+              onMenuPressed: () {
+                QsController.pushRoute(context, "/pages/network");
+              },
+            );
           },
         );
       case QuickControl.bluetooth:
-        return QsToggleButton(
-          title: ToggleProperty.singleState(
-            strings.quicksettingsOverlay.quickControlsBluetoothTitle,
-          ),
-          subtitle: ToggleProperty(
-            base: strings.global.off,
-            active: strings.global.on,
-          ),
-          icon: const ToggleProperty(
-            base: Icons.bluetooth_disabled_rounded,
-            active: Icons.bluetooth_connected_rounded,
-          ),
-          enabled: service.enableBluetooth && !service.enableAirplaneMode,
-          onPressed: (value) => service.enableBluetooth = value,
+        // BlueZ's adapter: on/off, the connected device, the devices page.
+        return ListenableBuilder(
+          listenable: BluetoothService.instance,
+          builder: (context, _) {
+            final BluetoothService bt = BluetoothService.instance;
+            final List<BluetoothDevice> connected = bt.connected;
+            return QsToggleButton(
+              title: ToggleProperty.singleState(
+                strings.quicksettingsOverlay.quickControlsBluetoothTitle,
+              ),
+              subtitle: ToggleProperty(
+                base: strings.global.off,
+                active: connected.isNotEmpty
+                    ? connected.first.name
+                    : strings.global.on,
+              ),
+              icon: ToggleProperty(
+                base: Icons.bluetooth_disabled_rounded,
+                active: connected.isNotEmpty
+                    ? Icons.bluetooth_connected_rounded
+                    : Icons.bluetooth_rounded,
+              ),
+              enabled: bt.powered,
+              onPressed: (value) => unawaited(bt.setPowered(value)),
+              onMenuPressed: () =>
+                  QsController.pushRoute(context, "/pages/bluetooth"),
+            );
+          },
         );
       case QuickControl.airplaneMode:
         return QsToggleButton(
@@ -408,7 +432,10 @@ class _QsMainState extends State<QsMain>
             active: Icons.airplanemode_active_rounded,
           ),
           enabled: service.enableAirplaneMode,
-          onPressed: (value) => service.enableAirplaneMode = value,
+          onPressed: (value) {
+            service.enableAirplaneMode = value;
+            unawaited(AirplaneMode.set(on: value));
+          },
         );
       case QuickControl.language:
         return QsToggleButton(

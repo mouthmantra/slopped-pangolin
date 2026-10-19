@@ -18,6 +18,7 @@ import 'package:dahlia_shared/dahlia_shared.dart';
 import 'package:flutter/material.dart';
 import 'package:pangolin/components/overlays/quick_settings/quick_settings_overlay.dart';
 import 'package:pangolin/components/taskbar/taskbar_element.dart';
+import 'package:pangolin/services/bluetooth.dart';
 import 'package:pangolin/services/date_time.dart';
 import 'package:pangolin/services/network_status.dart';
 import 'package:pangolin/services/power.dart';
@@ -98,6 +99,7 @@ class _StatusIcons extends StatelessWidget {
         PrivacyMonitor.instance,
         NetworkStatus.instance,
         VpnService.instance,
+        BluetoothService.instance,
       ]),
       builder: (context, _) {
         final PrivacyMonitor privacy = PrivacyMonitor.instance;
@@ -108,7 +110,12 @@ class _StatusIcons extends StatelessWidget {
           if (_networkIcon(NetworkStatus.instance) case final Widget icon)
             icon,
           if (VpnService.instance.anyActive) const Icon(Icons.vpn_key_rounded),
-          if (customization.enableBluetooth) const Icon(Icons.bluetooth),
+          if (BluetoothService.instance.powered)
+            Icon(
+              BluetoothService.instance.connected.isNotEmpty
+                  ? Icons.bluetooth_connected_rounded
+                  : Icons.bluetooth_rounded,
+            ),
           if (PowerService.current.hasBattery)
             PowerServiceBuilder(
               builder: (context, child, percentage, charging, powerSaver) {

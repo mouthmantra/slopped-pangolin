@@ -11,12 +11,31 @@
 #include <gtk-layer-shell/gtk-layer-shell.h>
 #endif
 
+#include <dlfcn.h>
+
 #include <cstring>
 
 #include "flutter/generated_plugin_registrant.h"
 #include "egl_workaround.h"
 #include "river_blur.h"
 #include "session_lock.h"
+
+// gtk-layer-shell gets the commit that applies a change (keyboard mode) by
+// invalidating the whole window: a full repaint, 59 MB of it at 4K. While
+// set, that becomes one pixel, which commits all the same.
+static bool commit_with_one_pixel = false;
+
+extern "C" __attribute__((visibility("default"))) void
+gdk_window_invalidate_rect(GdkWindow* window,
+                           const GdkRectangle* rect,
+                           gboolean invalidate_children) {
+  using Invalidate = void (*)(GdkWindow*, const GdkRectangle*, gboolean);
+  static Invalidate real = reinterpret_cast<Invalidate>(
+      dlsym(RTLD_NEXT, "gdk_window_invalidate_rect"));
+  static const GdkRectangle pixel = {0, 0, 1, 1};
+  real(window, rect == nullptr && commit_with_one_pixel ? &pixel : rect,
+       invalidate_children);
+}
 
 // Pangolin runs in one of two modes:
 //
@@ -205,7 +224,9 @@ static FlMethodResponse* set_keyboard_mode(MyApplication* self, FlValue* args) {
   } else if (strcmp(mode, "on_demand") == 0) {
     keyboard_mode = GTK_LAYER_SHELL_KEYBOARD_MODE_ON_DEMAND;
   }
+  commit_with_one_pixel = true;
   gtk_layer_set_keyboard_mode(window, keyboard_mode);
+  commit_with_one_pixel = false;
   if (keyboard_mode != GTK_LAYER_SHELL_KEYBOARD_MODE_NONE) {
     gtk_window_present(window);
   }
@@ -302,6 +323,62 @@ static FlMethodResponse* animate_part(MyApplication* self, FlValue* args) {
   return FL_METHOD_RESPONSE(fl_method_success_response_new(fl_value_new_bool(TRUE)));
 }
 
+// Integer values of a list argument, or false.
+static gboolean int_values(FlValue* args, const char* key, int32_t* out,
+                           size_t count) {
+  FlValue* values = fl_value_lookup_string(args, key);
+  if (values == nullptr || fl_value_get_type(values) != FL_VALUE_TYPE_LIST ||
+      fl_value_get_length(values) != count) {
+    return FALSE;
+  }
+  for (size_t i = 0; i < count; i++) {
+    FlValue* value = fl_value_get_list_value(values, i);
+    if (fl_value_get_type(value) != FL_VALUE_TYPE_INT) return FALSE;
+    out[i] = static_cast<int32_t>(fl_value_get_int(value));
+  }
+  return TRUE;
+}
+
+// Only a part of a surface is drawn by river (the shell surface while only
+// the taskbar shows): 'area' [x, y, width, height], or null for all of it.
+static FlMethodResponse* set_visible_area(MyApplication* self, FlValue* args) {
+  FlValue* view_value = fl_value_lookup_string(args, "view");
+  if (view_value == nullptr || fl_value_get_type(view_value) != FL_VALUE_TYPE_INT) {
+    return FL_METHOD_RESPONSE(fl_method_error_response_new(
+        "bad-args", "expected an integer 'view'", nullptr));
+  }
+  GtkWindow* window = window_for_view_id(self, fl_value_get_int(view_value));
+  if (window == nullptr) {
+    return FL_METHOD_RESPONSE(fl_method_success_response_new(fl_value_new_bool(FALSE)));
+  }
+  int32_t area[4] = {0, 0, 0, 0};
+  int_values(args, "area", area, 4);
+  river_blur_set_visible_area(window, area[0], area[1], area[2], area[3]);
+  return FL_METHOD_RESPONSE(fl_method_success_response_new(fl_value_new_bool(TRUE)));
+}
+
+// A color animated over a part of a surface by river ('values': ARGB
+// color, x, y, width, height, duration in ms, cubic-bezier x1, y1, x2, y2
+// times 10000).
+static FlMethodResponse* set_tint(MyApplication* self, FlValue* args) {
+  FlValue* view_value = fl_value_lookup_string(args, "view");
+  int32_t v[10];
+  if (view_value == nullptr || fl_value_get_type(view_value) != FL_VALUE_TYPE_INT ||
+      !int_values(args, "values", v, 10)) {
+    return FL_METHOD_RESPONSE(fl_method_error_response_new(
+        "bad-args", "expected 'view' and 10 'values'", nullptr));
+  }
+  GtkWindow* window = window_for_view_id(self, fl_value_get_int(view_value));
+  if (window == nullptr) {
+    return FL_METHOD_RESPONSE(fl_method_success_response_new(fl_value_new_bool(FALSE)));
+  }
+  const int32_t area[4] = {v[1], v[2], v[3], v[4]};
+  const int32_t curve[4] = {v[6], v[7], v[8], v[9]};
+  river_blur_set_tint(window, static_cast<uint32_t>(v[0]), area,
+                      static_cast<uint32_t>(v[5] < 0 ? 0 : v[5]), curve);
+  return FL_METHOD_RESPONSE(fl_method_success_response_new(fl_value_new_bool(TRUE)));
+}
+
 static void session_method_call_cb(FlMethodChannel* channel,
                                    FlMethodCall* method_call,
                                    gpointer user_data) {
@@ -318,6 +395,13 @@ static void session_method_call_cb(FlMethodChannel* channel,
     response = remap_surfaces(self);
   } else if (strcmp(method, "setInputRegion") == 0) {
     response = set_input_region(self, args);
+  } else if (strcmp(method, "setVisibleArea") == 0) {
+    response = set_visible_area(self, args);
+  } else if (strcmp(method, "setTint") == 0) {
+    response = set_tint(self, args);
+  } else if (strcmp(method, "tintsSupported") == 0) {
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(
+        fl_value_new_bool(river_blur_tints_supported())));
   } else if (strcmp(method, "setKeyboardMode") == 0) {
     response = set_keyboard_mode(self, args);
   } else if (strcmp(method, "blurSupported") == 0) {
@@ -358,6 +442,31 @@ static void setup_session_channel(MyApplication* self) {
                                             nullptr);
 }
 
+// PANGOLIN_PROFILE=frames: what GTK repaints of a session surface, on the
+// clock of the frame logs.
+static gboolean profile_draw_cb(GtkWidget* widget, cairo_t* cr,
+                                gpointer name) {
+  cairo_rectangle_list_t* rects = cairo_copy_clip_rectangle_list(cr);
+  double area = 0;
+  double x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  if (rects->status == CAIRO_STATUS_SUCCESS) {
+    for (int i = 0; i < rects->num_rectangles; i++) {
+      const cairo_rectangle_t& r = rects->rectangles[i];
+      area += r.width * r.height;
+      x0 = MIN(x0, r.x);
+      y0 = MIN(y0, r.y);
+      x1 = MAX(x1, r.x + r.width);
+      y1 = MAX(y1, r.y + r.height);
+    }
+  }
+  g_printerr("Pangolin: repaint %s at %" G_GINT64_FORMAT
+             "ms: %d rects, %.0f px, extents %.0fx%.0f at %.0f,%.0f\n",
+             static_cast<const char*>(name), g_get_monotonic_time() / 1000,
+             rects->num_rectangles, area, x1 - x0, y1 - y0, x0, y0);
+  cairo_rectangle_list_destroy(rects);
+  return FALSE;
+}
+
 #ifdef HAVE_GTK_LAYER_SHELL
 static GtkWindow* create_layer_window(MyApplication* self,
                                       FlView* view,
@@ -391,8 +500,16 @@ static GtkWindow* create_layer_window(MyApplication* self,
 
   gtk_widget_show(GTK_WIDGET(view));
   gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(view));
+  // The window's focus widget: keys reach Flutter from the moment the
+  // surface has the keyboard (the login screen, the launcher opened with
+  // Super), not only after a click on it.
+  gtk_widget_grab_focus(GTK_WIDGET(view));
   g_signal_connect(window, "delete-event", G_CALLBACK(layer_window_delete_cb),
                    nullptr);
+  if (g_strcmp0(g_getenv("PANGOLIN_PROFILE"), "frames") == 0) {
+    g_signal_connect(view, "draw", G_CALLBACK(profile_draw_cb),
+                     const_cast<gchar*>(name_space));
+  }
   // The window stays unmapped until Dart reports that the window manager is
   // bound: river destroys layer surfaces created before that point. Realizing
   // (without mapping) is enough for the view to start the engine, which only
@@ -477,6 +594,11 @@ static void my_application_activate(GApplication* application) {
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   apply_renderer_choice(project, TRUE);
+  // Dart on its own thread: there each frame starts on time (this thread's
+  // task runner wakes in whole milliseconds, 1.7 ms late on average, a third
+  // of a 165 Hz frame) and builds while GTK draws the previous one.
+  fl_dart_project_set_ui_thread_policy(
+      project, FL_UI_THREAD_POLICY_RUN_ON_SEPARATE_THREAD);
   fl_dart_project_set_dart_entrypoint_arguments(project,
                                                 self->dart_entrypoint_arguments);
 

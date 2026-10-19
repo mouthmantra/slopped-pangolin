@@ -16,6 +16,9 @@ class NotificationQueue extends StatefulWidget {
 
   @override
   _NotificationQueueState createState() => _NotificationQueueState();
+
+  /// Whether notifications pop up right now.
+  static final ValueNotifier<bool> active = ValueNotifier(false);
 }
 
 class _NotificationQueueState extends State<NotificationQueue>
@@ -58,6 +61,7 @@ class _NotificationQueueState extends State<NotificationQueue>
       controller: controller,
       timer: timer,
     );
+    NotificationQueue.active.value = true;
 
     setState(() {});
     controller.forward();
@@ -125,6 +129,7 @@ class _NotificationQueueState extends State<NotificationQueue>
     notif.timer?.cancel();
 
     incomingNotifications.remove(id);
+    NotificationQueue.active.value = incomingNotifications.isNotEmpty;
   }
 
   Future<void> _dismissNotification(int id) async {

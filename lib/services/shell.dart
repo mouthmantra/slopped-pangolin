@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:dahlia_shared/dahlia_shared.dart';
 import 'package:flutter/widgets.dart';
 import 'package:pangolin/components/shell/shell.dart';
+import 'package:pangolin/services/shell_area.dart';
 
 class ShellServiceFactory extends ServiceFactory<ShellService> {
   const ShellServiceFactory();
@@ -92,6 +93,8 @@ class _ShellServiceImpl extends ShellService {
   }) async {
     final ShellOverlay overlay = overlays.firstWhere((o) => o.id == overlayId);
     if (dismissEverything) this.dismissEverything();
+    // Laid out and animated on the whole screen.
+    await ShellSurfaceArea.instance.ensureFull();
     await overlay._controller.requestShow(args);
   }
 
@@ -226,12 +229,25 @@ abstract class ShellOverlayState<T extends ShellOverlay> extends State<T>
     controller.showingNotifier.removeListener(_showListener);
     animationController.removeStatusListener(_statusListener);
     animationController.dispose();
+    if (_visible.remove(this)) anyVisible.value = _visible.isNotEmpty;
     super.dispose();
+  }
+
+  /// Whether an overlay is on screen (shown, or animating out): the shell
+  /// surface then covers the whole screen (ShellSurfaceArea).
+  static final ValueNotifier<bool> anyVisible = ValueNotifier(false);
+  static final Set<ShellOverlayState> _visible = {};
+
+  void _updateVisible() {
+    final bool changed =
+        shouldHide ? _visible.remove(this) : _visible.add(this);
+    if (changed) anyVisible.value = _visible.isNotEmpty;
   }
 
   // Once the closing animation is over the overlay must leave the tree
   // ([shouldHide]): nothing of it may keep catching input.
   void _statusListener(AnimationStatus status) {
+    _updateVisible();
     if (status == AnimationStatus.dismissed && mounted) setState(() {});
   }
 
@@ -240,6 +256,7 @@ abstract class ShellOverlayState<T extends ShellOverlay> extends State<T>
   FutureOr<void> requestDismiss(Map<String, dynamic> args);
 
   void _showListener() {
+    _updateVisible();
     setState(() {});
   }
 

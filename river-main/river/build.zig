@@ -137,7 +137,7 @@ pub fn build(b: *Build) !void {
     scanner.generate("river_touch_gestures_v1", 1);
     scanner.generate("river_touchpad_gestures_v1", 1);
     scanner.generate("river_window_effects_v1", 1);
-    scanner.generate("river_blur_manager_v1", 3);
+    scanner.generate("river_blur_manager_v1", 4);
 
     scanner.generate("river_input_manager_v1", 2);
     scanner.generate("river_libinput_config_v1", 2);

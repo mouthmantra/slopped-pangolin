@@ -312,6 +312,226 @@ abstract final class MonitorsXml {
   /// wlroots names HDMI ports HDMI-A-1 where GNOME says HDMI-1.
   static String _connector(String name) =>
       name.replaceFirst(RegExp(r"^HDMI-A-"), "HDMI-");
+
+  /// The user's monitors.xml (`$XDG_CONFIG_HOME/monitors.xml`).
+  static String get userPath {
+    final Map<String, String> env = Platform.environment;
+    final String config = env["XDG_CONFIG_HOME"]?.isNotEmpty == true
+        ? env["XDG_CONFIG_HOME"]!
+        : "${env["HOME"] ?? "."}/.config";
+    return "$config/monitors.xml";
+  }
+
+  /// The monitor on [connector] as GNOME identifies it: vendor code, product
+  /// and serial read from its EDID the way mutter reads them, else what the
+  /// compositor says ([make], [model], [serial]).
+  static MonitorSpec specOf({
+    required String connector,
+    required String make,
+    required String model,
+    required String serial,
+  }) {
+    final ({String vendor, String product, String serial})? edid =
+        _edidOf(connector);
+    return MonitorSpec(
+      connector: _connector(connector),
+      vendor: edid?.vendor ?? make,
+      product: edid?.product ?? model,
+      serial: edid?.serial ?? serial,
+    );
+  }
+
+  static ({String vendor, String product, String serial})? _edidOf(
+    String connector,
+  ) {
+    try {
+      for (final FileSystemEntity e in Directory("/sys/class/drm").listSync()) {
+        final String name = e.uri.pathSegments.lastWhere((s) => s.isNotEmpty);
+        final RegExpMatch? m = RegExp(r"^card\d+-(.+)$").firstMatch(name);
+        if (m == null || m.group(1) != connector) continue;
+        return parseEdid(File("${e.path}/edid").readAsBytesSync());
+      }
+    } on FileSystemException {
+      // No EDID to read.
+    }
+    return null;
+  }
+
+  /// Vendor code, product and serial of an EDID as mutter derives them:
+  /// the product and serial descriptors, else the product code and serial
+  /// number in hex ("0x40a3", "0x00000000"). Null when it isn't an EDID.
+  static ({String vendor, String product, String serial})? parseEdid(
+    List<int> b,
+  ) {
+    const List<int> header = [0, 255, 255, 255, 255, 255, 255, 0];
+    if (b.length < 128) return null;
+    for (int i = 0; i < header.length; i++) {
+      if (b[i] != header[i]) return null;
+    }
+    final int v = b[8] << 8 | b[9];
+    String letter(int c) => String.fromCharCode(64 + (c & 31));
+    final String vendor = letter(v >> 10) + letter(v >> 5) + letter(v);
+    String? product;
+    String? serial;
+    for (int o = 54; o <= 108; o += 18) {
+      if (b[o] != 0 || b[o + 1] != 0 || b[o + 2] != 0) continue;
+      final String text = String.fromCharCodes(b.sublist(o + 5, o + 18))
+          .split("\n")
+          .first
+          .trim();
+      if (text.isEmpty) continue;
+      if (b[o + 3] == 0xfc) product = text;
+      if (b[o + 3] == 0xff) serial = text;
+    }
+    String hex(int value, int digits) =>
+        "0x${value.toRadixString(16).padLeft(digits, "0")}";
+    return (
+      vendor: vendor,
+      product: product ?? hex(b[10] | b[11] << 8, 4),
+      serial: serial ?? hex(b[12] | b[13] << 8 | b[14] << 16 | b[15] << 24, 8),
+    );
+  }
+
+  /// Saves [outputs] (each monitor and how it's set up) as the
+  /// configuration for these monitors in the monitors.xml at [path] (the
+  /// user's by default), in place of the one it had for them; the others
+  /// stay as they are. A file that isn't a version 2 monitors.xml is left
+  /// alone. Returns whether it was written.
+  static bool save(
+    List<(MonitorSpec, OutputSettings)> outputs, {
+    String? path,
+  }) {
+    // GNOME needs a monitor on, and the mode of each.
+    final Iterable<OutputSettings> on = [
+      for (final (_, OutputSettings o) in outputs)
+        if (o.enabled) o,
+    ];
+    if (on.isEmpty || on.any((o) => o.width <= 0 || o.refresh <= 0)) {
+      return false;
+    }
+    final File file = File(path ?? userPath);
+    String old = "";
+    try {
+      old = file.readAsStringSync();
+    } on FileSystemException {
+      // A new file.
+    }
+    final _Element? root = old.trim().isEmpty ? null : _Element.parse(old);
+    if (old.trim().isNotEmpty &&
+        (root?.name != "monitors" || root?.attributes["version"] != "2")) {
+      return false;
+    }
+
+    String key(MonitorSpec s) =>
+        [s.connector, s.vendor, s.product, s.serial].join("\u0000");
+    final Set<String> mine = {for (final (MonitorSpec s, _) in outputs) key(s)};
+    final StringBuffer out = StringBuffer('<monitors version="2">\n');
+    for (final RegExpMatch m in RegExp(r"<configuration>[\s\S]*?</configuration>")
+        .allMatches(old)) {
+      final _Element? c = _Element.parse(m.group(0)!);
+      final MonitorsXmlConfiguration? config =
+          c == null ? null : _configuration(c);
+      final Set<String>? theirs =
+          config == null ? null : {for (final s in config.specs) key(s)};
+      final bool same = theirs != null &&
+          theirs.length == mine.length &&
+          theirs.containsAll(mine);
+      if (!same) out.write("  ${m.group(0)}\n");
+    }
+    out.write(_configurationXml(outputs));
+    out.write("</monitors>\n");
+
+    file.parent.createSync(recursive: true);
+    // Written aside and renamed: a crash never leaves half a file.
+    final File temp = File("${file.path}.tmp");
+    temp.writeAsStringSync(out.toString(), flush: true);
+    temp.renameSync(file.path);
+    return true;
+  }
+
+  /// One <configuration>: monitors at the same place, scale and transform
+  /// are mirrored (one logical monitor); the built-in panel, else the
+  /// top-left one, is the primary.
+  static String _configurationXml(List<(MonitorSpec, OutputSettings)> outputs) {
+    final List<List<(MonitorSpec, OutputSettings)>> logical = [];
+    for (final (MonitorSpec, OutputSettings) o in outputs) {
+      if (!o.$2.enabled) continue;
+      final List<(MonitorSpec, OutputSettings)>? group = logical
+          .where((g) =>
+              g.first.$2.x == o.$2.x &&
+              g.first.$2.y == o.$2.y &&
+              g.first.$2.scale == o.$2.scale &&
+              g.first.$2.transform == o.$2.transform)
+          .firstOrNull;
+      if (group != null) {
+        group.add(o);
+      } else {
+        logical.add([o]);
+      }
+    }
+    logical.sort((a, b) => a.first.$2.x != b.first.$2.x
+        ? a.first.$2.x.compareTo(b.first.$2.x)
+        : a.first.$2.y.compareTo(b.first.$2.y));
+    final int primary = logical.indexWhere(
+      (g) => g.any((o) => RegExp(r"^(eDP|LVDS|DSI)-").hasMatch(o.$1.connector)),
+    );
+
+    String spec(MonitorSpec s, String indent) => "$indent<monitorspec>\n"
+        "$indent  <connector>${_escape(s.connector)}</connector>\n"
+        "$indent  <vendor>${_escape(s.vendor)}</vendor>\n"
+        "$indent  <product>${_escape(s.product)}</product>\n"
+        "$indent  <serial>${_escape(s.serial)}</serial>\n"
+        "$indent</monitorspec>\n";
+
+    final StringBuffer x = StringBuffer("  <configuration>\n");
+    x.write("    <layoutmode>logical</layoutmode>\n");
+    for (int i = 0; i < logical.length; i++) {
+      final OutputSettings first = logical[i].first.$2;
+      x.write("    <logicalmonitor>\n");
+      x.write("      <x>${first.x}</x>\n");
+      x.write("      <y>${first.y}</y>\n");
+      x.write("      <scale>${first.scale}</scale>\n");
+      if (i == (primary >= 0 ? primary : 0)) {
+        x.write("      <primary>yes</primary>\n");
+      }
+      if (first.transform != 0) {
+        const List<String> rotations = ["normal", "left", "upside_down", "right"];
+        x.write("      <transform>\n");
+        x.write("        <rotation>${rotations[first.transform % 4]}</rotation>\n");
+        x.write("        <flipped>${first.transform >= 4 ? "yes" : "no"}</flipped>\n");
+        x.write("      </transform>\n");
+      }
+      for (final (MonitorSpec s, OutputSettings o) in logical[i]) {
+        x.write("      <monitor>\n");
+        x.write(spec(s, "        "));
+        x.write("        <mode>\n");
+        x.write("          <width>${o.width}</width>\n");
+        x.write("          <height>${o.height}</height>\n");
+        x.write("          <rate>${(o.refresh / 1000).toStringAsFixed(3)}</rate>\n");
+        x.write("        </mode>\n");
+        x.write("      </monitor>\n");
+      }
+      x.write("    </logicalmonitor>\n");
+    }
+    final List<MonitorSpec> disabled = [
+      for (final (MonitorSpec s, OutputSettings o) in outputs)
+        if (!o.enabled) s,
+    ];
+    if (disabled.isNotEmpty) {
+      x.write("    <disabled>\n");
+      for (final MonitorSpec s in disabled) {
+        x.write(spec(s, "      "));
+      }
+      x.write("    </disabled>\n");
+    }
+    x.write("  </configuration>\n");
+    return x.toString();
+  }
+
+  static String _escape(String s) => s
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;");
 }
 
 /// Just enough XML for monitors.xml: elements, attributes and text.

@@ -14,16 +14,13 @@ PREFIX="@PREFIX@"
 # Nothing goes to the console: everything logs to
 # /var/log/PangolinGreeter.log (created by tool/install.sh --greeter), or to
 # the greeter's state directory. PANGOLIN_LOG=FILE picks another file.
+# Not even greetd's VT gets a byte: the first text written to a console makes
+# the kernel switch the screen to it, and from then on it shows (black)
+# between the login screen and the desktop.
 if [ -z "$PANGOLIN_LOGGING" ]; then
     export PANGOLIN_LOGGING=1
     log=${PANGOLIN_LOG:-/var/log/PangolinGreeter.log}
     { : >> "$log"; } 2>/dev/null || log=/var/lib/pangolin-greeter/PangolinGreeter.log
-    # greetd runs the greeter on its VT: clear it and hide its cursor, so
-    # that the moments it shows (before the login screen draws, and between
-    # the login screen and the desktop) are plain black.
-    case "$(readlink /proc/$$/fd/1 2>/dev/null)" in
-        /dev/tty[0-9]*) printf '\033[2J\033[H\033[?25l' ;;
-    esac
     if [ -f "$log" ] && [ "$(wc -c < "$log" 2>/dev/null || echo 0)" -gt 8388608 ]; then
         : > "$log"
     fi
@@ -78,6 +75,9 @@ if [ -d "$STATE" ] && [ -w "$STATE" ]; then
 fi
 # Comes in from black like the desktop does.
 export PANGOLIN_SPLASH_FADE=450
+# river keeps the splash as the wallpaper and follows its changes: the login
+# screen shows each user's there, sharp, and only blurs it.
+export PANGOLIN_WALLPAPER=1
 
 RIVER=river
 [ -x "$PREFIX/bin/river" ] && RIVER="$PREFIX/bin/river"

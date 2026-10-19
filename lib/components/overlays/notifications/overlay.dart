@@ -6,6 +6,7 @@ import 'package:pangolin/widgets/surface/popup_transition.dart';
 import 'package:pangolin/components/overlays/notifications/widgets/listener.dart';
 import 'package:pangolin/components/overlays/notifications/widgets/wrapper.dart';
 import 'package:pangolin/services/notifications.dart';
+import 'package:pangolin/services/session.dart';
 import 'package:pangolin/services/shell.dart';
 import 'package:pangolin/utils/extensions/extensions.dart';
 import 'package:pangolin/utils/wm/wm.dart';
@@ -136,7 +137,8 @@ class _NotificationsOverlayState extends ShellOverlayState<NotificationsOverlay>
 
     return Positioned(
       right: wmInsets.right + 8,
-      bottom: wmInsets.bottom + 8,
+      // The taskbar shows while this is open, even when it hides itself.
+      bottom: PangolinSession.taskbarHeight + 8,
       width: 420,
       child: PopupTransition(
         animation: animation,

@@ -62,7 +62,7 @@ server_destroy: wl.Listener(*wl.Server) = .init(handleServerDestroy),
 
 pub fn init(blur: *Blur) !void {
     blur.* = .{
-        .global = try wl.Global.create(server.wl_server, river.BlurManagerV1, 3, ?*anyopaque, null, bind),
+        .global = try wl.Global.create(server.wl_server, river.BlurManagerV1, 4, ?*anyopaque, null, bind),
         .surfaces = undefined,
     };
     blur.surfaces.init();
@@ -110,6 +110,13 @@ fn handleManagerRequest(
             };
         },
     }
+}
+
+/// The part of [surface] it asked to be drawn (set_visible_area), in
+/// surface-local coordinates; null for all of it.
+pub fn visibleArea(blur: *Blur, surface: *wlr.Surface) ?wlr.Box {
+    const blur_surface = blur.find(surface) orelse return null;
+    return blur_surface.visible_area;
 }
 
 fn find(blur: *Blur, surface: *wlr.Surface) ?*BlurSurface {
@@ -172,7 +179,36 @@ const Region = struct {
     /// Pangolin: a corner cutout (set_cutouts) rather than a blur: which
     /// corner of the window (0 top left ... 3 bottom left).
     cutout: ?u2 = null,
+    /// Pangolin: the hairline around the window (macOS-like) that cutouts
+    /// draw: straight ARGB, 0 for none, and its width in logical pixels.
+    border: u32 = 0,
+    border_width: i32 = 0,
+    /// A corner the client rounds itself: only the hairline's arc.
+    ring_only: bool = false,
+    /// A straight piece of the hairline, between two corners.
+    edge: bool = false,
+
+    /// Drawn above the window rather than below its surface.
+    fn aboveWindow(region: Region) bool {
+        return region.cutout != null or region.edge;
+    }
+
+    /// Whether what's behind matters (blurs, cut corners).
+    fn readsBehind(region: Region) bool {
+        return !region.edge and !region.ring_only;
+    }
 };
+
+/// [border] (straight ARGB) premultiplied, times [coverage].
+fn borderColor(border: u32, coverage: f32) [4]f32 {
+    const a = @as(f32, @floatFromInt((border >> 24) & 0xff)) / 255 * coverage;
+    return .{
+        @as(f32, @floatFromInt((border >> 16) & 0xff)) / 255 * a,
+        @as(f32, @floatFromInt((border >> 8) & 0xff)) / 255 * a,
+        @as(f32, @floatFromInt(border & 0xff)) / 255 * a,
+        a,
+    };
+}
 
 /// Something drawn below a blur, in layout coordinates.
 const Item = struct {
@@ -211,14 +247,26 @@ pub fn beforeFrame(blur: *Blur) void {
 
     const scale = maxOutputScale();
     const now = nanoTimestamp();
+    var animating = false;
     for (blur.updates.items) |update| {
         // Cutouts show the surface itself too (the shadow under the corner).
         const with_self = blur.items.items[0..@min(update.below + 1, blur.items.items.len)];
         update.blur_surface.update(update, blur.items.items[0..update.below], with_self, scale, now, gles2);
+        const tints = &update.blur_surface.tints;
+        var t: usize = 0;
+        while (t < tints.items.len) {
+            const tint = tints.items[t];
+            if (tint.place(update.scene_buffer, @intCast(now))) animating = true;
+            if (tint.done()) {
+                _ = tints.orderedRemove(t);
+                tint.destroy();
+                continue;
+            }
+            t += 1;
+        }
     }
 
     // Animations of surfaces that weren't drawn (hidden) end anyway.
-    var animating = false;
     var it = blur.surfaces.iterator(.forward);
     while (it.next()) |blur_surface| {
         var i: usize = 0;
@@ -291,7 +339,14 @@ fn collect(blur: *Blur, tree: *wlr.SceneTree, x: i32, y: i32) !void {
                     });
                     continue;
                 }
-                const buffer = scene_buffer.buffer orelse continue;
+                // The scene lets go of a buffer it has a texture of unless
+                // a client's (river's wallpaper): the texture is drawn then.
+                const content: usize = if (scene_buffer.buffer) |buffer|
+                    @intFromPtr(buffer)
+                else if (scene_buffer.private.texture) |texture|
+                    @intFromPtr(texture)
+                else
+                    continue;
                 var seq: u32 = 0;
                 if (wlr.SceneSurface.tryFromBuffer(scene_buffer)) |scene_surface| {
                     seq = scene_surface.surface.current.seq;
@@ -299,19 +354,19 @@ fn collect(blur: *Blur, tree: *wlr.SceneTree, x: i32, y: i32) !void {
                         try blur.updates.append(util.gpa, .{
                             .blur_surface = blur_surface,
                             .scene_buffer = scene_buffer,
-                            .x = nx,
-                            .y = ny,
+                            .x = nx - scene_surface.private.clip.x,
+                            .y = ny - scene_surface.private.clip.y,
                             .below = blur.items.items.len,
                         });
                     }
                 }
-                const width = if (scene_buffer.dst_width > 0) scene_buffer.dst_width else buffer.width;
-                const height = if (scene_buffer.dst_height > 0) scene_buffer.dst_height else buffer.height;
+                const width = if (scene_buffer.dst_width > 0) scene_buffer.dst_width else scene_buffer.private.buffer_width;
+                const height = if (scene_buffer.dst_height > 0) scene_buffer.dst_height else scene_buffer.private.buffer_height;
                 if (width <= 0 or height <= 0) continue;
                 try blur.items.append(util.gpa, .{
                     .box = .{ .x = nx, .y = ny, .width = width, .height = height },
                     .kind = .{ .buffer = scene_buffer },
-                    .key = @intFromPtr(buffer) ^ (@as(u64, seq) << 48) ^
+                    .key = content ^ (@as(u64, seq) << 48) ^
                         @as(u64, @intFromFloat(scene_buffer.opacity * 255)),
                 });
             },
@@ -346,6 +401,11 @@ const BlurSurface = struct {
     cutout_nodes: std.ArrayList(*Node) = .empty,
     /// Parts of the surface being animated.
     effects: std.ArrayList(*Effect) = .empty,
+    /// Version 4: the part of the surface drawn (surface-local), null for
+    /// all of it; applied by LayerShellOutput as a clip.
+    visible_area: ?wlr.Box = null,
+    /// Version 4: colors drawn over parts of the surface, one per area.
+    tints: std.ArrayList(*Tint) = .empty,
 
     commit: wl.Listener(*wlr.Surface) = .init(handleCommit),
     surface_destroy: wl.Listener(*wlr.Surface) = .init(handleSurfaceDestroy),
@@ -360,6 +420,12 @@ const BlurSurface = struct {
     }
 
     fn destroy(blur_surface: *BlurSurface) void {
+        for (blur_surface.tints.items) |tint| tint.destroy();
+        blur_surface.tints.deinit(util.gpa);
+        if (blur_surface.visible_area != null) {
+            blur_surface.visible_area = null;
+            arrangeLayers();
+        }
         for (blur_surface.effects.items) |effect| effect.destroy();
         blur_surface.effects.deinit(util.gpa);
         for (blur_surface.nodes.items) |node| node.destroy();
@@ -410,18 +476,86 @@ const BlurSurface = struct {
                 }
                 blur_surface.has_pending = true;
             },
+            .set_visible_area => |args| {
+                const area: ?wlr.Box = if (args.width > 0 and args.height > 0)
+                    .{ .x = args.x, .y = args.y, .width = args.width, .height = args.height }
+                else
+                    null;
+                const same = if (area) |a| (if (blur_surface.visible_area) |b| a.x == b.x and a.y == b.y and a.width == b.width and a.height == b.height else false) else blur_surface.visible_area == null;
+                if (same) return;
+                blur_surface.visible_area = area;
+                arrangeLayers();
+            },
+            .set_tint => |args| {
+                const argb: u32 = args.color;
+                const alpha = @as(f32, @floatFromInt(argb >> 24)) / 255;
+                // Premultiplied, as the scene draws it.
+                const color: [4]f32 = .{
+                    @as(f32, @floatFromInt((argb >> 16) & 0xff)) / 255 * alpha,
+                    @as(f32, @floatFromInt((argb >> 8) & 0xff)) / 255 * alpha,
+                    @as(f32, @floatFromInt(argb & 0xff)) / 255 * alpha,
+                    alpha,
+                };
+                const curve: [4]f64 = .{
+                    @as(f64, @floatFromInt(args.x1)) / 10000,
+                    @as(f64, @floatFromInt(args.y1)) / 10000,
+                    @as(f64, @floatFromInt(args.x2)) / 10000,
+                    @as(f64, @floatFromInt(args.y2)) / 10000,
+                };
+                const now: i64 = @intCast(nanoTimestamp());
+                const area: ?wlr.Box = if (args.width > 0 and args.height > 0)
+                    .{ .x = args.x, .y = args.y, .width = args.width, .height = args.height }
+                else
+                    null;
+                // One tint per area: a new color for the same area animates
+                // from where it is.
+                const tint = for (blur_surface.tints.items) |tint| {
+                    if (Tint.sameArea(tint.area, area)) break tint;
+                } else blk: {
+                    const tint = util.gpa.create(Tint) catch {
+                        resource.postNoMemory();
+                        return;
+                    };
+                    tint.* = .{ .area = area };
+                    blur_surface.tints.append(util.gpa, tint) catch {
+                        util.gpa.destroy(tint);
+                        resource.postNoMemory();
+                        return;
+                    };
+                    break :blk tint;
+                };
+                tint.from = tint.current(now);
+                tint.to = color;
+                tint.curve = curve;
+                tint.start = 0;
+                tint.duration = @as(i64, args.duration) * std.time.ns_per_ms;
+                scheduleFrames();
+            },
             .set_cutouts => |args| {
                 const values = args.cutouts.slice(i32);
                 blur_surface.pending_cutouts.clearRetainingCapacity();
+                // Pangolin: groups of 6 (x, y, width, height, radius, corners),
+                // optionally followed by the hairline around them: ARGB color
+                // and width in logical pixels.
+                var border: u32 = 0;
+                var border_width: i32 = 0;
+                if (values.len % 6 == 2) {
+                    border = @bitCast(values[values.len - 2]);
+                    border_width = math.clamp(values[values.len - 1], 0, 4);
+                    if (border_width == 0) border = 0;
+                }
+                const groups = values.len - values.len % 6;
                 var i: usize = 0;
-                while (i + 6 <= values.len) : (i += 6) {
+                while (i + 6 <= groups) : (i += 6) {
                     const v = values[i .. i + 6];
                     if (v[2] <= 0 or v[3] <= 0) continue;
                     const radius = math.clamp(v[4], 0, @divTrunc(@min(v[2], v[3]), 2));
                     if (radius <= 0) continue;
-                    // One small region per rounded corner.
+                    // One small region per rounded corner (the hairline's arc
+                    // also where the client rounds the corner itself).
                     for (0..4) |corner| {
-                        if (v[5] & (@as(i32, 1) << @intCast(corner)) == 0) continue;
+                        const cut = v[5] & (@as(i32, 1) << @intCast(corner)) != 0;
+                        if (!cut and border == 0) continue;
                         var radii: [4]i32 = @splat(0);
                         radii[corner] = radius;
                         blur_surface.pending_cutouts.append(util.gpa, .{
@@ -432,6 +566,36 @@ const BlurSurface = struct {
                             .radii = radii,
                             .alpha = 1,
                             .cutout = @intCast(corner),
+                            .border = border,
+                            .border_width = border_width,
+                            .ring_only = !cut,
+                        }) catch {
+                            resource.postNoMemory();
+                            return;
+                        };
+                    }
+                    if (border == 0) continue;
+                    // The straight edges, on the window's outermost pixels.
+                    const long_x = v[2] - 2 * radius;
+                    const long_y = v[3] - 2 * radius;
+                    const edges = [4][4]i32{
+                        .{ v[0] + radius, v[1], long_x, border_width },
+                        .{ v[0] + v[2] - border_width, v[1] + radius, border_width, long_y },
+                        .{ v[0] + radius, v[1] + v[3] - border_width, long_x, border_width },
+                        .{ v[0], v[1] + radius, border_width, long_y },
+                    };
+                    for (edges) |e| {
+                        if (e[2] <= 0 or e[3] <= 0) continue;
+                        blur_surface.pending_cutouts.append(util.gpa, .{
+                            .x = e[0],
+                            .y = e[1],
+                            .width = e[2],
+                            .height = e[3],
+                            .radii = @splat(0),
+                            .alpha = 1,
+                            .border = border,
+                            .border_width = border_width,
+                            .edge = true,
                         }) catch {
                             resource.postNoMemory();
                             return;
@@ -617,6 +781,104 @@ const BlurSurface = struct {
 
 /// Where an animated part of a surface is drawn: scaled around its center,
 /// moved, faded.
+/// A color over a surface (set_tint): a scene rect right above the
+/// surface's buffer, its color animated at the refresh rate.
+const Tint = struct {
+    rect: ?*wlr.SceneRect = null,
+    rect_destroy: wl.Listener(void) = .init(handleRectDestroy),
+    from: [4]f32 = @splat(0),
+    to: [4]f32 = @splat(0),
+    /// Surface-local, null for the whole surface.
+    area: ?wlr.Box = null,
+    curve: [4]f64 = .{ 0, 0, 1, 1 },
+    /// When the animation started (its first frame), 0 before; both in
+    /// nanoseconds (i64: an i128 would raise BlurSurface's alignment).
+    start: i64 = 0,
+    duration: i64 = 0,
+
+    fn progress(tint: *const Tint, now: i64) f64 {
+        if (tint.duration <= 0 or tint.start == 0) return if (tint.duration <= 0) 1 else 0;
+        const t = @as(f64, @floatFromInt(now - tint.start)) / @as(f64, @floatFromInt(tint.duration));
+        if (t >= 1) return 1;
+        return cubicBezier(tint.curve[0], tint.curve[1], tint.curve[2], tint.curve[3], @max(t, 0));
+    }
+
+    fn current(tint: *const Tint, now: i64) [4]f32 {
+        const p: f32 = @floatCast(tint.progress(now));
+        var color: [4]f32 = undefined;
+        for (0..4) |i| color[i] = tint.from[i] + (tint.to[i] - tint.from[i]) * p;
+        return color;
+    }
+
+    /// Before a frame: the rect above [scene_buffer], in this frame's
+    /// color. Returns whether it is still animating.
+    fn place(tint: *Tint, scene_buffer: *wlr.SceneBuffer, now: i64) bool {
+        if (tint.start == 0) tint.start = now;
+        const parent = scene_buffer.node.parent orelse return false;
+        const buffer = scene_buffer.buffer orelse return false;
+        const width = if (scene_buffer.dst_width > 0) scene_buffer.dst_width else buffer.width;
+        const height = if (scene_buffer.dst_height > 0) scene_buffer.dst_height else buffer.height;
+        const color = tint.current(now);
+        const rect = tint.rect orelse blk: {
+            const rect = parent.createSceneRect(width, height, &color) catch {
+                log.err("out of memory", .{});
+                return false;
+            };
+            rect.node.events.destroy.add(&tint.rect_destroy);
+            tint.rect = rect;
+            break :blk rect;
+        };
+        if (rect.node.parent != parent) rect.node.reparent(parent);
+        rect.node.placeAbove(&scene_buffer.node);
+        const origin = surfaceOrigin(scene_buffer);
+        if (tint.area) |area| {
+            rect.node.setPosition(origin[0] + area.x, origin[1] + area.y);
+            rect.setSize(area.width, area.height);
+        } else {
+            rect.node.setPosition(origin[0], origin[1]);
+            rect.setSize(width, height);
+        }
+        rect.setColor(&color);
+        rect.node.setEnabled(color[3] > 0.002);
+        return tint.duration > 0 and now - tint.start < tint.duration;
+    }
+
+    /// Faded out completely.
+    fn done(tint: *const Tint) bool {
+        return tint.to[3] == 0 and (tint.duration <= 0 or
+            (tint.start != 0 and @as(i64, @intCast(nanoTimestamp())) - tint.start >= tint.duration));
+    }
+
+    fn sameArea(a: ?wlr.Box, b: ?wlr.Box) bool {
+        if (a == null or b == null) return a == null and b == null;
+        return a.?.x == b.?.x and a.?.y == b.?.y and
+            a.?.width == b.?.width and a.?.height == b.?.height;
+    }
+
+    fn destroy(tint: *Tint) void {
+        if (tint.rect) |rect| {
+            tint.rect_destroy.link.remove();
+            rect.node.destroy();
+            tint.rect = null;
+        }
+        util.gpa.destroy(tint);
+    }
+
+    fn handleRectDestroy(listener: *wl.Listener(void)) void {
+        const tint: *Tint = @fieldParentPtr("rect_destroy", listener);
+        tint.rect_destroy.link.remove();
+        tint.rect = null;
+    }
+};
+
+/// Visible areas are applied as clips by the layer shell.
+fn arrangeLayers() void {
+    var it = server.om.outputs.iterator(.forward);
+    while (it.next()) |output| {
+        if (output.wlr_output != null) output.layer_shell.arrange();
+    }
+}
+
 const Transform = struct {
     dx: f64 = 0,
     dy: f64 = 0,
@@ -921,8 +1183,7 @@ const Effect = struct {
     /// Positions the copy (and the patches) for the current transform.
     fn place(effect: *Effect, surface_node: *wlr.SceneBuffer) void {
         const parent = surface_node.node.parent orelse return;
-        const base_x = surface_node.node.x;
-        const base_y = surface_node.node.y;
+        const base_x, const base_y = surfaceOrigin(surface_node);
 
         if (!effect.hiding) {
             for (&effect.patches) |*patch| patch.destroy();
@@ -1199,7 +1460,7 @@ const Node = struct {
         // Faded out completely (by an animation).
         scene_buffer.node.setEnabled(region.alpha > 0.002);
         if (!scene_buffer.node.enabled) return;
-        if (region.cutout != null) {
+        if (region.aboveWindow()) {
             // Above the window this surface lies below.
             const window_tree, const ox, const oy = windowTreeOf(surface_node) orelse {
                 scene_buffer.node.setEnabled(false);
@@ -1211,7 +1472,8 @@ const Node = struct {
         } else {
             if (scene_buffer.node.parent != parent) scene_buffer.node.reparent(parent);
             scene_buffer.node.placeBelow(surface_node);
-            scene_buffer.node.setPosition(surface_node.x + region.x, surface_node.y + region.y);
+            const origin = surfaceOrigin(update_.scene_buffer);
+            scene_buffer.node.setPosition(origin[0] + region.x, origin[1] + region.y);
         }
         scene_buffer.setDestSize(region.width, region.height);
         node.logical_width = region.width;
@@ -1225,7 +1487,7 @@ const Node = struct {
         };
 
         // Blurs read around themselves; cutouts only their corner.
-        const area = if (region.cutout != null) box else readArea(box);
+        const area = if (region.aboveWindow()) box else readArea(box);
 
         var hasher = std.hash.Wyhash.init(0);
         std.hash.autoHash(&hasher, box);
@@ -1233,7 +1495,9 @@ const Node = struct {
         std.hash.autoHash(&hasher, region.radii);
         std.hash.autoHash(&hasher, @as(u32, @bitCast(region.alpha)));
         std.hash.autoHash(&hasher, @as(u32, @bitCast(scale)));
+        std.hash.autoHash(&hasher, .{ region.border, region.border_width, region.ring_only, region.edge });
         for (below) |item| {
+            if (!region.readsBehind()) break;
             if (!intersects(item.box, area)) continue;
             if (item.kind == .blur and item.kind.blur.owner == node.owner) continue;
             std.hash.autoHash(&hasher, item.box);
@@ -1242,7 +1506,9 @@ const Node = struct {
         const signature = hasher.final() | 1;
         if (signature == node.signature) return;
 
-        const rendered = if (region.cutout != null)
+        const rendered = if (region.edge)
+            renderEdge(node, region, box, scale)
+        else if (region.cutout != null)
             NodeCutout.render(node, region, box, below, scale)
         else
             node.render(region, box, area, below, scale);
@@ -1414,6 +1680,28 @@ const Node = struct {
 
 /// The tree of the window [node] (a decoration surface) belongs to, and
 /// where [node]'s parent is in it.
+/// A straight piece of the window's hairline: its color, all over.
+fn renderEdge(node: *Node, region: Region, box: wlr.Box, scale: f32) !void {
+    const width: i32 = @max(1, @as(i32, @intFromFloat(@ceil(@as(f32, @floatFromInt(box.width)) * scale))));
+    const height: i32 = @max(1, @as(i32, @intFromFloat(@ceil(@as(f32, @floatFromInt(box.height)) * scale))));
+    try node.output.ensure(width, height);
+    const pass = try server.renderer.beginBufferPass(node.output.buffer.?, null);
+    pass.addRect(&.{
+        .box = .{ .x = 0, .y = 0, .width = node.output.capacity_width, .height = node.output.capacity_height },
+        .color = .{ .r = 0, .g = 0, .b = 0, .a = 0 },
+        .clip = null,
+        .blend_mode = .none,
+    });
+    const c = borderColor(region.border, 1);
+    pass.addRect(&.{
+        .box = node.output.usedBox(),
+        .color = .{ .r = c[0], .g = c[1], .b = c[2], .a = c[3] },
+        .clip = null,
+        .blend_mode = .none,
+    });
+    if (!pass.submit()) return error.RenderFailed;
+}
+
 fn windowTreeOf(node: *wlr.SceneNode) ?struct { *wlr.SceneTree, i32, i32 } {
     var x: i32 = 0;
     var y: i32 = 0;
@@ -1439,10 +1727,10 @@ const NodeCutout = struct {
         const width: i32 = @max(1, @as(i32, @intFromFloat(@ceil(@as(f32, @floatFromInt(box.width)) * scale))));
         const height: i32 = @max(1, @as(i32, @intFromFloat(@ceil(@as(f32, @floatFromInt(box.height)) * scale))));
 
-        // What's behind, unclipped.
+        // What's behind, unclipped (not needed for the hairline alone).
         const behind = &node.levels[0];
         try behind.ensure(width, height);
-        {
+        if (!region.ring_only) {
             const pass = try server.renderer.beginBufferPass(behind.buffer.?, null);
             pass.addRect(&.{
                 .box = behind.usedBox(),
@@ -1527,7 +1815,7 @@ const NodeCutout = struct {
         });
         const texture = behind.texture.?;
         var row: i32 = 0;
-        while (row < height) : (row += 1) {
+        while (row < height and !region.ring_only) : (row += 1) {
             var col: i32 = 0;
             while (col < width) : (col += 1) {
                 const coverage = outsideCoverage(radius, col, row);
@@ -1550,7 +1838,7 @@ const NodeCutout = struct {
                 });
             }
         }
-        addTexture(pass, .{
+        if (!region.ring_only) addTexture(pass, .{
             .texture = texture,
             .src_box = .{ .x = 0, .y = 0, .width = @floatFromInt(width), .height = @floatFromInt(height) },
             .dst_box = .{ .x = 0, .y = 0, .width = width, .height = height },
@@ -1558,7 +1846,49 @@ const NodeCutout = struct {
             .blend_mode = .none,
             .filter_mode = .nearest,
         });
+        // The hairline along the inside of the arc.
+        if (region.border != 0) {
+            const ring = @as(f64, @floatFromInt(region.border_width)) * scale;
+            row = 0;
+            while (row < height) : (row += 1) {
+                var col: i32 = 0;
+                while (col < width) : (col += 1) {
+                    const coverage = ringCoverage(radius, ring, col, row);
+                    if (coverage <= 0.004) continue;
+                    const x = if (corner == 0 or corner == 3) col else width - 1 - col;
+                    const y = if (corner == 0 or corner == 1) row else height - 1 - row;
+                    const c = borderColor(region.border, @floatCast(coverage));
+                    pass.addRect(&.{
+                        .box = .{ .x = x, .y = y, .width = 1, .height = 1 },
+                        .color = .{ .r = c[0], .g = c[1], .b = c[2], .a = c[3] },
+                        .clip = null,
+                        .blend_mode = .premultiplied,
+                    });
+                }
+            }
+        }
         if (!pass.submit()) return error.RenderFailed;
+    }
+
+    /// How much of pixel [col], [row] (counted from the corner) lies within
+    /// [width] inside the arc of a corner of [radius]: 4 × 4 samples.
+    fn ringCoverage(radius: f64, width: f64, col: i32, row: i32) f64 {
+        const inner = @max(0, radius - width);
+        var inside: u32 = 0;
+        var sy: u32 = 0;
+        while (sy < 4) : (sy += 1) {
+            var sx: u32 = 0;
+            while (sx < 4) : (sx += 1) {
+                const px = @as(f64, @floatFromInt(col)) + (@as(f64, @floatFromInt(sx)) + 0.5) / 4;
+                const py = @as(f64, @floatFromInt(row)) + (@as(f64, @floatFromInt(sy)) + 0.5) / 4;
+                if (px >= radius or py >= radius) continue;
+                const dx = radius - px;
+                const dy = radius - py;
+                const d2 = dx * dx + dy * dy;
+                if (d2 <= radius * radius and d2 > inner * inner) inside += 1;
+            }
+        }
+        return @as(f64, @floatFromInt(inside)) / 16;
     }
 
     /// How much of pixel [col], [row] (counted from the corner) lies outside
@@ -1615,6 +1945,16 @@ fn insetBox(target: *const Target) wlr.FBox {
 }
 
 /// The texture the scene draws a buffer node with, if there is one yet.
+/// Where [scene_buffer]'s surface starts, relative to the node's parent: a
+/// clip (set_visible_area) moves the node to the clip's corner.
+fn surfaceOrigin(scene_buffer: *wlr.SceneBuffer) [2]i32 {
+    const clip = if (wlr.SceneSurface.tryFromBuffer(scene_buffer)) |scene_surface|
+        scene_surface.private.clip
+    else
+        wlr.Box{ .x = 0, .y = 0, .width = 0, .height = 0 };
+    return .{ scene_buffer.node.x - clip.x, scene_buffer.node.y - clip.y };
+}
+
 fn textureOf(scene_buffer: *wlr.SceneBuffer) ?*wlr.Texture {
     if (scene_buffer.private.texture) |texture| {
         if (ownTexture(texture)) return texture;

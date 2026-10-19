@@ -97,6 +97,9 @@ press_y: f64 = 0,
 /// has been moved inside the constraint region.
 constraint: ?*PointerConstraint = null,
 
+/// Whether the pointer is in a corner of an output (see updateCorner).
+in_corner: bool = false,
+
 request_set_cursor: wl.Listener(*wlr.Seat.event.RequestSetCursor) = .init(handleRequestSetCursor),
 
 motion_relative: wl.Listener(*wlr.Pointer.event.Motion) = .init(queueMotionRelative),
@@ -380,6 +383,7 @@ pub fn processMotionRelative(cursor: *Cursor, event: *const Seat.Event.PointerMo
     }
 
     cursor.move(&event.mapping, dx, dy);
+    cursor.updateCorner();
 
     switch (cursor.mode) {
         .passthrough, .drag, .ignore, .down => {
@@ -407,6 +411,32 @@ pub fn processMotionRelative(cursor: *Cursor, event: *const Seat.Event.PointerMo
         },
         .op => server.wm.dirtyWindowingLazy(),
     }
+}
+
+/// Pangolin's hot corners: reaching or leaving a corner of an output starts a
+/// manage sequence, so that the window manager learns the pointer position
+/// (motion alone doesn't send it) wherever the pointer is, not only over a
+/// shell surface.
+fn updateCorner(cursor: *Cursor) void {
+    const in_corner = cursor.inCorner();
+    if (in_corner == cursor.in_corner) return;
+    cursor.in_corner = in_corner;
+    server.wm.dirtyWindowing();
+}
+
+fn inCorner(cursor: *const Cursor) bool {
+    const x = cursor.wlr_cursor.x;
+    const y = cursor.wlr_cursor.y;
+    const wlr_output = server.om.output_layout.outputAt(x, y) orelse return false;
+    var box: wlr.Box = undefined;
+    server.om.output_layout.getBox(wlr_output, &box);
+    // Logical pixels, as the shell's corner spots were.
+    const margin = 2;
+    const left = x < @as(f64, @floatFromInt(box.x + margin));
+    const right = x >= @as(f64, @floatFromInt(box.x + box.width - margin));
+    const top = y < @as(f64, @floatFromInt(box.y + margin));
+    const bottom = y >= @as(f64, @floatFromInt(box.y + box.height - margin));
+    return (left or right) and (top or bottom);
 }
 
 fn move(cursor: *const Cursor, mapping: *const wlr.Box, dx: f64, dy: f64) void {

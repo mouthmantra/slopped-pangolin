@@ -306,9 +306,10 @@ class _DisplaysPageState extends State<DisplaysPage> {
     }
     // Applied again at every login and whenever these monitors are
     // connected (pangolin-displays).
-    try {
-      DisplayProfiles.save([
-        for (final MapEntry<_Head, _HeadConfig> e in wanted.entries)
+    final List<(_Head, OutputSettings)> saved = [
+      for (final MapEntry<_Head, _HeadConfig> e in wanted.entries)
+        (
+          e.key,
           OutputSettings(
             id: outputId(
               name: e.key.name,
@@ -325,9 +326,30 @@ class _DisplaysPageState extends State<DisplaysPage> {
             x: e.value.x,
             y: e.value.y,
           ),
-      ]);
+        ),
+    ];
+    try {
+      DisplayProfiles.save([for (final (_, OutputSettings o) in saved) o]);
     } on Object catch (e) {
       _toast("Couldn't save the display settings: $e");
+    }
+    // GNOME's monitors.xml too: the familiar file, and what GDM reads
+    // (copied to /etc/xdg).
+    try {
+      MonitorsXml.save([
+        for (final (_Head h, OutputSettings o) in saved)
+          (
+            MonitorsXml.specOf(
+              connector: h.name,
+              make: h.make,
+              model: h.model,
+              serial: h.serial,
+            ),
+            o,
+          ),
+      ]);
+    } on Object catch (e) {
+      _toast("Couldn't update monitors.xml: $e");
     }
   }
 

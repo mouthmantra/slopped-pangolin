@@ -32,7 +32,7 @@
     it is not part of upstream river.
   </description>
 
-  <interface name="river_blur_manager_v1" version="3">
+  <interface name="river_blur_manager_v1" version="4">
     <enum name="error">
       <entry name="blur_exists" value="0"
         summary="the surface already has a river_blur_v1 object"/>
@@ -53,7 +53,7 @@
     </request>
   </interface>
 
-  <interface name="river_blur_v1" version="3">
+  <interface name="river_blur_v1" version="4">
     <request name="destroy" type="destructor">
       <description summary="stop blurring">
         The blur goes away with the next commit of the surface.
@@ -151,6 +151,49 @@
         Double-buffered state, applied on the next wl_surface.commit.
       </description>
       <arg name="cutouts" type="array"/>
+    </request>
+
+    <!-- Version 4 -->
+
+    <request name="set_visible_area" since="4">
+      <description summary="draw only a part of the surface">
+        Only the given rectangle of the surface (surface-local coordinates)
+        is drawn; a width or height of 0 draws all of it again. For a
+        surface that is transparent outside of a known area (a desktop
+        shell with only its panel showing): what is outside costs nothing
+        to composite. Input is not affected.
+
+        Takes effect immediately, not on commit.
+      </description>
+      <arg name="x" type="int"/>
+      <arg name="y" type="int"/>
+      <arg name="width" type="int"/>
+      <arg name="height" type="int"/>
+    </request>
+
+    <request name="set_tint" since="4">
+      <description summary="animate a color over a part of the surface">
+        Draw a solid color over the given rectangle of the surface
+        (surface-local coordinates; a width or height of 0 for the whole
+        surface), animated from the current tint to the given ARGB color
+        (alpha included, not premultiplied) over the given number of
+        milliseconds, following the CSS timing function
+        cubic-bezier(x1, y1, x2, y2), each value divided by 10000. A fully
+        transparent color removes the tint once reached. Cheaper than
+        redrawing the surface for a dimming effect.
+
+        Takes effect immediately, not on commit.
+      </description>
+      <arg name="color" type="uint"/>
+      <arg name="x" type="int"/>
+      <arg name="y" type="int"/>
+      <arg name="width" type="int"/>
+      <arg name="height" type="int"/>
+      <arg name="duration" type="uint" summary="milliseconds"/>
+      <arg name="x1" type="int"/>
+      <arg name="y1" type="int"/>
+      <arg name="x2" type="int"/>
+      <arg name="y2" type="int"/>
     </request>
   </interface>
 </protocol>

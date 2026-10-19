@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import 'dart:async';
 import 'package:dahlia_shared/dahlia_shared.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
@@ -23,6 +24,7 @@ import 'package:pangolin/components/overlays/launcher/compact_launcher_overlay.d
 import 'package:pangolin/components/overlays/network_secret_overlay.dart';
 import 'package:pangolin/components/overlays/notifications/overlay.dart';
 import 'package:pangolin/components/overlays/overview/backdrop.dart';
+import 'package:pangolin/components/overlays/overview/layout.dart';
 import 'package:pangolin/components/overlays/overview_overlay.dart';
 import 'package:pangolin/components/shell/screenshot.dart';
 import 'package:pangolin/components/overlays/polkit_overlay.dart';
@@ -34,6 +36,7 @@ import 'package:pangolin/components/overlays/welcome_overlay.dart';
 import 'package:pangolin/components/shell/shell.dart';
 import 'package:pangolin/services/session.dart';
 import 'package:pangolin/services/shell.dart';
+import 'package:pangolin/services/shell_area.dart';
 import 'package:pangolin/services/wm.dart';
 import 'package:pangolin/utils/wm/layout.dart';
 import 'package:pangolin/utils/wm/wm.dart';
@@ -72,9 +75,72 @@ class DesktopSurface extends StatelessWidget {
             wallpaper: CustomizationService.current.wallpaper,
           ),
         ),
+        const _DesktopVisibleArea(),
       ],
     );
   }
+}
+
+/// What river draws of the desktop surface: with river showing the
+/// wallpaper, only the overview's desk bar while it's there; otherwise all
+/// of it. The rest of the surface is transparent, and a transparent
+/// full-screen surface costs as much to composite as any other.
+class _DesktopVisibleArea extends StatefulWidget {
+  const _DesktopVisibleArea();
+
+  @override
+  State<_DesktopVisibleArea> createState() => _DesktopVisibleAreaState();
+}
+
+class _DesktopVisibleAreaState extends State<_DesktopVisibleArea> {
+  Rect? _sent;
+  bool _hasSent = false;
+  late final Listenable _sources = Listenable.merge([
+    OverviewModel.instance,
+    OverviewModel.instance.backdrop,
+    CustomizationService.current,
+    PangolinSession.tints,
+  ]);
+
+  @override
+  void initState() {
+    super.initState();
+    _sources.addListener(_update);
+  }
+
+  @override
+  void dispose() {
+    _sources.removeListener(_update);
+    super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _update();
+  }
+
+  void _update() {
+    if (!mounted) return;
+    Rect? area;
+    if (WallpaperLayer.drawnByRiver) {
+      final OverviewLayout? layout = OverviewModel.instance.layout;
+      area = OverviewModel.instance.backdrop.value > 0 && layout != null
+          ? Rect.fromLTWH(0, 0, MediaQuery.sizeOf(context).width,
+              layout.stripHeight)
+          // Nothing (a zero size would mean everything).
+          : const Rect.fromLTWH(0, 0, 1, 1);
+    }
+    if (_hasSent && area == _sent) return;
+    _hasSent = true;
+    _sent = area;
+    unawaited(
+      PangolinSession.setVisibleArea(PangolinSession.desktopViewId, area),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }
 
 /// Session mode, TOP layer: taskbar, launcher and the other overlays, drawn
@@ -120,7 +186,9 @@ class _ShellHostState extends State<ShellHost> {
   @override
   void initState() {
     super.initState();
+    PreferencesService.current.addListener(_setInsets);
     ShellService.current.onShellReadyCallback(() {
+      ShellSurfaceArea.instance.start();
       if (CustomizationService.current.showWelcomeScreen &&
           !PangolinSession.isRestart) {
         ShellService.current.showOverlay("welcome");
@@ -155,8 +223,22 @@ class _ShellHostState extends State<ShellHost> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    WindowManagerService.current.controller.wmInsets =
-        const EdgeInsets.only(bottom: PangolinSession.taskbarHeight);
+    _setInsets();
+  }
+
+  @override
+  void dispose() {
+    PreferencesService.current.removeListener(_setInsets);
+    super.dispose();
+  }
+
+  /// Taskbar size and autohide change the space windows keep free.
+  void _setInsets() {
+    final WindowHierarchyController controller =
+        WindowManagerService.current.controller;
+    final EdgeInsets insets =
+        EdgeInsets.only(bottom: PangolinSession.taskbarReserved);
+    if (controller.wmInsets != insets) controller.wmInsets = insets;
   }
 
   @override

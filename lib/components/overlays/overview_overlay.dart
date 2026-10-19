@@ -22,9 +22,9 @@ import 'package:flutter/services.dart';
 import 'package:pangolin/components/overlays/overview/backdrop.dart';
 import 'package:pangolin/components/overlays/overview/layout.dart';
 import 'package:pangolin/services/session.dart';
+import 'package:pangolin/services/shell_area.dart';
 import 'package:pangolin/services/shell.dart';
 import 'package:pangolin/services/wm.dart';
-import 'package:pangolin/utils/wm/wm.dart';
 import 'package:pangolin/widgets/window_icon.dart';
 
 /// The overview: the desks along the top next to a "New desktop" button, the
@@ -69,7 +69,8 @@ class _OverviewOverlayState extends ShellOverlayState<OverviewOverlay>
   bool _riverBackdrop = false;
   int _backdropGeneration = 0;
 
-  /// Fades the details in once river is done opening the overview.
+  /// Fades the details in once river is done opening the overview (ends
+  /// [ShellSurfaceArea.quiet] once it's done closing it).
   Timer? _detailsTimer;
 
   @override
@@ -99,13 +100,115 @@ class _OverviewOverlayState extends ShellOverlayState<OverviewOverlay>
   // back without a jump.
   void _onProgress() {
     _model.progress.value = animationController.value;
-    if (!_riverBackdrop) _model.backdrop.value = animationController.value;
+    // Tinted, the window area and the strip follow gestures as tints.
+    if (!_riverBackdrop && !_tinted) {
+      _model.backdrop.value = animationController.value;
+    }
   }
 
   bool get _canAnimateBackdrop =>
       _wm.supportsOverview &&
       PangolinSession.partAnimations.value &&
       PangolinSession.desktopViewId != null;
+
+  /// river tints the window area of the desktop surface and the desk bar
+  /// fades in on it: the desktop surface doesn't draw the window area at all
+  /// (river-blur-v1 version 4).
+  bool get _tinted => _canAnimateBackdrop && PangolinSession.tints.value;
+
+  /// The overview's window area (below the desk bar), on the desktop surface.
+  Rect _windowArea(OverviewLayout layout) {
+    final Size screen = MediaQuery.sizeOf(context);
+    return Rect.fromLTRB(0, layout.stripHeight, screen.width, screen.height);
+  }
+
+  /// The desk bar, on the desktop surface.
+  Rect _deskBar(OverviewLayout layout) => Rect.fromLTWH(
+        0,
+        0,
+        MediaQuery.sizeOf(context).width,
+        layout.stripHeight,
+      );
+
+  Color get _tintColor => Theme.of(context).colorScheme.surface.withValues(
+        alpha: CustomizationService.current.enableEffects ? 0.82 : 1,
+      );
+
+  /// The desk bar's color, opaque.
+  Color get _barColor => Theme.of(context).colorScheme.background;
+
+  /// river tints the window area and the desk bar's strip in or out. The
+  /// desktop surface draws the bar's desks only while the overview is open,
+  /// under the strip's opaque tint while it changes (no copy of the surface
+  /// to animate: a hidden surface still costs a full-screen pass at 4K).
+  Future<void> _tintBackdrop({
+    required bool open,
+    required Duration duration,
+  }) async {
+    final int? view = PangolinSession.desktopViewId;
+    final OverviewLayout? layout = _model.layout;
+    if (view == null || layout == null) return;
+    _riverBackdrop = true;
+    final int generation = ++_backdropGeneration;
+    Future<void> tint(Color color, Rect area, Duration duration) =>
+        PangolinSession.setTint(
+          view: view,
+          color: color,
+          area: area,
+          duration: duration,
+          curve: OverviewTiming.curve,
+        );
+    if (open) {
+      unawaited(tint(_tintColor, _windowArea(layout), duration));
+      unawaited(tint(_barColor, _deskBar(layout), duration));
+      return;
+    }
+    unawaited(
+        tint(_tintColor.withValues(alpha: 0), _windowArea(layout), duration));
+    final Stopwatch elapsed = Stopwatch()..start();
+    if (_model.backdrop.value > 0) {
+      // The strip covers the desks again before they go.
+      await tint(_barColor, _deskBar(layout), Duration.zero);
+      if (!mounted || generation != _backdropGeneration) return;
+      _model.backdrop.value = 0;
+      await _presented();
+    }
+    final Duration left = duration - elapsed.elapsed;
+    unawaited(
+      tint(
+        _barColor.withValues(alpha: 0),
+        _deskBar(layout),
+        left.isNegative ? Duration.zero : left,
+      ),
+    );
+  }
+
+  /// Once a frame drawn now is on screen (presented by the compositor).
+  Future<void> _presented() async {
+    await WidgetsBinding.instance.endOfFrame;
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+  }
+
+  /// Open: the desktop surface draws the desks under the strip's opaque
+  /// tint, which then goes.
+  Future<void> _showDesks() async {
+    final int? view = PangolinSession.desktopViewId;
+    final OverviewLayout? layout = _model.layout;
+    if (view == null || layout == null) return;
+    final int generation = _backdropGeneration;
+    _model.backdrop.value = 1;
+    await _presented();
+    if (!mounted || generation != _backdropGeneration || !controller.showing) {
+      return;
+    }
+    unawaited(
+      PangolinSession.setTint(
+        view: view,
+        color: _barColor.withValues(alpha: 0),
+        area: _deskBar(layout),
+      ),
+    );
+  }
 
   /// Cross-fades the desktop surface's part from how it looks now to [open]
   /// (river fades a copy out above the surface), then draws the end state.
@@ -150,7 +253,13 @@ class _OverviewOverlayState extends ShellOverlayState<OverviewOverlay>
         ),
       );
     }
-    _model.backdrop.value = animationController.value;
+    if (_tinted) {
+      // The strip covers the desks (drawn while open) during the swipe.
+      _followTint(animationController.value);
+      _model.backdrop.value = 0;
+    } else {
+      _model.backdrop.value = animationController.value;
+    }
   }
 
   void _onStatus(AnimationStatus status) {
@@ -159,10 +268,9 @@ class _OverviewOverlayState extends ShellOverlayState<OverviewOverlay>
   }
 
   OverviewLayout _computeLayout() {
-    final WindowHierarchyController hierarchy = WindowHierarchy.of(context);
     return OverviewLayout.compute(
       screen: MediaQuery.sizeOf(context),
-      bottomInset: hierarchy.wmInsets.bottom,
+      bottomInset: PangolinSession.taskbarHeight,
       wm: _wm,
       canAddDesk: _wm.managesSessionWindows && _wm.desks.value.count < 16,
     );
@@ -218,16 +326,22 @@ class _OverviewOverlayState extends ShellOverlayState<OverviewOverlay>
     _detailsTimer?.cancel();
     void showDetails() {
       if (mounted && controller.showing && _gestureStart == null) {
+        ShellSurfaceArea.instance.quiet = false;
+        if (_tinted) unawaited(_showDesks());
         _details.forward();
       }
     }
 
     if (fade) {
       // river animates everything that moves: nothing here changes (and
-      // no frames are drawn) until the details fade in.
-      unawaited(
-        _animateBackdrop(open: true, duration: duration),
-      );
+      // no frames are drawn) until the details fade in, and river draws
+      // only the taskbar of this surface meanwhile.
+      if (_tinted) {
+        ShellSurfaceArea.instance.quiet = true;
+        unawaited(_tintBackdrop(open: true, duration: duration));
+      } else {
+        unawaited(_animateBackdrop(open: true, duration: duration));
+      }
       animationController.value = 1;
       _detailsTimer = Timer(duration, showDetails);
     } else {
@@ -256,7 +370,19 @@ class _OverviewOverlayState extends ShellOverlayState<OverviewOverlay>
     // An opening still on its way is dropped.
     _backdropGeneration++;
     if (_canAnimateBackdrop) {
-      if (_model.backdrop.value > 0) {
+      if (_tinted) {
+        // The details are gone: river draws only the taskbar of this
+        // surface while it animates the rest.
+        ShellSurfaceArea.instance.quiet = true;
+        unawaited(_tintBackdrop(open: false, duration: duration));
+        // Until river is done: the overview's input region and overlay
+        // state go a frame later and would make river draw the whole
+        // surface for the rest of the animation.
+        _detailsTimer = Timer(
+          duration,
+          () => ShellSurfaceArea.instance.quiet = false,
+        );
+      } else if (_model.backdrop.value > 0) {
         unawaited(
           _animateBackdrop(open: false, duration: duration),
         );
@@ -281,6 +407,7 @@ class _OverviewOverlayState extends ShellOverlayState<OverviewOverlay>
     _detailsTimer?.cancel();
     _details.value = 0;
     _followBackdrop();
+    if (_tinted) ShellSurfaceArea.instance.quiet = true;
     if (!controller.showing) {
       final OverviewLayout layout = _computeLayout();
       _model.layout = layout;
@@ -294,6 +421,7 @@ class _OverviewOverlayState extends ShellOverlayState<OverviewOverlay>
     } else {
       _wm.trackOverview(animationController.value);
     }
+    _followTint(animationController.value);
     _gestureStart = animationController.value;
     return true;
   }
@@ -305,6 +433,28 @@ class _OverviewOverlayState extends ShellOverlayState<OverviewOverlay>
     final double progress = (start + offset).clamp(0.0, 1.0);
     animationController.value = progress;
     _wm.trackOverview(progress);
+    _followTint(progress);
+  }
+
+  /// A swipe: the tints follow it frame by frame.
+  void _followTint(double progress) {
+    final int? view = PangolinSession.desktopViewId;
+    final OverviewLayout? layout = _model.layout;
+    if (!_tinted || view == null || layout == null) return;
+    unawaited(
+      PangolinSession.setTint(
+        view: view,
+        color: _tintColor.withValues(alpha: _tintColor.a * progress),
+        area: _windowArea(layout),
+      ),
+    );
+    unawaited(
+      PangolinSession.setTint(
+        view: view,
+        color: _barColor.withValues(alpha: progress),
+        area: _deskBar(layout),
+      ),
+    );
   }
 
   @override

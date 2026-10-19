@@ -25,12 +25,16 @@ if [ -z "$PANGOLIN_LOGGING" ]; then
         fi
     fi
     if [ "$log" != - ]; then
-        # Started on a text console (by a display manager or from a TTY):
-        # clear it and hide its cursor, so that the moments it shows
-        # (between the login screen and the desktop) are plain black.
-        case "$(readlink /proc/$$/fd/1 2>/dev/null)" in
-            /dev/tty[0-9]*) printf '\033[2J\033[H\033[?25l' ;;
-        esac
+        # Started from a TTY: clear it and hide its cursor, so that the
+        # moment it shows before the desktop is plain black. Not after
+        # Pangolin's login screen: the first text written to a console makes
+        # the kernel switch the screen to it (black) instead of keeping the
+        # login screen's last frame, the wallpaper, up until river draws.
+        if [ "${PANGOLIN_FROM_GREETER:-}" != 1 ]; then
+            case "$(readlink /proc/$$/fd/1 2>/dev/null)" in
+                /dev/tty[0-9]*) printf '\033[2J\033[H\033[?25l' ;;
+            esac
+        fi
         # Kept at a reasonable size (logrotate takes care of it too where
         # it's installed).
         if [ -f "$log" ] && [ "$(wc -c < "$log" 2>/dev/null || echo 0)" -gt 16777216 ]; then
@@ -41,6 +45,16 @@ if [ -z "$PANGOLIN_LOGGING" ]; then
             echo "=== Pangolin session of $(id -un), $(date '+%Y-%m-%d %H:%M:%S') ==="
         fi
     fi
+fi
+
+# Extra environment for this user's sessions, one VAR=value per line (e.g.
+# PANGOLIN_PROFILE=frames to log frame timings of river and the shell).
+env_file="${XDG_CONFIG_HOME:-$HOME/.config}/pangolin/session.env"
+if [ -f "$env_file" ]; then
+    set -a
+    . "$env_file"
+    set +a
+    echo "Environment from $env_file"
 fi
 
 # --nested: run inside an existing desktop (river opens a window there) with a
@@ -56,6 +70,11 @@ fi
 # The wallpaper river shows from its first frame (kept up to date by the
 # shell), so the session doesn't start on a black screen.
 export PANGOLIN_SPLASH="${XDG_CACHE_HOME:-$HOME/.cache}/pangolin/splash.bgra"
+# river watches this directory for the shell's first copy (new users).
+mkdir -p "$(dirname "$PANGOLIN_SPLASH")"
+# ... and keeps it as the wallpaper (cheaper to composite than the desktop
+# surface, which GTK draws at an integer scale).
+export PANGOLIN_WALLPAPER=1
 # Started by Pangolin's login screen, which hands over on the user's
 # wallpaper: the desktop starts on that same wallpaper right away. From
 # elsewhere (another display manager, a TTY) it fades in from black.

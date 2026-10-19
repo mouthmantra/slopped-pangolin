@@ -346,6 +346,7 @@ pub fn commitOutputState(om: *OutputManager) void {
 
         for (states.items) |*state| {
             const output: *Output = @ptrCast(@alignCast(state.output.data));
+            if (output.sent.state == .enabled) server.splash.beforeModeset(state.output, output.sent.box());
             if (!output.scene_output.?.buildState(&state.base, &.{
                 .swapchain = swapchain_manager.getSwapchain(state.output),
             })) {

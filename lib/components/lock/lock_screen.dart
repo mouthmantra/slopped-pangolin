@@ -14,20 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import 'dart:async';
-import 'dart:math' as math;
-
 import 'package:dahlia_shared/dahlia_shared.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
+import 'package:pangolin/components/login/login_kit.dart';
+import 'package:pangolin/services/pam.dart';
 import 'package:pangolin/services/session_lock.dart';
 import 'package:pangolin/utils/action_manager/action_manager.dart';
-import 'package:pangolin/widgets/login_backdrop.dart';
-import 'package:pangolin/widgets/resource/image/image.dart';
+import 'package:pangolin/widgets/wallpaper_blur.dart';
 
-/// The lock screen shown on every monitor while the session is locked: the
-/// wallpaper, the time, and the password field.
+/// The lock screen shown on every monitor while the session is locked, as
+/// ChromeOS's: the blurred wallpaper, the user with the password field, and
+/// a shelf with the power menu and the time.
 class LockScreen extends StatefulWidget {
   const LockScreen({super.key});
 
@@ -51,8 +49,6 @@ class _LockScreenState extends State<LockScreen> with TickerProviderStateMixin {
     vsync: this,
     duration: const Duration(milliseconds: 260),
   )..forward();
-  Timer? _clock;
-  DateTime _now = DateTime.now();
   int _failures = SessionLock.instance.failures;
   bool _capsLock = false;
   bool _refocusScheduled = false;
@@ -68,7 +64,6 @@ class _LockScreenState extends State<LockScreen> with TickerProviderStateMixin {
     HardwareKeyboard.instance.addHandler(_onHardwareKey);
     _capsLock = HardwareKeyboard.instance.lockModesEnabled
         .contains(KeyboardLockMode.capsLock);
-    _scheduleTick();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _focus.requestFocus();
     });
@@ -80,7 +75,6 @@ class _LockScreenState extends State<LockScreen> with TickerProviderStateMixin {
     _lock.removeListener(_onLockChanged);
     FocusManager.instance.removeListener(_keepFocus);
     HardwareKeyboard.instance.removeHandler(_onHardwareKey);
-    _clock?.cancel();
     _focus.dispose();
     _shake.dispose();
     _appear.dispose();
@@ -98,6 +92,8 @@ class _LockScreenState extends State<LockScreen> with TickerProviderStateMixin {
   void _keepFocus() {
     if (_screens.isEmpty || _screens.last != this) return;
     if (_refocusScheduled || _fieldFocused) return;
+    // A menu of this screen (power) has the keyboard while it's open.
+    if (!(ModalRoute.of(context)?.isCurrent ?? true)) return;
     _refocusScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refocusScheduled = false;
@@ -111,19 +107,6 @@ class _LockScreenState extends State<LockScreen> with TickerProviderStateMixin {
         .contains(KeyboardLockMode.capsLock);
     if (capsLock != _capsLock && mounted) setState(() => _capsLock = capsLock);
     return false;
-  }
-
-  void _scheduleTick() {
-    _clock?.cancel();
-    final DateTime now = DateTime.now();
-    _clock = Timer(
-      Duration(seconds: 60 - now.second, milliseconds: -now.millisecond),
-      () {
-        if (!mounted) return;
-        setState(() => _now = DateTime.now());
-        _scheduleTick();
-      },
-    );
   }
 
   void _onLockChanged() {
@@ -156,103 +139,27 @@ class _LockScreenState extends State<LockScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Locale locale = Localizations.localeOf(context);
-    final String time = DateFormat.Hm(locale.toLanguageTag()).format(_now);
-    final String date =
-        DateFormat.MMMMEEEEd(locale.toLanguageTag()).format(_now);
-    final String name = SessionLock.displayName;
-    final Color accent = theme.colorScheme.secondary;
-    final String? message = _lock.error ??
-        (_capsLock ? "Caps Lock is on" : null);
+    final String? message =
+        _lock.error ?? (_capsLock ? "Caps Lock is on" : null);
 
     final Widget content = Column(
       children: [
-        const Spacer(flex: 3),
-        Text(
-          time,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 96,
-            fontWeight: FontWeight.w200,
-            height: 1,
-            shadows: loginTextShadows,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          date,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.w500,
-            shadows: loginTextShadows,
-          ),
-        ),
-        const Spacer(flex: 2),
-        Container(
-          width: 88,
-          height: 88,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: accent,
-            shape: BoxShape.circle,
-          ),
-          child: Text(
-            name.isNotEmpty ? name.characters.first.toUpperCase() : "?",
-            style: TextStyle(
-              color: theme.colorScheme.onSecondary,
-              fontSize: 40,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          name,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 22,
-            fontWeight: FontWeight.w600,
-            shadows: loginTextShadows,
-          ),
-        ),
-        const SizedBox(height: 20),
-        AnimatedBuilder(
+        const Spacer(flex: 5),
+        LoginUserPod(name: SessionLock.displayName, user: Pam.user),
+        const SizedBox(height: 28),
+        LoginShake(
           animation: _shake,
-          builder: (context, child) => Transform.translate(
-            offset: Offset(
-              math.sin(_shake.value * math.pi * 6) * 12 * (1 - _shake.value),
-              0,
-            ),
-            child: child,
-          ),
-          child: _PasswordField(
+          child: LoginField(
+            controller: LockScreen.password,
             focus: _focus,
-            checking: _lock.checking,
-            accent: accent,
+            busy: _lock.checking,
             onKey: _onKey,
             onSubmit: _submit,
           ),
         ),
         const SizedBox(height: 12),
-        SizedBox(
-          height: 20,
-          child: AnimatedOpacity(
-            opacity: message != null ? 1 : 0,
-            duration: const Duration(milliseconds: 150),
-            child: Text(
-              message ?? "",
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                shadows: loginTextShadows,
-              ),
-            ),
-          ),
-        ),
-        const Spacer(flex: 4),
+        LoginMessage(message),
+        const Spacer(flex: 6),
       ],
     );
 
@@ -267,12 +174,37 @@ class _LockScreenState extends State<LockScreen> with TickerProviderStateMixin {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              const LoginBackdrop(wallpaper: _LockWallpaper()),
-              _FitHeight(child: content),
+              const _LockBackdrop(),
+              LoginFitHeight(child: content),
               const Positioned(
-                right: 24,
-                bottom: 24,
-                child: _PowerButton(),
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: LoginShelf(
+                  leading: [
+                    ShelfMenuButton(
+                      icon: Icons.power_settings_new_rounded,
+                      label: "Power",
+                      items: [
+                        (
+                          Icons.bedtime_outlined,
+                          "Suspend",
+                          ActionManager.suspend,
+                        ),
+                        (
+                          Icons.restart_alt_rounded,
+                          "Restart",
+                          ActionManager.reboot,
+                        ),
+                        (
+                          Icons.power_settings_new_rounded,
+                          "Shut down",
+                          ActionManager.powerOff,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -282,181 +214,18 @@ class _LockScreenState extends State<LockScreen> with TickerProviderStateMixin {
   }
 }
 
-/// The desktop's wallpaper.
-class _LockWallpaper extends StatelessWidget
+/// The desktop's wallpaper, blurred: its small blurred copy is in memory
+/// already (the shell's frosted surfaces use it), so it shows at once.
+class _LockBackdrop extends StatelessWidget
     with StatelessServiceListener<CustomizationService> {
-  const _LockWallpaper();
+  const _LockBackdrop();
 
   @override
   Widget buildChild(BuildContext context, CustomizationService service) {
-    return ResourceImage(resource: service.wallpaper, fit: BoxFit.cover);
-  }
-}
-
-/// Lays [child] out at least [minHeight] tall and scales it down to fit
-/// shorter screens (a laptop at a large scale), instead of overflowing.
-class _FitHeight extends StatelessWidget {
-  const _FitHeight({required this.child});
-
-  static const double minHeight = 640;
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxHeight >= minHeight) return child;
-        final double scale = constraints.maxHeight / minHeight;
-        return FittedBox(
-          fit: BoxFit.fill,
-          child: SizedBox(
-            width: constraints.maxWidth / scale,
-            height: minHeight,
-            child: child,
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _PasswordField extends StatelessWidget {
-  const _PasswordField({
-    required this.focus,
-    required this.checking,
-    required this.accent,
-    required this.onKey,
-    required this.onSubmit,
-  });
-
-  final FocusNode focus;
-  final bool checking;
-  final Color accent;
-  final FocusOnKeyEventCallback onKey;
-  final VoidCallback onSubmit;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 340,
-      height: 52,
-      padding: const EdgeInsets.only(left: 22, right: 6),
-      decoration: const ShapeDecoration(
-        shape: StadiumBorder(),
-        color: Color(0x33FFFFFF),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Focus(
-              onKeyEvent: onKey,
-              child: TextField(
-                controller: LockScreen.password,
-                focusNode: focus,
-                autofocus: true,
-                obscureText: true,
-                // Focus comes back by itself (keys, clicks anywhere): keep
-                // what was typed instead of selecting it, and keep the focus
-                // when clicking elsewhere.
-                selectAllOnFocus: false,
-                onTapOutside: (_) {},
-                onSubmitted: (_) => onSubmit(),
-                cursorColor: Colors.white,
-                style: const TextStyle(color: Colors.white, fontSize: 16),
-                decoration: const InputDecoration(
-                  hintText: "Password",
-                  hintStyle: TextStyle(color: Color(0xB3FFFFFF), fontSize: 16),
-                  filled: false,
-                  isCollapsed: true,
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  disabledBorder: InputBorder.none,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox.square(
-            dimension: 40,
-            child: Material(
-              color: accent,
-              shape: const CircleBorder(),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: checking ? null : onSubmit,
-                child: Center(
-                  child: checking
-                      ? const SizedBox.square(
-                          dimension: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(
-                          Icons.arrow_forward_rounded,
-                          color: Colors.white,
-                          size: 22,
-                        ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Suspend, restart and shut down without unlocking.
-class _PowerButton extends StatelessWidget {
-  const _PowerButton();
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<void Function()>(
-      tooltip: "Power",
-      color: const Color(0xE6202020),
-      shape: Constants.mediumShape,
-      position: PopupMenuPosition.over,
-      onSelected: (action) => action(),
-      itemBuilder: (context) => [
-        _item(Icons.bedtime_outlined, "Suspend", ActionManager.suspend),
-        _item(Icons.restart_alt_rounded, "Restart", ActionManager.reboot),
-        _item(Icons.power_settings_new_rounded, "Shut down",
-            ActionManager.powerOff),
-      ],
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: const BoxDecoration(
-          color: Color(0x33FFFFFF),
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(
-          Icons.power_settings_new_rounded,
-          color: Colors.white,
-        ),
-      ),
-    );
-  }
-
-  static PopupMenuItem<void Function()> _item(
-    IconData icon,
-    String label,
-    void Function() action,
-  ) {
-    return PopupMenuItem(
-      value: action,
-      child: Row(
-        children: [
-          Icon(icon, color: Colors.white, size: 20),
-          const SizedBox(width: 12),
-          Text(label, style: const TextStyle(color: Colors.white)),
-        ],
-      ),
+    return LoginBackdrop(
+      wallpaperKey: service.wallpaper,
+      wallpaper: BlurredWallpaper.providerFor(service.wallpaper),
+      opaque: true,
     );
   }
 }

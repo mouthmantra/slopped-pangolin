@@ -72,6 +72,7 @@ add_executable(${BINARY_NAME}
   "${CMAKE_CURRENT_SOURCE_DIR}/../session/native/river_blur.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/../session/native/egl_workaround.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/../session/native/session_lock.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../session/native/check_password.cc"
   "${FLUTTER_MANAGED_DIR}/generated_plugin_registrant.cc"
 )
 target_include_directories(${BINARY_NAME} PRIVATE

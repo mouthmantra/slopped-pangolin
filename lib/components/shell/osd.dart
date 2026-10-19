@@ -62,8 +62,8 @@ class OsdLayer extends StatelessWidget {
           return Align(
             alignment: Alignment.bottomCenter,
             child: Padding(
-              padding: const EdgeInsets.only(
-                bottom: PangolinSession.taskbarHeight + 24,
+              padding: EdgeInsets.only(
+                bottom: PangolinSession.taskbarReserved + 24,
               ),
               child: AnimatedSlide(
                 offset: osd.visible ? Offset.zero : const Offset(0, 0.4),

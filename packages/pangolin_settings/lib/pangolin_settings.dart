@@ -111,6 +111,20 @@ enum SessionSetting<T extends Object> {
   /// screen) or "left" (next to the launcher, as Windows 11 can).
   taskbarAlignment<String>("taskbar_alignment", "center"),
 
+  /// Taskbar height: "small" (40), "medium" (48) or "large" (56).
+  taskbarSize<String>("taskbar_size", "medium"),
+
+  /// The taskbar slides away until the pointer touches the bottom edge of
+  /// the screen, and windows get the whole screen.
+  taskbarAutohide<bool>("taskbar_autohide", false),
+
+  /// The app menu covers the screen instead of opening above the taskbar.
+  launcherFullscreen<bool>("launcher_fullscreen", false),
+
+  /// Order of the app menu: "name" (A to Z) or "category" (grouped, A to Z
+  /// within each group).
+  launcherSort<String>("launcher_sort", "name"),
+
   /// Let the shell handle multi-finger touchpad gestures.
   gesturesEnabled<bool>("gestures_enabled", true),
 
@@ -181,6 +195,12 @@ enum SessionSetting<T extends Object> {
 
   /// Windows that aren't focused draw their glass (title bar, panes) opaque.
   opaqueInactiveWindows<bool>("opaque_inactive_windows", true),
+
+  /// A hairline around floating windows, as macOS draws.
+  windowBorders<bool>("window_borders", true),
+
+  /// The accent color follows the wallpaper (the shell picks it).
+  accentFromWallpaper<bool>("accent_from_wallpaper", false),
 
   /// Mouse pointer theme and size.
   cursorTheme<String>("cursor_theme", "Pangolin"),

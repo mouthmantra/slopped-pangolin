@@ -45,6 +45,10 @@ class ShellInputRegion {
   /// Number of owners currently holding the whole surface.
   bool get isModal => _modalOwners.isNotEmpty;
 
+  /// [isModal] as of the last frame (an overlay or a menu is open), for
+  /// widgets to follow.
+  final ValueNotifier<bool> modal = ValueNotifier(false);
+
   void setRect(Object owner, Rect? rect) {
     if (rect == null || rect.isEmpty) {
       if (_rects.remove(owner) != null) _schedule();
@@ -77,6 +81,7 @@ class ShellInputRegion {
 
     if (modal != _lastModal) {
       _lastModal = modal;
+      this.modal.value = modal;
       unawaited(
         PangolinSession.setShellKeyboardMode(
           modal ? KeyboardMode.exclusive : KeyboardMode.none,

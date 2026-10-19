@@ -55,6 +55,20 @@ void river_blur_animate_part(GtkWindow* window, GtkWidget* widget, bool reveal,
 
 // Decodes a method channel list of [x, y, w, h, top left, top right, bottom
 // right, bottom left radius, alpha] integer lists.
+// river_blur_v1 version 4.
+bool river_blur_tints_supported();
+
+// Only this part of the window's surface is drawn (surface coordinates); a
+// zero size draws all of it.
+void river_blur_set_visible_area(GtkWindow* window, int32_t x, int32_t y,
+                                 int32_t width, int32_t height);
+
+// Animates a color (ARGB, not premultiplied) over a part of the window's
+// surface (x, y, width, height; a zero size for all of it).
+void river_blur_set_tint(GtkWindow* window, uint32_t argb,
+                         const int32_t area[4], uint32_t duration_ms,
+                         const int32_t curve[4]);
+
 typedef struct _FlValue FlValue;
 std::vector<RiverBlurRegion> river_blur_regions_from_value(FlValue* list);
 

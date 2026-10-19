@@ -42,7 +42,9 @@ class AppearancePage extends StatelessWidget {
       if (!d.existsSync()) continue;
       try {
         for (final FileSystemEntity e in d.listSync(recursive: true)) {
-          if (e is File && const {".png", ".jpg", ".jpeg", ".webp"}.contains(p.extension(e.path).toLowerCase())) {
+          if (e is File &&
+              const {".png", ".jpg", ".jpeg", ".webp"}
+                  .contains(p.extension(e.path).toLowerCase())) {
             found.add(e.path);
           }
           if (found.length > 40) return found;
@@ -113,21 +115,53 @@ class AppearancePage extends StatelessWidget {
               title: "Accent color",
               padding: const EdgeInsets.all(16),
               children: [
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    for (final BuiltinColor color in BuiltinColor.values)
+                ListenableBuilder(
+                  // The wallpaper choice is a setting of its own.
+                  listenable: PreferencesService.current,
+                  builder: (context, _) => Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    alignment: WrapAlignment.center,
+                    children: [
+                      for (final BuiltinColor color in BuiltinColor.values)
+                        Tooltip(
+                          message: color.name[0].toUpperCase() +
+                              color.name.substring(1),
+                          child: AccentSwatch(
+                            color: color.value,
+                            selected: !_fromWallpaper &&
+                                c.accentColor == color.resource,
+                            onTap: () {
+                              _setFromWallpaper(false);
+                              c.accentColor = color.resource;
+                            },
+                          ),
+                        ),
+                      // Taken from the wallpaper by the shell.
                       Tooltip(
-                        message: color.name[0].toUpperCase() + color.name.substring(1),
+                        message: "From wallpaper",
                         child: AccentSwatch(
-                          color: color.value,
-                          selected: c.accentColor == color.resource,
-                          onTap: () => c.accentColor = color.resource,
+                          color: _fromWallpaper
+                              ? c.accentColor.resolve() ?? Colors.grey
+                              : Colors.blueGrey,
+                          icon: Icons.wallpaper_rounded,
+                          selected: _fromWallpaper,
+                          onTap: () => _setFromWallpaper(true),
                         ),
                       ),
-                  ],
+                      Tooltip(
+                        message: "Custom",
+                        child: AccentSwatch(
+                          color: _isCustom(c)
+                              ? c.accentColor.resolve() ?? Colors.grey
+                              : Colors.blueGrey,
+                          icon: Icons.palette_rounded,
+                          selected: _isCustom(c),
+                          onTap: () => _pickCustom(context, c),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -140,25 +174,33 @@ class AppearancePage extends StatelessWidget {
                   runSpacing: 12,
                   alignment: WrapAlignment.center,
                   children: [
-                    for (final MapEntry<String, String> w in _bundledWallpapers.entries)
+                    for (final MapEntry<String, String> w
+                        in _bundledWallpapers.entries)
                       thumb(
-                        ImageResource(type: ImageResourceType.dahlia, value: w.key),
-                        Image.asset(w.value, fit: BoxFit.cover, cacheWidth: 320),
+                        ImageResource(
+                            type: ImageResourceType.dahlia, value: w.key),
+                        Image.asset(w.value,
+                            fit: BoxFit.cover, cacheWidth: 320),
                       ),
                     for (final ImageResource r in files)
                       if (File(r.value).existsSync())
-                        thumb(r, Image.file(File(r.value), fit: BoxFit.cover, cacheWidth: 320)),
+                        thumb(
+                            r,
+                            Image.file(File(r.value),
+                                fit: BoxFit.cover, cacheWidth: 320)),
                     _WallpaperThumb(
                       selected: false,
                       onTap: () async {
                         final String? path = await showFileDialog(
                           context,
-                          initialDirectory: p.join(SystemUtils.home, "Pictures"),
+                          initialDirectory:
+                              p.join(SystemUtils.home, "Pictures"),
                           extensions: const ["png", "jpg", "jpeg", "webp"],
                           title: "Choose a wallpaper",
                         );
                         if (path != null) {
-                          setWallpaper(ImageResource(type: ImageResourceType.file, value: path));
+                          setWallpaper(ImageResource(
+                              type: ImageResourceType.file, value: path));
                         }
                       },
                       child: ColoredBox(
@@ -199,14 +241,63 @@ class AppearancePage extends StatelessWidget {
                           ButtonSegment(value: "left", label: Text("Left")),
                         ],
                         selected: {alignment == "left" ? "left" : "center"},
-                        onSelectionChanged: (v) => PreferencesService.current
-                            .set<String>(
+                        onSelectionChanged: (v) =>
+                            PreferencesService.current.set<String>(
                           SessionSetting.taskbarAlignment.key,
                           v.first,
                         ),
                       ),
                     );
                   },
+                ),
+                ListenableBuilder(
+                  listenable: PreferencesService.current,
+                  builder: (context, _) {
+                    final String size = PreferencesService.current
+                            .get<String>(SessionSetting.taskbarSize.key) ??
+                        SessionSetting.taskbarSize.defaultValue;
+                    return SettingsRow(
+                      icon: Icons.height_rounded,
+                      title: "Size",
+                      trailing: SegmentedButton<String>(
+                        showSelectedIcon: false,
+                        segments: const [
+                          ButtonSegment(value: "small", label: Text("Small")),
+                          ButtonSegment(value: "medium", label: Text("Medium")),
+                          ButtonSegment(value: "large", label: Text("Large")),
+                        ],
+                        selected: {
+                          const {"small", "large"}.contains(size)
+                              ? size
+                              : "medium",
+                        },
+                        onSelectionChanged: (v) =>
+                            PreferencesService.current.set<String>(
+                          SessionSetting.taskbarSize.key,
+                          v.first,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                ListenableBuilder(
+                  listenable: PreferencesService.current,
+                  builder: (context, _) => SettingsRow(
+                    icon: Icons.vertical_align_bottom_rounded,
+                    title: "Hide automatically",
+                    subtitle: "Point at the bottom edge of the screen to "
+                        "show the taskbar",
+                    trailing: ZenitSwitch(
+                      value: PreferencesService.current.get<bool>(
+                            SessionSetting.taskbarAutohide.key,
+                          ) ??
+                          SessionSetting.taskbarAutohide.defaultValue,
+                      onChanged: (v) => PreferencesService.current.set<bool>(
+                        SessionSetting.taskbarAutohide.key,
+                        v,
+                      ),
+                    ),
+                  ),
                 ),
                 if (c.pinnedApps.isEmpty)
                   const SettingsRow(
@@ -220,10 +311,61 @@ class AppearancePage extends StatelessWidget {
                     trailing: IconButton(
                       tooltip: "Unpin",
                       icon: const Icon(Icons.close_rounded),
-                      onPressed: () =>
-                          c.pinnedApps = c.pinnedApps.where((a) => a != app).toList(),
+                      onPressed: () => c.pinnedApps =
+                          c.pinnedApps.where((a) => a != app).toList(),
                     ),
                   ),
+              ],
+            ),
+            SettingsGroup(
+              title: "App menu",
+              children: [
+                ListenableBuilder(
+                  listenable: PreferencesService.current,
+                  builder: (context, _) => SettingsRow(
+                    icon: Icons.fullscreen_rounded,
+                    title: "Full screen",
+                    subtitle: "Show apps in a grid over the whole screen",
+                    trailing: ZenitSwitch(
+                      value: PreferencesService.current.get<bool>(
+                            SessionSetting.launcherFullscreen.key,
+                          ) ??
+                          SessionSetting.launcherFullscreen.defaultValue,
+                      onChanged: (v) => PreferencesService.current.set<bool>(
+                        SessionSetting.launcherFullscreen.key,
+                        v,
+                      ),
+                    ),
+                  ),
+                ),
+                ListenableBuilder(
+                  listenable: PreferencesService.current,
+                  builder: (context, _) {
+                    final String sort = PreferencesService.current
+                            .get<String>(SessionSetting.launcherSort.key) ??
+                        SessionSetting.launcherSort.defaultValue;
+                    return SettingsRow(
+                      icon: Icons.sort_rounded,
+                      title: "Sort apps",
+                      trailing: SegmentedButton<String>(
+                        showSelectedIcon: false,
+                        segments: const [
+                          ButtonSegment(value: "name", label: Text("A to Z")),
+                          ButtonSegment(
+                            value: "category",
+                            label: Text("Category"),
+                          ),
+                        ],
+                        selected: {sort == "category" ? "category" : "name"},
+                        onSelectionChanged: (v) =>
+                            PreferencesService.current.set<String>(
+                          SessionSetting.launcherSort.key,
+                          v.first,
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
             const _FontsGroup(),
@@ -247,6 +389,24 @@ class AppearancePage extends StatelessWidget {
                   trailing: ZenitSwitch(
                     value: c.enableEffects,
                     onChanged: (v) => c.enableEffects = v,
+                  ),
+                ),
+                ListenableBuilder(
+                  listenable: PreferencesService.current,
+                  builder: (context, _) => SettingsRow(
+                    icon: Icons.crop_square_rounded,
+                    title: "Window borders",
+                    subtitle: "A thin outline around windows",
+                    trailing: ZenitSwitch(
+                      value: PreferencesService.current.get<bool>(
+                            SessionSetting.windowBorders.key,
+                          ) ??
+                          SessionSetting.windowBorders.defaultValue,
+                      onChanged: (v) => PreferencesService.current.set<bool>(
+                        SessionSetting.windowBorders.key,
+                        v,
+                      ),
+                    ),
                   ),
                 ),
                 ListenableBuilder(
@@ -338,11 +498,13 @@ class _FontsGroup extends StatelessWidget {
     return ListenableServiceBuilder<PreferencesService>(
       builder: (context, _) {
         final PreferencesService prefs = PreferencesService.current;
-        String read(SessionSetting<String> s) => prefs.get<String>(s.key) ?? s.defaultValue;
+        String read(SessionSetting<String> s) =>
+            prefs.get<String>(s.key) ?? s.defaultValue;
         final String ui = read(SessionSetting.interfaceFont);
         final String mono = read(SessionSetting.monospaceFont);
 
-        Future<void> pick(SessionSetting<String> setting, {required bool monospace}) async {
+        Future<void> pick(SessionSetting<String> setting,
+            {required bool monospace}) async {
           final String? family = await showDialog<String>(
             context: context,
             builder: (context) => _FontPicker(
@@ -363,7 +525,8 @@ class _FontsGroup extends StatelessWidget {
               trailing: _FontButton(
                 label: ui.isEmpty ? "Inter (default)" : ui,
                 family: ui.isEmpty ? null : ui,
-                onPressed: () => pick(SessionSetting.interfaceFont, monospace: false),
+                onPressed: () =>
+                    pick(SessionSetting.interfaceFont, monospace: false),
               ),
             ),
             SettingsRow(
@@ -373,7 +536,8 @@ class _FontsGroup extends StatelessWidget {
               trailing: _FontButton(
                 label: mono.isEmpty ? "System default" : mono,
                 family: mono.isEmpty ? "monospace" : mono,
-                onPressed: () => pick(SessionSetting.monospaceFont, monospace: true),
+                onPressed: () =>
+                    pick(SessionSetting.monospaceFont, monospace: true),
               ),
             ),
           ],
@@ -384,7 +548,8 @@ class _FontsGroup extends StatelessWidget {
 }
 
 class _FontButton extends StatelessWidget {
-  const _FontButton({required this.label, required this.family, required this.onPressed});
+  const _FontButton(
+      {required this.label, required this.family, required this.onPressed});
 
   final String label;
   final String? family;
@@ -450,7 +615,8 @@ class _FontPickerState extends State<_FontPicker> {
     }
     if (!mounted) return;
     setState(() {
-      _families = families.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      _families = families.toList()
+        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     });
   }
 
@@ -463,7 +629,9 @@ class _FontPickerState extends State<_FontPicker> {
       "",
       ...?families?.where((f) => f.toLowerCase().contains(query)),
     ];
-    final String sample = widget.monospace ? "fn main() { return 0x2A; }" : "The quick brown fox jumps over the lazy dog";
+    final String sample = widget.monospace
+        ? "fn main() { return 0x2A; }"
+        : "The quick brown fox jumps over the lazy dog";
 
     return AlertDialog(
       title: Text(widget.monospace ? "Monospace font" : "Interface font"),
@@ -487,26 +655,34 @@ class _FontPickerState extends State<_FontPicker> {
                       itemBuilder: (context, i) {
                         final String family = shown[i];
                         final bool selected = family == widget.current;
-                        final String? previewFamily =
-                            family.isEmpty ? (widget.monospace ? "monospace" : null) : family;
+                        final String? previewFamily = family.isEmpty
+                            ? (widget.monospace ? "monospace" : null)
+                            : family;
                         return Material(
-                          color: selected ? theme.colorScheme.primary : Colors.transparent,
+                          color: selected
+                              ? theme.colorScheme.primary
+                              : Colors.transparent,
                           borderRadius: BorderRadius.circular(8),
                           child: InkWell(
                             borderRadius: BorderRadius.circular(8),
                             onTap: () => Navigator.pop(context, family),
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     family.isEmpty
-                                        ? (widget.monospace ? "System default" : "Inter (default)")
+                                        ? (widget.monospace
+                                            ? "System default"
+                                            : "Inter (default)")
                                         : family,
                                     style: TextStyle(
                                       fontWeight: FontWeight.w600,
-                                      color: selected ? theme.colorScheme.onPrimary : null,
+                                      color: selected
+                                          ? theme.colorScheme.onPrimary
+                                          : null,
                                     ),
                                   ),
                                   Text(
@@ -515,7 +691,9 @@ class _FontPickerState extends State<_FontPicker> {
                                     overflow: TextOverflow.ellipsis,
                                     style: theme.textTheme.bodyLarge?.copyWith(
                                       fontFamily: previewFamily,
-                                      color: selected ? theme.colorScheme.onPrimary : null,
+                                      color: selected
+                                          ? theme.colorScheme.onPrimary
+                                          : null,
                                     ),
                                   ),
                                 ],
@@ -530,7 +708,9 @@ class _FontPickerState extends State<_FontPicker> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel")),
       ],
     );
   }
@@ -576,8 +756,9 @@ class _PointerGroup extends StatelessWidget {
     return ListenableBuilder(
       listenable: prefs,
       builder: (context, _) {
-        final String theme = prefs.get<String>(SessionSetting.cursorTheme.key) ??
-            SessionSetting.cursorTheme.defaultValue;
+        final String theme =
+            prefs.get<String>(SessionSetting.cursorTheme.key) ??
+                SessionSetting.cursorTheme.defaultValue;
         final int size = prefs.get<int>(SessionSetting.cursorSize.key) ??
             SessionSetting.cursorSize.defaultValue;
         final List<String> themes = _themes();
@@ -599,7 +780,8 @@ class _PointerGroup extends StatelessWidget {
                     ),
                 ],
                 onChanged: (v) {
-                  if (v != null) prefs.set<String>(SessionSetting.cursorTheme.key, v);
+                  if (v != null)
+                    prefs.set<String>(SessionSetting.cursorTheme.key, v);
                 },
               ),
             ),
@@ -639,8 +821,16 @@ class _HotCornersGroup extends StatelessWidget {
   static const List<(SessionSetting<String>, String, IconData)> _corners = [
     (SessionSetting.hotCornerTopLeft, "Top left", Icons.north_west_rounded),
     (SessionSetting.hotCornerTopRight, "Top right", Icons.north_east_rounded),
-    (SessionSetting.hotCornerBottomLeft, "Bottom left", Icons.south_west_rounded),
-    (SessionSetting.hotCornerBottomRight, "Bottom right", Icons.south_east_rounded),
+    (
+      SessionSetting.hotCornerBottomLeft,
+      "Bottom left",
+      Icons.south_west_rounded
+    ),
+    (
+      SessionSetting.hotCornerBottomRight,
+      "Bottom right",
+      Icons.south_east_rounded
+    ),
   ];
 
   @override
@@ -667,7 +857,8 @@ class _HotCornersGroup extends StatelessWidget {
                   items: [
                     for (final GestureAction action in GestureAction.values)
                       if (action != GestureAction.switchDesktop)
-                        DropdownMenuItem(value: action, child: Text(action.label)),
+                        DropdownMenuItem(
+                            value: action, child: Text(action.label)),
                   ],
                   onChanged: (action) => prefs.set<String>(
                     setting.key,
@@ -678,6 +869,127 @@ class _HotCornersGroup extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+bool get _fromWallpaper =>
+    PreferencesService.current
+        .get<bool>(SessionSetting.accentFromWallpaper.key) ??
+    SessionSetting.accentFromWallpaper.defaultValue;
+
+void _setFromWallpaper(bool on) => PreferencesService.current
+    .set<bool>(SessionSetting.accentFromWallpaper.key, on);
+
+/// A color picked with the custom picker (not a built-in one, not the
+/// wallpaper's).
+bool _isCustom(CustomizationService c) =>
+    !_fromWallpaper && c.accentColor.subtype == ColorResourceType.hex;
+
+Future<void> _pickCustom(BuildContext context, CustomizationService c) async {
+  final Color? picked = await showDialog<Color>(
+    context: context,
+    builder: (context) => _CustomAccentDialog(
+      initial: c.accentColor.resolve() ?? const Color(0xFFFF5722),
+    ),
+  );
+  if (picked == null) return;
+  _setFromWallpaper(false);
+  c.accentColor = ColorResource(
+    type: ColorResourceType.hex,
+    value: (picked.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, "0"),
+  );
+}
+
+/// Hue, saturation and brightness, with a preview and the hex code.
+class _CustomAccentDialog extends StatefulWidget {
+  const _CustomAccentDialog({required this.initial});
+
+  final Color initial;
+
+  @override
+  State<_CustomAccentDialog> createState() => _CustomAccentDialogState();
+}
+
+class _CustomAccentDialogState extends State<_CustomAccentDialog> {
+  late HSVColor _hsv = HSVColor.fromColor(widget.initial);
+  late final TextEditingController _hex =
+      TextEditingController(text: _hexOf(_hsv));
+
+  static String _hexOf(HSVColor hsv) => (hsv.toColor().toARGB32() & 0xFFFFFF)
+      .toRadixString(16)
+      .padLeft(6, "0")
+      .toUpperCase();
+
+  void _set(HSVColor hsv) {
+    setState(() => _hsv = hsv);
+    _hex.text = _hexOf(hsv);
+  }
+
+  @override
+  void dispose() {
+    _hex.dispose();
+    super.dispose();
+  }
+
+  Widget _slider(String label, double value, ValueChanged<double> onChanged) =>
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            SizedBox(width: 90, child: Text(label)),
+            Expanded(child: ZenitSlider(value: value, onChanged: onChanged)),
+          ],
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text("Custom accent color"),
+      content: SizedBox(
+        width: 360,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              height: 56,
+              decoration: BoxDecoration(
+                color: _hsv.toColor(),
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _slider("Hue", _hsv.hue / 360, (v) => _set(_hsv.withHue(v * 360))),
+            _slider("Saturation", _hsv.saturation,
+                (v) => _set(_hsv.withSaturation(v))),
+            _slider("Brightness", _hsv.value, (v) => _set(_hsv.withValue(v))),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _hex,
+              decoration:
+                  const InputDecoration(prefixText: "#", labelText: "Hex"),
+              onSubmitted: (text) {
+                final int? value =
+                    int.tryParse(text.replaceAll("#", ""), radix: 16);
+                if (value != null && text.replaceAll("#", "").length == 6) {
+                  setState(() =>
+                      _hsv = HSVColor.fromColor(Color(0xFF000000 | value)));
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel")),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _hsv.toColor()),
+          child: const Text("Use color"),
+        ),
+      ],
     );
   }
 }

@@ -18,9 +18,12 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 
+import 'package:dahlia_shared/dahlia_shared.dart'
+    show PreferencesService, ServiceManager;
 import 'package:flutter/animation.dart' show Cubic;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:pangolin_settings/pangolin_settings.dart';
 import 'package:zenit_ui/zenit_ui.dart' show ZenitBlur;
 
 enum SessionMode {
@@ -58,8 +61,31 @@ class PangolinSession {
   /// Flutter view rendering the taskbar and overlays on the TOP layer.
   static int? get shellViewId => _shellViewId;
 
-  /// Height of the taskbar, which the window manager keeps free of windows.
-  static const double taskbarHeight = 48;
+  /// Height of the taskbar (Settings > Appearance > Taskbar > Size).
+  static double get taskbarHeight =>
+      taskbarHeightFor(_setting(SessionSetting.taskbarSize));
+
+  static double taskbarHeightFor(String size) => switch (size) {
+        "small" => 40,
+        "large" => 56,
+        _ => 48,
+      };
+
+  /// What the window manager keeps free of windows for the taskbar: nothing
+  /// when it hides itself.
+  static double get taskbarReserved =>
+      _setting(SessionSetting.taskbarAutohide) ? 0 : taskbarHeight;
+
+  static T _setting<T extends Object>(SessionSetting<T> setting) {
+    Object? value;
+    try {
+      value = ServiceManager.getService<PreferencesService>()
+          ?.get<Object>(setting.key);
+    } on Object {
+      // Still starting.
+    }
+    return value is T ? value : setting.defaultValue;
+  }
 
   /// Exit status that asks the session's init script to start the shell
   /// again (Ctrl+Shift+Alt+R), as opposed to a sign out (0) or a crash.
@@ -95,6 +121,7 @@ class PangolinSession {
           await _channel.invokeMethod<bool>("blurSupported") ?? false;
       partAnimations.value =
           await _channel.invokeMethod<bool>("animationsSupported") ?? false;
+      tints.value = await _channel.invokeMethod<bool>("tintsSupported") ?? false;
     } on MissingPluginException {
       // Running on a platform without the Pangolin runner.
     }
@@ -210,6 +237,72 @@ class PangolinSession {
           )
           .toList(),
     });
+  }
+
+  /// Whether river draws only part of a surface (setShellVisibleArea) and
+  /// animates colors over surfaces (setTint): river-blur-v1 version 4.
+  static final ValueNotifier<bool> tints = ValueNotifier(false);
+
+  /// river shows the wallpaper itself (PANGOLIN_WALLPAPER, river/Splash.zig,
+  /// from the image SplashCache keeps): the desktop surface doesn't draw it.
+  static bool get riverWallpaper =>
+      isSession && Platform.environment["PANGOLIN_WALLPAPER"] == "1";
+
+  /// river draws only [area] of the shell surface (logical coordinates), or
+  /// (null) all of it (ShellSurfaceArea). Takes effect right away.
+  static Future<void> setShellVisibleArea(Rect? area) =>
+      setVisibleArea(_shellViewId, area);
+
+  /// river draws only [area] of [view]'s surface, or (null) all of it.
+  static Future<void> setVisibleArea(int? view, Rect? area) async {
+    if (!isSession || !tints.value || view == null) return;
+    await _channel.invokeMethod("setVisibleArea", {
+      "view": view,
+      "area": area == null
+          ? null
+          : [
+              area.left.floor(),
+              area.top.floor(),
+              area.width.ceil(),
+              area.height.ceil(),
+            ],
+    });
+  }
+
+  /// river animates [color] over [area] of [view] (logical coordinates; the
+  /// whole surface when null), from the current tint, along [curve]. A
+  /// transparent color removes the tint once reached. Takes effect right
+  /// away.
+  static Future<void> setTint({
+    required int view,
+    required Color color,
+    Rect? area,
+    Duration duration = Duration.zero,
+    Cubic curve = const Cubic(0, 0, 1, 1),
+  }) async {
+    if (!tints.value) return;
+    int fixed(double value) => (value * 10000).round();
+    try {
+      await _channel.invokeMethod("setTint", {
+        "view": view,
+        "values": [
+          // ARGB as a signed 32 bit value (the channel's integers are
+          // signed; the runner takes the bits).
+          color.toARGB32().toSigned(32),
+          area?.left.floor() ?? 0,
+          area?.top.floor() ?? 0,
+          area?.width.ceil() ?? 0,
+          area?.height.ceil() ?? 0,
+          duration.inMilliseconds,
+          fixed(curve.a),
+          fixed(curve.b),
+          fixed(curve.c),
+          fixed(curve.d),
+        ],
+      });
+    } on PlatformException {
+      // Not animated.
+    }
   }
 
   static Future<void> setShellKeyboardMode(KeyboardMode mode) async {

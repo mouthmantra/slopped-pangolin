@@ -79,12 +79,16 @@ class AccentSwatch extends StatelessWidget {
     required this.color,
     required this.selected,
     required this.onTap,
+    this.icon,
     super.key,
   });
 
   final Color color;
   final bool selected;
   final VoidCallback onTap;
+
+  /// Shown when not selected (the wallpaper and custom choices).
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -103,7 +107,11 @@ class AccentSwatch extends StatelessWidget {
             width: 3,
           ),
         ),
-        child: selected ? const Icon(Icons.check_rounded, color: Colors.white) : null,
+        child: selected
+            ? const Icon(Icons.check_rounded, color: Colors.white)
+            : icon != null
+                ? Icon(icon, color: Colors.white, size: 20)
+                : null,
       ),
     );
   }

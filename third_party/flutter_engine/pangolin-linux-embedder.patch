@@ -1,0 +1,853 @@
+diff --git a/engine/src/flutter/shell/common/rasterizer.cc b/engine/src/flutter/shell/common/rasterizer.cc
+index 6af8bfc9..0fa219b6 100644
+--- a/engine/src/flutter/shell/common/rasterizer.cc
++++ b/engine/src/flutter/shell/common/rasterizer.cc
+@@ -807,6 +807,27 @@ DrawSurfaceStatus Rasterizer::DrawToSurfaceUnsafe(
+       ignore_raster_cache = false;
+     }
+ 
++    // Pangolin: an external view embedder repaints the whole frame, but it is
++    // told what changed (the diff with the previous layer tree) to pass on to
++    // the display, which then recomposites only that. Computed before Raster
++    // and not handed to it: nothing is clipped.
++    std::optional<DlIRect> embedder_damage;
++    if (external_view_embedder_ &&
++        (!raster_thread_merger_ || raster_thread_merger_->IsMerged())) {
++      const LayerTree* previous = GetLastLayerTree(view_id);
++      // Redrawing the last tree (a new surface) isn't "nothing changed".
++      if (previous == &layer_tree) {
++        previous = nullptr;
++      }
++      FrameDamage diff;
++      diff.SetPreviousLayerTree(previous);
++      diff.ComputeClipRect(layer_tree, !ignore_raster_cache,
++                           surface_->GetContext() == nullptr);
++      if (previous != nullptr) {
++        embedder_damage = diff.GetFrameDamage();
++      }
++    }
++
+     RasterStatus frame_status =
+         compositor_frame->Raster(layer_tree,           // layer tree
+                                  ignore_raster_cache,  // ignore raster cache
+@@ -822,6 +843,9 @@ DrawSurfaceStatus Rasterizer::DrawToSurfaceUnsafe(
+       submit_info.frame_damage = damage->GetFrameDamage();
+       submit_info.buffer_damage = damage->GetBufferDamage();
+     }
++    if (embedder_damage.has_value()) {
++      submit_info.frame_damage = embedder_damage;
++    }
+ 
+     frame->set_submit_info(submit_info);
+ 
+diff --git a/engine/src/flutter/shell/platform/embedder/embedder.h b/engine/src/flutter/shell/platform/embedder/embedder.h
+index e9f37699..80981066 100644
+--- a/engine/src/flutter/shell/platform/embedder/embedder.h
++++ b/engine/src/flutter/shell/platform/embedder/embedder.h
+@@ -2179,6 +2179,11 @@ typedef struct {
+   /// outside of this area are transparent and the embedder may choose not
+   /// to render them. Coordinates are in physical pixels.
+   FlutterRegion* paint_region;
++
++  /// Pangolin: what differs from the previous frame of the view (the diff of
++  /// their layer trees), in physical pixels. Null when it isn't known: the
++  /// whole frame may have changed.
++  FlutterRect* frame_damage;
+ } FlutterBackingStorePresentInfo;
+ 
+ typedef struct {
+diff --git a/engine/src/flutter/shell/platform/embedder/embedder_external_view_embedder.cc b/engine/src/flutter/shell/platform/embedder/embedder_external_view_embedder.cc
+index 1d3ff65c..2cc00672 100644
+--- a/engine/src/flutter/shell/platform/embedder/embedder_external_view_embedder.cc
++++ b/engine/src/flutter/shell/platform/embedder/embedder_external_view_embedder.cc
+@@ -622,6 +622,7 @@ void EmbedderExternalViewEmbedder::SubmitFlutterView(
+         pending_frame_size_, pending_device_pixel_ratio_,
+         pending_surface_transformation_, presentation_time);
+ 
++    presented_layers.SetFrameDamage(frame->submit_info().frame_damage);
+     builder.PushLayers(presented_layers);
+ 
+     presented_layers.InvokePresentCallback(flutter_view_id, present_callback_);
+diff --git a/engine/src/flutter/shell/platform/embedder/embedder_layers.cc b/engine/src/flutter/shell/platform/embedder/embedder_layers.cc
+index b671e860..c0a82eaa 100644
+--- a/engine/src/flutter/shell/platform/embedder/embedder_layers.cc
++++ b/engine/src/flutter/shell/platform/embedder/embedder_layers.cc
+@@ -61,6 +61,19 @@ void EmbedderLayers::PushBackingStoreLayer(
+   auto present_info = std::make_unique<FlutterBackingStorePresentInfo>();
+   present_info->struct_size = sizeof(FlutterBackingStorePresentInfo);
+   present_info->paint_region = paint_region.get();
++  present_info->frame_damage = nullptr;
++  if (frame_damage_.has_value()) {
++    auto transformed = DlRect::Make(frame_damage_.value())
++                           .TransformAndClipBounds(root_surface_transformation_);
++    auto damage = std::make_unique<FlutterRect>(FlutterRect{
++        .left = transformed.GetLeft(),
++        .top = transformed.GetTop(),
++        .right = transformed.GetRight(),
++        .bottom = transformed.GetBottom(),
++    });
++    present_info->frame_damage = damage.get();
++    damage_referenced_.push_back(std::move(damage));
++  }
+   regions_referenced_.push_back(std::move(paint_region));
+   layer.backing_store_present_info = present_info.get();
+   layer.presentation_time = presentation_time_;
+diff --git a/engine/src/flutter/shell/platform/embedder/embedder_layers.h b/engine/src/flutter/shell/platform/embedder/embedder_layers.h
+index e4b55b06..4c7b9bef 100644
+--- a/engine/src/flutter/shell/platform/embedder/embedder_layers.h
++++ b/engine/src/flutter/shell/platform/embedder/embedder_layers.h
+@@ -6,6 +6,7 @@
+ #define FLUTTER_SHELL_PLATFORM_EMBEDDER_EMBEDDER_LAYERS_H_
+ 
+ #include <memory>
++#include <optional>
+ #include <vector>
+ 
+ #include "flutter/flow/embedded_views.h"
+@@ -26,6 +27,12 @@ class EmbedderLayers {
+   void PushBackingStoreLayer(const FlutterBackingStore* store,
+                              const std::vector<DlIRect>& drawn_region);
+ 
++  // Pangolin: the frame's damage, given to the backing store layers pushed
++  // after this (FlutterBackingStorePresentInfo.frame_damage).
++  void SetFrameDamage(std::optional<DlIRect> frame_damage) {
++    frame_damage_ = frame_damage;
++  }
++
+   void PushPlatformViewLayer(FlutterPlatformViewIdentifier identifier,
+                              const EmbeddedViewParams& params);
+ 
+@@ -48,6 +55,8 @@ class EmbedderLayers {
+       present_info_referenced_;
+   std::vector<std::unique_ptr<FlutterRegion>> regions_referenced_;
+   std::vector<std::unique_ptr<std::vector<FlutterRect>>> rects_referenced_;
++  std::optional<DlIRect> frame_damage_;
++  std::vector<std::unique_ptr<FlutterRect>> damage_referenced_;
+   std::vector<FlutterLayer> presented_layers_;
+   uint64_t presentation_time_;
+ 
+diff --git a/engine/src/flutter/shell/platform/linux/BUILD.gn b/engine/src/flutter/shell/platform/linux/BUILD.gn
+index 66797b32..79b16f71 100644
+--- a/engine/src/flutter/shell/platform/linux/BUILD.gn
++++ b/engine/src/flutter/shell/platform/linux/BUILD.gn
+@@ -174,6 +174,7 @@ source_set("flutter_linux_sources") {
+     "fl_view_accessible.cc",
+     "fl_view_monitor.cc",
+     "fl_view_renderer.cc",
++    "fl_pangolin_damage.cc",
+     "fl_window_monitor.cc",
+     "fl_window_state_monitor.cc",
+   ]
+diff --git a/engine/src/flutter/shell/platform/linux/fl_compositor_opengl.cc b/engine/src/flutter/shell/platform/linux/fl_compositor_opengl.cc
+index ebcad245..cfd0a770 100644
+--- a/engine/src/flutter/shell/platform/linux/fl_compositor_opengl.cc
++++ b/engine/src/flutter/shell/platform/linux/fl_compositor_opengl.cc
+@@ -7,6 +7,10 @@
+ #include <epoxy/egl.h>
+ #include <epoxy/gl.h>
+ 
++#include <cmath>
++#include <cstddef>
++#include <cstring>
++
+ #include "flutter/common/constants.h"
+ #include "flutter/shell/platform/embedder/embedder.h"
+ #include "flutter/shell/platform/linux/fl_compositor_opengl_shader.h"
+@@ -36,8 +40,147 @@ struct _FlCompositorOpenGL {
+ 
+   // Ensure Flutter and GTK can access the frame data (framebuffer or pixels).
+   GMutex frame_mutex;
++
++  // Pangolin: what the last frame drew (the layers' paint regions, frame
++  // pixels), null when unknown.
++  cairo_region_t* drawn;
++
++  // Pangolin: what changed since GTK last drew (taken by
++  // fl_compositor_opengl_take_damage), null for everything.
++  cairo_region_t* damage;
++  gboolean damage_full;
++
++  // Pangolin: 1x1 renderbuffer without alpha (skip_surface_upload), and
++  // whether GDK can't blit it.
++  GLuint opaque_marker;
++  gboolean no_upload_skip;
+ };
+ 
++// Pangolin: GDK 3 draws a texture with alpha by first uploading the window's
++// cairo surface for the whole area painted to blend over, on the CPU: 59 MB
++// for a full repaint at 5120x2880, ~20 ms of the main thread. A blit of a
++// renderbuffer without alpha over the area marks it drawn by GL, and GDK
++// then uploads nothing; the area is cleared instead (nothing GTK draws is
++// under a Flutter view) and the texture blended over that. Where GDK can't
++// blit (GLES without the ANGLE extension, drawing through a group) it reads
++// the renderbuffer back in software instead, which also leaves [cr]
++// flipped: that is undone and the view drawn as before from then on.
++static void skip_surface_upload(FlCompositorOpenGL* self,
++                                cairo_t* cr,
++                                GdkWindow* window,
++                                gint scale_factor,
++                                size_t width,
++                                size_t height) {
++  if (self->no_upload_skip) {
++    return;
++  }
++  cairo_rectangle_list_t* rects = cairo_copy_clip_rectangle_list(cr);
++  if (rects->status != CAIRO_STATUS_SUCCESS) {
++    cairo_rectangle_list_destroy(rects);
++    return;
++  }
++  if (self->opaque_marker == 0) {
++    glGenRenderbuffers(1, &self->opaque_marker);
++    glBindRenderbuffer(GL_RENDERBUFFER, self->opaque_marker);
++    glRenderbufferStorage(GL_RENDERBUFFER, GL_RGB8, 1, 1);
++    glBindRenderbuffer(GL_RENDERBUFFER, 0);
++  }
++  cairo_matrix_t matrix, after;
++  cairo_get_matrix(cr, &matrix);
++  cairo_save(cr);
++  gdk_cairo_draw_from_gl(cr, window, self->opaque_marker, GL_RENDERBUFFER,
++                         scale_factor, 0, 0, width, height);
++  cairo_get_matrix(cr, &after);
++  cairo_restore(cr);
++  if (memcmp(&matrix, &after, sizeof matrix) != 0) {
++    // Drawn in software: clear what it drew.
++    cairo_save(cr);
++    cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
++    cairo_paint(cr);
++    cairo_restore(cr);
++    self->no_upload_skip = TRUE;
++    g_debug("GDK draws this view in software");
++    cairo_rectangle_list_destroy(rects);
++    return;
++  }
++
++  // GDK's paint context is current now, drawing to the window.
++  GdkWindow* native = gdk_window_get_toplevel(window);
++  gint scale = gdk_window_get_scale_factor(native);
++  gint window_height = gdk_window_get_height(native) * scale;
++  glEnable(GL_SCISSOR_TEST);
++  glClearColor(0, 0, 0, 0);
++  for (int i = 0; i < rects->num_rectangles; i++) {
++    const cairo_rectangle_t& r = rects->rectangles[i];
++    gint x = static_cast<gint>(std::floor((r.x + matrix.x0) * scale));
++    gint y = static_cast<gint>(std::floor((r.y + matrix.y0) * scale));
++    gint w = static_cast<gint>(std::ceil(r.width * scale));
++    gint h = static_cast<gint>(std::ceil(r.height * scale));
++    glScissor(x, window_height - (y + h), w, h);
++    glClear(GL_COLOR_BUFFER_BIT);
++  }
++  glDisable(GL_SCISSOR_TEST);
++  cairo_rectangle_list_destroy(rects);
++}
++
++// Pangolin: what [layers] drew, null when it can't be known (platform views,
++// no paint regions).
++static cairo_region_t* drawn_region(const FlutterLayer** layers,
++                                    size_t layers_count) {
++  cairo_region_t* drawn = cairo_region_create();
++  for (size_t i = 0; i < layers_count; ++i) {
++    const FlutterLayer* layer = layers[i];
++    const FlutterBackingStorePresentInfo* info =
++        layer->type == kFlutterLayerContentTypeBackingStore
++            ? layer->backing_store_present_info
++            : nullptr;
++    if (info == nullptr || info->paint_region == nullptr) {
++      cairo_region_destroy(drawn);
++      return nullptr;
++    }
++    for (size_t j = 0; j < info->paint_region->rects_count; ++j) {
++      const FlutterRect* r = &info->paint_region->rects[j];
++      int left = static_cast<int>(floor(r->left));
++      int top = static_cast<int>(floor(r->top));
++      cairo_rectangle_int_t rect = {
++          left, top, static_cast<int>(ceil(r->right)) - left,
++          static_cast<int>(ceil(r->bottom)) - top};
++      cairo_region_union_rectangle(drawn, &rect);
++    }
++  }
++  return drawn;
++}
++
++// Pangolin: what changed since the previous frame, as the engine diffed their
++// layer trees; null when a layer doesn't say.
++static cairo_region_t* changed_region(const FlutterLayer** layers,
++                                      size_t layers_count) {
++  cairo_region_t* changed = cairo_region_create();
++  for (size_t i = 0; i < layers_count; ++i) {
++    const FlutterLayer* layer = layers[i];
++    const FlutterBackingStorePresentInfo* info =
++        layer->type == kFlutterLayerContentTypeBackingStore
++            ? layer->backing_store_present_info
++            : nullptr;
++    if (info == nullptr ||
++        info->struct_size < offsetof(FlutterBackingStorePresentInfo,
++                                     frame_damage) +
++                                sizeof(info->frame_damage) ||
++        info->frame_damage == nullptr) {
++      cairo_region_destroy(changed);
++      return nullptr;
++    }
++    const FlutterRect* r = info->frame_damage;
++    int left = static_cast<int>(floor(r->left));
++    int top = static_cast<int>(floor(r->top));
++    cairo_rectangle_int_t rect = {left, top,
++                                  static_cast<int>(ceil(r->right)) - left,
++                                  static_cast<int>(ceil(r->bottom)) - top};
++    cairo_region_union_rectangle(changed, &rect);
++  }
++  return changed;
++}
++
+ G_DEFINE_TYPE(FlCompositorOpenGL,
+               fl_compositor_opengl,
+               fl_compositor_get_type())
+@@ -106,6 +249,31 @@ static gboolean fl_compositor_opengl_present_layers(FlCompositor* compositor,
+   // Update framebuffer to write into.
+   size_t width = layers[0]->size.width;
+   size_t height = layers[0]->size.height;
++
++  // Pangolin: what changed, as the engine diffed it, else what this frame or
++  // the previous one drew (outside both, the frame stays transparent).
++  cairo_region_t* drawn = drawn_region(layers, layers_count);
++  cairo_region_t* changed = changed_region(layers, layers_count);
++  gboolean same_size = self->framebuffer != nullptr &&
++                       fl_framebuffer_get_width(self->framebuffer) == width &&
++                       fl_framebuffer_get_height(self->framebuffer) == height;
++  if (drawn == nullptr || self->drawn == nullptr || !same_size) {
++    self->damage_full = TRUE;
++  } else if (!self->damage_full) {
++    if (self->damage == nullptr) {
++      self->damage = cairo_region_create();
++    }
++    if (changed != nullptr) {
++      cairo_region_union(self->damage, changed);
++    } else {
++      cairo_region_union(self->damage, self->drawn);
++      cairo_region_union(self->damage, drawn);
++    }
++  }
++  g_clear_pointer(&changed, cairo_region_destroy);
++  g_clear_pointer(&self->drawn, cairo_region_destroy);
++  self->drawn = drawn;
++
+   if (self->framebuffer == nullptr ||
+       fl_framebuffer_get_width(self->framebuffer) != width ||
+       fl_framebuffer_get_height(self->framebuffer) != height) {
+@@ -272,6 +440,7 @@ static gboolean fl_compositor_opengl_render(FlCompositor* compositor,
+   if (fl_framebuffer_get_shareable(self->framebuffer)) {
+     g_autoptr(FlFramebuffer) sibling =
+         fl_framebuffer_create_sibling(self->framebuffer);
++    skip_surface_upload(self, cr, window, scale_factor, width, height);
+     gdk_cairo_draw_from_gl(cr, window, fl_framebuffer_get_texture_id(sibling),
+                            GL_TEXTURE, scale_factor, 0, 0, width, height);
+   } else {
+@@ -316,6 +485,8 @@ static void fl_compositor_opengl_dispose(GObject* object) {
+   g_clear_object(&self->opengl_manager);
+   g_clear_object(&self->framebuffer);
+   g_clear_pointer(&self->pixels, g_free);
++  g_clear_pointer(&self->drawn, cairo_region_destroy);
++  g_clear_pointer(&self->damage, cairo_region_destroy);
+   g_mutex_clear(&self->frame_mutex);
+ 
+   G_OBJECT_CLASS(fl_compositor_opengl_parent_class)->dispose(object);
+@@ -348,3 +519,31 @@ FlCompositorOpenGL* fl_compositor_opengl_new(FlTaskRunner* task_runner,
+ 
+   return self;
+ }
++
++cairo_region_t* fl_compositor_opengl_take_damage(FlCompositorOpenGL* self) {
++  g_return_val_if_fail(FL_IS_COMPOSITOR_OPENGL(self), nullptr);
++  g_autoptr(GMutexLocker) locker = g_mutex_locker_new(&self->frame_mutex);
++  if (self->damage_full) {
++    g_clear_pointer(&self->damage, cairo_region_destroy);
++    self->damage_full = FALSE;
++    return nullptr;
++  }
++  // None: GTK draws again what an earlier draw had (nothing changed).
++  cairo_region_t* damage =
++      self->damage != nullptr ? self->damage : cairo_region_create();
++  self->damage = nullptr;
++  return damage;
++}
++
++cairo_region_t* fl_compositor_opengl_peek_damage(FlCompositorOpenGL* self) {
++  g_return_val_if_fail(FL_IS_COMPOSITOR_OPENGL(self), nullptr);
++  g_autoptr(GMutexLocker) locker = g_mutex_locker_new(&self->frame_mutex);
++  if (self->damage_full) {
++    return nullptr;
++  }
++  // None: GTK already drew this frame (a second redraw for it).
++  if (self->damage == nullptr) {
++    return cairo_region_create();
++  }
++  return cairo_region_copy(self->damage);
++}
+diff --git a/engine/src/flutter/shell/platform/linux/fl_compositor_opengl.h b/engine/src/flutter/shell/platform/linux/fl_compositor_opengl.h
+index 77641a7a..17d8c8a3 100644
+--- a/engine/src/flutter/shell/platform/linux/fl_compositor_opengl.h
++++ b/engine/src/flutter/shell/platform/linux/fl_compositor_opengl.h
+@@ -42,6 +42,27 @@ FlCompositorOpenGL* fl_compositor_opengl_new(FlTaskRunner* task_runner,
+                                              FlOpenGLManager* opengl_manager,
+                                              gboolean shareable);
+ 
++/**
++ * fl_compositor_opengl_take_damage:
++ * @compositor: an #FlCompositorOpenGL.
++ *
++ * Pangolin: what changed in the frame (frame pixels) since the last call
++ * (empty when nothing did), or %NULL for everything (unknown, resized).
++ *
++ * Returns: (transfer full) (nullable): a region.
++ */
++cairo_region_t* fl_compositor_opengl_take_damage(FlCompositorOpenGL* self);
++
++/**
++ * fl_compositor_opengl_peek_damage:
++ * @compositor: an #FlCompositorOpenGL.
++ *
++ * Pangolin: like fl_compositor_opengl_take_damage(), without resetting it.
++ *
++ * Returns: (transfer full) (nullable): a region.
++ */
++cairo_region_t* fl_compositor_opengl_peek_damage(FlCompositorOpenGL* self);
++
+ G_END_DECLS
+ 
+ #endif  // FLUTTER_SHELL_PLATFORM_LINUX_FL_COMPOSITOR_OPENGL_H_
+diff --git a/engine/src/flutter/shell/platform/linux/fl_engine.cc b/engine/src/flutter/shell/platform/linux/fl_engine.cc
+index f88d08cb..4927b3e4 100644
+--- a/engine/src/flutter/shell/platform/linux/fl_engine.cc
++++ b/engine/src/flutter/shell/platform/linux/fl_engine.cc
+@@ -93,6 +93,14 @@ struct _FlEngine {
+   // purposes.
+   FlutterEngineProcTable embedder_api;
+ 
++  // Frame pacing (vsync_callback, Pangolin): nanoseconds between the
++  // refreshes of the fastest display, and between frames (0: no wait). Set
++  // on the main thread, read on the engine's UI thread.
++  int64_t display_interval;
++  int64_t frame_interval;
++  // The start of the last frame, on the UI thread.
++  int64_t last_vsync;
++
+   // Next ID to use for a view.
+   FlutterViewId next_view_id;
+ 
+@@ -538,6 +546,44 @@ static void setup_keyboard(FlEngine* self) {
+ // This method should reset states to as if the engine has just been started,
+ // which usually indicates the user has requested a hot restart (Shift-R in the
+ // Flutter CLI.)
++// Frame pacing (Pangolin): the engine's fallback vsync waiter runs at a fixed
++// 60 Hz. Frames start on a grid of the fastest display's refresh interval
++// instead, or of FLUTTER_LINUX_FPS (frames per second; 0 or "unlimited" to
++// start each frame right away).
++static int64_t fl_engine_requested_interval(FlEngine* self) {
++  const gchar* fps = g_getenv("FLUTTER_LINUX_FPS");
++  if (fps == nullptr || *fps == '\0' || g_strcmp0(fps, "display") == 0) {
++    return self->display_interval;
++  }
++  if (g_strcmp0(fps, "unlimited") == 0) {
++    return 0;
++  }
++  gdouble rate = g_ascii_strtod(fps, nullptr);
++  return rate > 0 ? static_cast<int64_t>(1e9 / rate) : 0;
++}
++
++// Called on the engine's UI thread, and answered there: FlutterEngineOnVsync
++// only posts the frame to that thread. Through the main thread the answer
++// waited behind its drawing and platform messages, past the next tick, and
++// animations ran at every other refresh (82 instead of 165 fps).
++static void fl_engine_vsync_cb(void* user_data, intptr_t baton) {
++  FlEngine* self = FL_ENGINE(user_data);
++  int64_t now = static_cast<int64_t>(self->embedder_api.GetCurrentTime());
++  int64_t interval = __atomic_load_n(&self->frame_interval, __ATOMIC_RELAXED);
++  int64_t start = now;
++  if (interval > 0) {
++    int64_t tick = now - now % interval;
++    // The tick that just passed, if the previous frame ran past it: this one
++    // starts right away rather than a whole refresh later. Otherwise the next
++    // tick (the engine waits until then).
++    start = tick > self->last_vsync ? tick : tick + interval;
++  }
++  self->last_vsync = start;
++  self->embedder_api.OnVsync(
++      self->engine, baton, start,
++      start + __atomic_load_n(&self->display_interval, __ATOMIC_RELAXED));
++}
++
+ static void fl_engine_on_pre_engine_restart_cb(void* user_data) {
+   FlEngine* self = FL_ENGINE(user_data);
+ 
+@@ -878,6 +924,9 @@ gboolean fl_engine_start(FlEngine* self, GError** error) {
+   args.dart_entrypoint_argv =
+       reinterpret_cast<const char* const*>(dart_entrypoint_args);
+   args.engine_id = reinterpret_cast<int64_t>(self);
++  self->display_interval = static_cast<int64_t>(1e9 / 60);
++  self->frame_interval = fl_engine_requested_interval(self);
++  args.vsync_callback = fl_engine_vsync_cb;
+ 
+   FlutterCompositor compositor = {};
+   compositor.struct_size = sizeof(FlutterCompositor);
+@@ -946,6 +995,18 @@ void fl_engine_notify_display_update(FlEngine* self,
+                                      size_t displays_length) {
+   g_return_if_fail(FL_IS_ENGINE(self));
+ 
++  // Frame pacing follows the fastest display.
++  double fastest = 0;
++  for (size_t i = 0; i < displays_length; i++) {
++    fastest = MAX(fastest, displays[i].refresh_rate);
++  }
++  if (fastest > 0) {
++    __atomic_store_n(&self->display_interval,
++                     static_cast<int64_t>(1e9 / fastest), __ATOMIC_RELAXED);
++    __atomic_store_n(&self->frame_interval, fl_engine_requested_interval(self),
++                     __ATOMIC_RELAXED);
++  }
++
+   FlutterEngineResult result = self->embedder_api.NotifyDisplayUpdate(
+       self->engine, kFlutterEngineDisplaysUpdateTypeStartup, displays,
+       displays_length);
+diff --git a/engine/src/flutter/shell/platform/linux/fl_pangolin_damage.cc b/engine/src/flutter/shell/platform/linux/fl_pangolin_damage.cc
+new file mode 100644
+index 00000000..67badab4
+--- /dev/null
++++ b/engine/src/flutter/shell/platform/linux/fl_pangolin_damage.cc
+@@ -0,0 +1,189 @@
++// Copyright 2013 The Flutter Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++// Pangolin: real damage for Flutter's surfaces on Wayland.
++//
++// GTK 3 binds wl_compositor at version 3, so Mesa can't use
++// wl_surface.damage_buffer and damages the whole surface on every
++// eglSwapBuffers (wl_surface.damage(0, 0, INT32_MAX, INT32_MAX)). A
++// full-screen, mostly transparent surface (Pangolin's shell) then makes the
++// compositor composite the whole screen for every frame, a clock tick
++// included. This library is loaded before libwayland-client, so its
++// wl_proxy_marshal_flags is the one Mesa and GTK call: it forwards
++// everything, except that whole-surface damage of a surface that has a
++// region registered (fl_pangolin_damage_set), which becomes that region.
++
++#include "flutter/shell/platform/linux/fl_pangolin_damage.h"
++
++#ifndef _GNU_SOURCE
++#define _GNU_SOURCE
++#endif
++#include <dlfcn.h>
++#include <gdk/gdkwayland.h>
++#include <wayland-client-core.h>
++
++#include <climits>
++#include <cstdarg>
++#include <cstring>
++
++namespace {
++
++constexpr uint32_t kWlSurfaceDamage = 2;  // destroy, attach, damage
++constexpr int kMaxArguments = 20;  // WL_CLOSURE_MAX_ARGS
++
++using MarshalArrayFlags = struct wl_proxy* (*)(struct wl_proxy*,
++                                                uint32_t,
++                                                const struct wl_interface*,
++                                                uint32_t,
++                                                uint32_t,
++                                                union wl_argument*);
++using GetId = uint32_t (*)(struct wl_proxy*);
++
++GMutex mutex;
++// Surface id -> cairo_region_t* (surface coordinates).
++GHashTable* regions = nullptr;
++
++MarshalArrayFlags real_marshal() {
++  static MarshalArrayFlags real = reinterpret_cast<MarshalArrayFlags>(
++      dlsym(RTLD_NEXT, "wl_proxy_marshal_array_flags"));
++  return real;
++}
++
++uint32_t proxy_id(struct wl_proxy* proxy) {
++  static GetId get_id =
++      reinterpret_cast<GetId>(dlsym(RTLD_DEFAULT, "wl_proxy_get_id"));
++  return get_id != nullptr ? get_id(proxy) : 0;
++}
++
++// libwayland's proxies start with their wl_object, which starts with the
++// interface (wl_proxy_get_interface is too recent to rely on).
++const struct wl_interface* proxy_interface(struct wl_proxy* proxy) {
++  return *reinterpret_cast<const struct wl_interface* const*>(proxy);
++}
++
++// The region registered for the surface, if this is its whole-surface
++// damage; null otherwise.
++cairo_region_t* take_region(struct wl_proxy* proxy,
++                            uint32_t opcode,
++                            const union wl_argument* args) {
++  if (opcode != kWlSurfaceDamage || regions == nullptr) {
++    return nullptr;
++  }
++  const struct wl_interface* interface = proxy_interface(proxy);
++  if (interface == nullptr || strcmp(interface->name, "wl_surface") != 0) {
++    return nullptr;
++  }
++  if (args[0].i != 0 || args[1].i != 0 || args[2].i != INT32_MAX ||
++      args[3].i != INT32_MAX) {
++    return nullptr;
++  }
++  g_mutex_lock(&mutex);
++  gpointer key = GUINT_TO_POINTER(proxy_id(proxy));
++  cairo_region_t* region =
++      static_cast<cairo_region_t*>(g_hash_table_lookup(regions, key));
++  if (region != nullptr) {
++    g_hash_table_steal(regions, key);
++  }
++  g_mutex_unlock(&mutex);
++  return region;
++}
++
++}  // namespace
++
++void fl_pangolin_damage_set(GdkWindow* window, cairo_region_t* region) {
++  if (!GDK_IS_WAYLAND_WINDOW(window)) {
++    g_clear_pointer(&region, cairo_region_destroy);
++    return;
++  }
++  struct wl_surface* surface = gdk_wayland_window_get_wl_surface(window);
++  if (surface == nullptr) {
++    g_clear_pointer(&region, cairo_region_destroy);
++    return;
++  }
++  gpointer key =
++      GUINT_TO_POINTER(proxy_id(reinterpret_cast<struct wl_proxy*>(surface)));
++  g_mutex_lock(&mutex);
++  if (regions == nullptr) {
++    regions = g_hash_table_new_full(g_direct_hash, g_direct_equal, nullptr,
++                                    reinterpret_cast<GDestroyNotify>(
++                                        cairo_region_destroy));
++  }
++  if (region != nullptr) {
++    g_hash_table_replace(regions, key, region);
++  } else {
++    g_hash_table_remove(regions, key);
++  }
++  g_mutex_unlock(&mutex);
++}
++
++extern "C" __attribute__((visibility("default"))) struct wl_proxy*
++wl_proxy_marshal_flags(struct wl_proxy* proxy,
++                       uint32_t opcode,
++                       const struct wl_interface* interface,
++                       uint32_t version,
++                       uint32_t flags,
++                       ...) {
++  MarshalArrayFlags real = real_marshal();
++  if (real == nullptr) {
++    g_error("wl_proxy_marshal_array_flags is missing (libwayland < 1.20)");
++  }
++
++  // The arguments, as libwayland reads them (wl_argument_from_va_list).
++  union wl_argument args[kMaxArguments] = {};
++  const struct wl_message* message = &proxy_interface(proxy)->methods[opcode];
++  va_list ap;
++  va_start(ap, flags);
++  int count = 0;
++  for (const char* s = message->signature; *s != '\0' && count < kMaxArguments;
++       s++) {
++    switch (*s) {
++      case 'i':
++        args[count++].i = va_arg(ap, int32_t);
++        break;
++      case 'u':
++        args[count++].u = va_arg(ap, uint32_t);
++        break;
++      case 'f':
++        args[count++].f = va_arg(ap, wl_fixed_t);
++        break;
++      case 's':
++        args[count++].s = va_arg(ap, const char*);
++        break;
++      case 'o':
++        args[count++].o = va_arg(ap, struct wl_object*);
++        break;
++      case 'n':
++        args[count++].o = va_arg(ap, struct wl_object*);
++        break;
++      case 'a':
++        args[count++].a = va_arg(ap, struct wl_array*);
++        break;
++      case 'h':
++        args[count++].h = va_arg(ap, int32_t);
++        break;
++      default:
++        // '?' (nullable) and digits (since version) qualify the next type.
++        break;
++    }
++  }
++  va_end(ap);
++
++  cairo_region_t* region = take_region(proxy, opcode, args);
++  if (region == nullptr) {
++    return real(proxy, opcode, interface, version, flags, args);
++  }
++  int rects = cairo_region_num_rectangles(region);
++  for (int i = 0; i < rects; i++) {
++    cairo_rectangle_int_t rect;
++    cairo_region_get_rectangle(region, i, &rect);
++    union wl_argument damage[4];
++    damage[0].i = rect.x;
++    damage[1].i = rect.y;
++    damage[2].i = rect.width;
++    damage[3].i = rect.height;
++    real(proxy, opcode, interface, version, flags, damage);
++  }
++  cairo_region_destroy(region);
++  return nullptr;
++}
+diff --git a/engine/src/flutter/shell/platform/linux/fl_pangolin_damage.h b/engine/src/flutter/shell/platform/linux/fl_pangolin_damage.h
+new file mode 100644
+index 00000000..2678b662
+--- /dev/null
++++ b/engine/src/flutter/shell/platform/linux/fl_pangolin_damage.h
+@@ -0,0 +1,28 @@
++// Copyright 2013 The Flutter Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef FLUTTER_SHELL_PLATFORM_LINUX_FL_PANGOLIN_DAMAGE_H_
++#define FLUTTER_SHELL_PLATFORM_LINUX_FL_PANGOLIN_DAMAGE_H_
++
++#include <gtk/gtk.h>
++
++G_BEGIN_DECLS
++
++/**
++ * fl_pangolin_damage_set:
++ * @window: a toplevel #GdkWindow.
++ * @region: (transfer full) (nullable): what changed in the next frame of the
++ * window's surface, in surface coordinates, or %NULL for everything.
++ *
++ * Pangolin: GTK 3 binds wl_compositor at version 3, so Mesa can't send
++ * damage_buffer and reports the whole surface as changed on every swap. The
++ * region given here replaces that whole-surface damage at the next swap of
++ * the window's surface (see wl_proxy_marshal_flags in
++ * fl_pangolin_damage.cc).
++ */
++void fl_pangolin_damage_set(GdkWindow* window, cairo_region_t* region);
++
++G_END_DECLS
++
++#endif  // FLUTTER_SHELL_PLATFORM_LINUX_FL_PANGOLIN_DAMAGE_H_
+diff --git a/engine/src/flutter/shell/platform/linux/fl_view.cc b/engine/src/flutter/shell/platform/linux/fl_view.cc
+index 43407460..aa48f56c 100644
+--- a/engine/src/flutter/shell/platform/linux/fl_view.cc
++++ b/engine/src/flutter/shell/platform/linux/fl_view.cc
+@@ -592,6 +592,15 @@ static gboolean fl_view_focus_in_event(GtkWidget* widget,
+   return FALSE;
+ }
+ 
++// Pangolin: implements GtkWidget::focus_out_event. GTK's default redraws
++// the whole widget, though nothing the view shows depends on its focus: a
++// full repaint (59 MB at 4K) whenever a window or the shell loses focus.
++// (focus_in_event above doesn't chain up either.)
++static gboolean fl_view_focus_out_event(GtkWidget* widget,
++                                        GdkEventFocus* event) {
++  return FALSE;
++}
++
+ // Implements GtkWidget::key_press_event.
+ static gboolean fl_view_key_press_event(GtkWidget* widget,
+                                         GdkEventKey* key_event) {
+@@ -616,6 +625,7 @@ static void fl_view_class_init(FlViewClass* klass) {
+   widget_class->focus_in_event = fl_view_focus_in_event;
+   widget_class->key_press_event = fl_view_key_press_event;
+   widget_class->key_release_event = fl_view_key_release_event;
++  widget_class->focus_out_event = fl_view_focus_out_event;
+ 
+   fl_view_signals[SIGNAL_FIRST_FRAME] =
+       g_signal_new("first-frame", fl_view_get_type(), G_SIGNAL_RUN_LAST, 0,
+diff --git a/engine/src/flutter/shell/platform/linux/fl_view_renderer.cc b/engine/src/flutter/shell/platform/linux/fl_view_renderer.cc
+index dba92d94..c3086422 100644
+--- a/engine/src/flutter/shell/platform/linux/fl_view_renderer.cc
++++ b/engine/src/flutter/shell/platform/linux/fl_view_renderer.cc
+@@ -8,6 +8,7 @@
+ 
+ #include "flutter/shell/platform/linux/fl_compositor.h"
+ #include "flutter/shell/platform/linux/fl_compositor_opengl.h"
++#include "flutter/shell/platform/linux/fl_pangolin_damage.h"
+ #include "flutter/shell/platform/linux/fl_compositor_software.h"
+ #include "flutter/shell/platform/linux/fl_engine_private.h"
+ #include "flutter/shell/platform/linux/fl_opengl_manager.h"
+@@ -76,7 +77,29 @@ static gboolean redraw_cb(gpointer user_data) {
+     return G_SOURCE_REMOVE;
+   }
+ 
+-  gtk_widget_queue_draw(render_widget);
++  // Pangolin: only what changed is repainted (GTK adds what older buffers
++  // miss, from their age).
++  cairo_region_t* damage =
++      FL_IS_COMPOSITOR_OPENGL(self->compositor)
++          ? fl_compositor_opengl_peek_damage(
++                FL_COMPOSITOR_OPENGL(self->compositor))
++          : nullptr;
++  if (damage != nullptr && frame_size_matches) {
++    cairo_region_t* logical = cairo_region_create();
++    for (int i = 0; i < cairo_region_num_rectangles(damage); i++) {
++      cairo_rectangle_int_t r;
++      cairo_region_get_rectangle(damage, i, &r);
++      cairo_rectangle_int_t l = {r.x / scale_factor, r.y / scale_factor, 0, 0};
++      l.width = (r.x + r.width + scale_factor - 1) / scale_factor - l.x;
++      l.height = (r.y + r.height + scale_factor - 1) / scale_factor - l.y;
++      cairo_region_union_rectangle(logical, &l);
++    }
++    gtk_widget_queue_draw_region(render_widget, logical);
++    cairo_region_destroy(logical);
++  } else {
++    gtk_widget_queue_draw(render_widget);
++  }
++  g_clear_pointer(&damage, cairo_region_destroy);
+ 
+   return G_SOURCE_REMOVE;
+ }
+@@ -161,6 +184,43 @@ static gboolean fl_view_renderer_draw(GtkWidget* widget, cairo_t* cr) {
+   gboolean result = fl_compositor_render(
+       self->compositor, cr, gtk_widget_get_window(widget), wait_for_frame);
+ 
++  // Pangolin: tell the compositor what changed, when the view is all there
++  // is on its surface (no GTK decorations or other widgets that may have
++  // changed with it).
++  if (FL_IS_COMPOSITOR_OPENGL(self->compositor)) {
++    cairo_region_t* damage = fl_compositor_opengl_take_damage(
++        FL_COMPOSITOR_OPENGL(self->compositor));
++    GdkWindow* window = gtk_widget_get_window(widget);
++    GdkWindow* toplevel = gdk_window_get_toplevel(window);
++    GtkAllocation allocation;
++    gtk_widget_get_allocation(widget, &allocation);
++    gint x = 0, y = 0;
++    GtkWidget* top_widget = gtk_widget_get_toplevel(widget);
++    gboolean whole_surface =
++        result && damage != nullptr && !cairo_region_is_empty(damage) &&
++        gtk_widget_translate_coordinates(widget, top_widget, 0, 0, &x, &y) &&
++        x == 0 && y == 0 &&
++        allocation.width == gdk_window_get_width(toplevel) &&
++        allocation.height == gdk_window_get_height(toplevel);
++    if (whole_surface) {
++      // Frame pixels to surface coordinates, rounding outwards.
++      gint scale = gdk_window_get_scale_factor(window);
++      cairo_region_t* surface_damage = cairo_region_create();
++      for (int i = 0; i < cairo_region_num_rectangles(damage); i++) {
++        cairo_rectangle_int_t r;
++        cairo_region_get_rectangle(damage, i, &r);
++        cairo_rectangle_int_t s = {r.x / scale, r.y / scale, 0, 0};
++        s.width = (r.x + r.width + scale - 1) / scale - s.x;
++        s.height = (r.y + r.height + scale - 1) / scale - s.y;
++        cairo_region_union_rectangle(surface_damage, &s);
++      }
++      fl_pangolin_damage_set(toplevel, surface_damage);
++    } else {
++      fl_pangolin_damage_set(toplevel, nullptr);
++    }
++    g_clear_pointer(&damage, cairo_region_destroy);
++  }
++
+   if (self->render_context) {
+     gdk_gl_context_clear_current();
+   }

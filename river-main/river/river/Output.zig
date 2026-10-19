@@ -210,6 +210,10 @@ present: wl.Listener(*wlr.Output.event.Present) = .init(handlePresent),
 /// next change, so a moving pointer stutters.
 retry_timer: ?*wl.EventSource = null,
 retries: u8 = 0,
+/// PANGOLIN_PROFILE: GPU time of the last rendered frame, read one frame
+/// later so that reading it doesn't wait for the GPU.
+profile_timers: [profile_timer_count]ProfileTimer = @splat(.{}),
+profile_timer_next: usize = 0,
 
 pub fn create(wlr_output: *wlr.Output) !void {
     const output = try util.gpa.create(Output);
@@ -292,6 +296,10 @@ fn handleDestroy(listener: *wl.Listener(*wlr.Output), wlr_output: *wlr.Output) v
     const output: *Output = @fieldParentPtr("destroy", listener);
 
     log.debug("wlr_output '{s}' destroyed", .{wlr_output.name});
+
+    for (&output.profile_timers) |*profile_timer| {
+        if (profile_timer.pending) profile_timer.timer.finish();
+    }
 
     // Ensure that the wlr_scene_output is destroyed before any possible
     // modifications to the scene graph that might result in output enter/leave
@@ -516,6 +524,7 @@ fn handleRequestState(listener: *wl.Listener(*wlr.Output.event.RequestState), ev
 /// log), to tell the compositor's share of a slow animation from the shell's.
 var profile: ?bool = null;
 var profile_previous: f64 = 0;
+var profile_frames: u32 = 0;
 
 fn msecs(timespec: posix.timespec) f64 {
     return @as(f64, @floatFromInt(timespec.sec)) * 1000 +
@@ -531,12 +540,24 @@ fn handleFrame(listener: *wl.Listener(*wlr.Output), wlr_output: *wlr.Output) voi
     };
     const start = if (profiling) msecs(util.timestamp()) else 0;
     const needs_frame = profiling and output.scene_output.?.needsFrame();
+    // The timer of the frame rendered profile_timer_count frames ago: done by
+    // now, so reading it doesn't wait for the GPU.
+    var gpu_previous: f64 = -1;
+    const slot = &output.profile_timers[output.profile_timer_next];
+    output.profile_timer_next = (output.profile_timer_next + 1) % profile_timer_count;
+    if (slot.pending) {
+        const ns = slot.timer.getDurationNs();
+        if (ns >= 0) gpu_previous = @as(f64, @floatFromInt(ns)) / 1_000_000;
+        slot.timer.finish();
+        slot.* = .{};
+    }
 
     server.window_effects.beforeFrame();
     server.splash.beforeFrame();
+    server.lock_manager.beforeFrame();
     server.blur.beforeFrame();
 
-    if (output.renderAndCommit()) |_| {
+    if (output.renderAndCommit(if (needs_frame) slot else null)) |_| {
         output.retries = 0;
     } else |err| switch (err) {
         error.CommitFailed => {
@@ -554,10 +575,24 @@ fn handleFrame(listener: *wl.Listener(*wlr.Output), wlr_output: *wlr.Output) voi
     var now = util.timestamp();
     if (needs_frame) {
         const end = msecs(now);
-        log.info("frame: render {d:.1}ms, since previous {d:.1}ms, at {d:.0}ms", .{
+        profile_frames +%= 1;
+        var stats: SceneStats = .{ .scale = wlr_output.scale };
+        output.scene_output.?.forEachBuffer(*SceneStats, SceneStats.add, &stats);
+        if (profile_frames % 20 == 0) {
+            var dump: SceneStats = .{ .scale = wlr_output.scale, .dump_all = true };
+            output.scene_output.?.forEachBuffer(*SceneStats, SceneStats.add, &dump);
+        }
+        const screen: f64 = @floatFromInt(@as(i64, wlr_output.width) * wlr_output.height);
+        log.info("frame: render {d:.1}ms, gpu {d:.1}ms ({d} frames ago), since previous {d:.1}ms, at {d:.0}ms, buffers {d} (full screen {d}, opaque {d}, area {d:.2} screens)", .{
             end - start,
+            gpu_previous,
+            profile_timer_count,
             start - profile_previous,
             start,
+            stats.count,
+            stats.full,
+            stats.solid,
+            stats.area / screen,
         });
         profile_previous = start;
     }
@@ -566,12 +601,74 @@ fn handleFrame(listener: *wl.Listener(*wlr.Output), wlr_output: *wlr.Output) voi
     server.blur.afterFrame(&now);
 }
 
+// Far enough back that the GPU is done even when frames come fast.
+const profile_timer_count = 8;
+const ProfileTimer = struct {
+    timer: wlr.SceneTimer = .{ .pre_render_duration = 0, .render_timer = null },
+    pending: bool = false,
+};
+
+/// PANGOLIN_PROFILE: what the scene draws on an output.
+const SceneStats = struct {
+    scale: f32,
+    count: u32 = 0,
+    full: u32 = 0,
+    solid: u32 = 0,
+    area: f64 = 0,
+    dump: bool = false,
+    dump_all: bool = false,
+
+    fn add(buffer: *wlr.SceneBuffer, x: c_int, y: c_int, stats: *SceneStats) void {
+        // Not drawn (LayerSurface.input_proxy).
+        if (buffer.buffer == null and buffer.private.texture == null) return;
+        const width: f64 = if (buffer.dst_width > 0)
+            @as(f64, @floatFromInt(buffer.dst_width)) * stats.scale
+        else
+            @floatFromInt(buffer.private.buffer_width);
+        const height: f64 = if (buffer.dst_height > 0)
+            @as(f64, @floatFromInt(buffer.dst_height)) * stats.scale
+        else
+            @floatFromInt(buffer.private.buffer_height);
+        stats.count += 1;
+        stats.area += width * height;
+        if (buffer.private.buffer_is_opaque or buffer.opaque_region.notEmpty()) stats.solid += 1;
+        const output_area = buffer.primary_output orelse return;
+        const ow: f64 = @floatFromInt(output_area.output.width);
+        const oh: f64 = @floatFromInt(output_area.output.height);
+        if (stats.dump_all) {
+            var label: []const u8 = "river";
+            if (wlr.SceneSurface.tryFromBuffer(buffer)) |scene_surface| {
+                label = "surface";
+                if (wlr.LayerSurfaceV1.tryFromWlrSurface(scene_surface.surface)) |layer| {
+                    label = std.mem.span(layer.namespace);
+                } else if (wlr.XdgSurface.tryFromWlrSurface(scene_surface.surface)) |_| {
+                    label = "window";
+                }
+            }
+            log.info("  buffer: {s} {d:.0}x{d:.0} at {d},{d} (texture {d}x{d}) opacity {d:.2}", .{ label, width, height, x, y, buffer.private.buffer_width, buffer.private.buffer_height, buffer.opacity });
+        }
+        if (width * height >= 0.9 * ow * oh) {
+            stats.full += 1;
+            if (stats.dump) {
+                var label: []const u8 = "river";
+                if (wlr.SceneSurface.tryFromBuffer(buffer)) |scene_surface| {
+                    label = "surface";
+                    if (wlr.LayerSurfaceV1.tryFromWlrSurface(scene_surface.surface)) |layer| {
+                        label = std.mem.span(layer.namespace);
+                    }
+                }
+                log.info("  full-screen buffer: {s} {d:.0}x{d:.0} opacity {d:.2}", .{ label, width, height, buffer.opacity });
+            }
+        }
+    }
+};
+
 fn handleRetry(output: *Output) c_int {
     if (output.wlr_output) |wlr_output| wlr_output.scheduleFrame();
     return 0;
 }
 
-fn renderAndCommit(output: *Output) !void {
+fn renderAndCommit(output: *Output, profile_slot: ?*ProfileTimer) !void {
     if (!output.scene_output.?.needsFrame()) return;
 
     const wlr_output = output.wlr_output.?;
@@ -581,7 +678,12 @@ fn renderAndCommit(output: *Output) !void {
 
     output.current.applyNoModeset(&state);
 
-    if (!output.scene_output.?.buildState(&state, null)) return error.CommitFailed;
+    var options: wlr.SceneOutput.StateOptions = .{};
+    if (profile_slot) |profile_timer| {
+        options.timer = &profile_timer.timer;
+        profile_timer.pending = true;
+    }
+    if (!output.scene_output.?.buildState(&state, &options)) return error.CommitFailed;
 
     if (output.rendering_current.tearing) {
         state.tearing_page_flip = true;

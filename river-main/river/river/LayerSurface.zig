@@ -40,6 +40,51 @@ unmap: wl.Listener(void) = wl.Listener(void).init(handleUnmap),
 commit: wl.Listener(*wlr.Surface) = wl.Listener(*wlr.Surface).init(handleCommit),
 new_popup: wl.Listener(*wlr.XdgPopup) = wl.Listener(*wlr.XdgPopup).init(handleNewPopup),
 
+/// Where the surface goes once the client has drawn the size it was last
+/// configured for (see LayerShellOutput.sendConfigures).
+deferred: ?Deferred = null,
+
+/// While river draws only part of the surface (river_blur_v1
+/// set_visible_area), an empty scene buffer over the rest of it still takes
+/// the surface's input there (Scene.at); the scene draws nothing for it.
+input_proxy: ?*wlr.SceneBuffer = null,
+
+pub const Deferred = struct {
+    width: u32,
+    height: u32,
+};
+
+/// Where, relative to the surface, it takes input without being drawn
+/// there; null when it's drawn whole.
+pub fn setInputProxy(layer_surface: *LayerSurface, box: ?wlr.Box) void {
+    const area = box orelse {
+        if (layer_surface.input_proxy) |proxy| proxy.node.setEnabled(false);
+        return;
+    };
+    const proxy = layer_surface.input_proxy orelse blk: {
+        const proxy = layer_surface.scene_layer_surface.tree.createSceneBuffer(null) catch return;
+        proxy.point_accepts_input = proxyAcceptsInput;
+        proxy.node.lowerToBottom();
+        layer_surface.input_proxy = proxy;
+        break :blk proxy;
+    };
+    proxy.node.setPosition(area.x, area.y);
+    proxy.setDestSize(area.width, area.height);
+    proxy.node.setEnabled(true);
+}
+
+/// Surface coordinates, and the surface's own input region decides.
+fn proxyAcceptsInput(proxy: *wlr.SceneBuffer, sx: *f64, sy: *f64) callconv(.c) bool {
+    const data = SceneNodeData.fromNode(&proxy.node) orelse return false;
+    const layer_surface = switch (data.data) {
+        .layer_surface => |layer_surface| layer_surface,
+        else => return false,
+    };
+    sx.* += @floatFromInt(proxy.node.x);
+    sy.* += @floatFromInt(proxy.node.y);
+    return layer_surface.wlr_layer_surface.surface.pointAcceptsInput(sx.*, sy.*);
+}
+
 pub fn create(wlr_layer_surface: *wlr.LayerSurfaceV1) error{OutOfMemory}!void {
     const layer_surface = try util.gpa.create(LayerSurface);
     errdefer util.gpa.destroy(layer_surface);
@@ -158,7 +203,15 @@ fn handleCommit(listener: *wl.Listener(*wlr.Surface), _: *wlr.Surface) void {
         layer_surface.scene_layer_surface.tree.node.reparent(tree);
     }
 
-    if (wlr_layer_surface.initial_commit or
+    // The client drew the size it was configured for: it moves there now.
+    const drew_deferred = if (layer_surface.deferred) |deferred|
+        wlr_layer_surface.surface.current.width == deferred.width and
+            wlr_layer_surface.surface.current.height == deferred.height
+    else
+        false;
+    if (drew_deferred) layer_surface.deferred = null;
+
+    if (wlr_layer_surface.initial_commit or drew_deferred or
         @as(u32, @bitCast(wlr_layer_surface.current.committed)) != 0)
     {
         // Beware: it is possible for arrange() to destroy this LayerSurface!

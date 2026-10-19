@@ -4,7 +4,7 @@ description: >-
   Terminal, Calculator, Activity Monitor, Gallery, Text Editor and Logs),
   built as a single multi-call Flutter binary for the Pangolin desktop.
 publish_to: "none"
-version: 1.0.0+1
+version: 1.1.0+1
 
 environment:
   sdk: ">=3.4.0 <4.0.0"

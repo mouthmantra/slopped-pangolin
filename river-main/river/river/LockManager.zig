@@ -19,6 +19,13 @@ const Output = @import("Output.zig");
 
 const log = std.log.scoped(.lock);
 
+const fade_ms = 350;
+
+const FadeNode = struct {
+    output: *wlr.Output,
+    scene_buffer: *wlr.SceneBuffer,
+};
+
 wlr_manager: *wlr.SessionLockManagerV1,
 
 state: enum {
@@ -42,6 +49,13 @@ lock: ?*wlr.SessionLockV1 = null,
 /// the locked event will be sent immediately after all outputs have
 /// been blanked.
 lock_surfaces_timer: *wl.EventSource,
+
+/// Pangolin: on unlock the lock screen fades away over the desktop. The
+/// client destroys its lock surfaces right after unlocking: their last
+/// frames are kept (scene buffers hold the buffers) for the fade.
+fade_tree: ?*wlr.SceneTree = null,
+fade_nodes: std.ArrayList(FadeNode) = .empty,
+fade_start: ?u32 = null,
 
 new_lock: wl.Listener(*wlr.SessionLockV1) = .init(handleLock),
 unlock: wl.Listener(void) = .init(handleUnlock),
@@ -68,6 +82,8 @@ pub fn deinit(manager: *LockManager) void {
     manager.lock_surfaces_timer.remove();
 
     manager.new_lock.link.remove();
+    // The fade's nodes go with the scene.
+    manager.fade_nodes.deinit(util.gpa);
 }
 
 fn handleLock(listener: *wl.Listener(*wlr.SessionLockV1), lock: *wlr.SessionLockV1) void {
@@ -180,6 +196,7 @@ fn handleUnlock(listener: *wl.Listener(void)) void {
     manager.state = .unlocked;
 
     log.info("session unlocked", .{});
+    manager.startFade();
 
     assert(!server.scene.normal_tree.node.enabled);
     server.scene.normal_tree.node.setEnabled(true);
@@ -230,6 +247,64 @@ fn handleSurface(
         log.err("out of memory", .{});
         wlr_lock_surface.resource.postNoMemory();
     };
+}
+
+fn startFade(manager: *LockManager) void {
+    manager.clearFade();
+    const tree = server.scene.wlr_scene.tree.createSceneTree() catch return;
+    tree.node.raiseToTop();
+    manager.fade_tree = tree;
+    var it = server.om.outputs.iterator(.forward);
+    while (it.next()) |output| {
+        const wlr_output = output.wlr_output orelse continue;
+        const lock_surface = manager.lockSurfaceFromOutput(output) orelse continue;
+        const client_buffer = lock_surface.wlr_lock_surface.surface.buffer orelse continue;
+        var box: wlr.Box = undefined;
+        server.om.output_layout.getBox(wlr_output, &box);
+        if (box.width <= 0 or box.height <= 0) continue;
+        const scene_buffer = tree.createSceneBuffer(&client_buffer.base) catch continue;
+        scene_buffer.point_accepts_input = rejectInput;
+        scene_buffer.node.setPosition(box.x, box.y);
+        scene_buffer.setDestSize(box.width, box.height);
+        manager.fade_nodes.append(util.gpa, .{ .output = wlr_output, .scene_buffer = scene_buffer }) catch {
+            scene_buffer.node.destroy();
+            continue;
+        };
+        wlr_output.scheduleFrame();
+    }
+}
+
+fn clearFade(manager: *LockManager) void {
+    // The tree takes its scene buffers (and their buffers) with it.
+    if (manager.fade_tree) |tree| tree.node.destroy();
+    manager.fade_tree = null;
+    manager.fade_nodes.clearRetainingCapacity();
+    manager.fade_start = null;
+}
+
+/// Right before an output renders: the unlock fade's next step.
+pub fn beforeFrame(manager: *LockManager) void {
+    if (manager.fade_nodes.items.len == 0) return;
+    const now = util.msecTimestamp();
+    const start = manager.fade_start orelse blk: {
+        manager.fade_start = now;
+        break :blk now;
+    };
+    const t = @min(1.0, @as(f32, @floatFromInt(now -% start)) / fade_ms);
+    if (t >= 1) {
+        manager.clearFade();
+        return;
+    }
+    // Smoothstep out.
+    const opacity = 1 - t * t * (3 - 2 * t);
+    for (manager.fade_nodes.items) |node| {
+        node.scene_buffer.setOpacity(opacity);
+        node.output.scheduleFrame();
+    }
+}
+
+fn rejectInput(_: *wlr.SceneBuffer, _: *f64, _: *f64) callconv(.c) bool {
+    return false;
 }
 
 pub fn lockSurfaceFromOutput(manager: *LockManager, output: *Output) ?*LockSurface {

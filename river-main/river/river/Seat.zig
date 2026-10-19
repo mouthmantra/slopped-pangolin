@@ -244,6 +244,9 @@ touch_gestures: TouchGesturesSeat,
 touchpad_gestures: TouchpadGesturesSeat = .{},
 
 event_queue: std.Deque(Event),
+/// A motion was merged into the queued one (coalesceMotion): its frame
+/// goes too.
+drop_next_frame: bool = false,
 
 synced_virt_kb_queue: std.Deque(SyncedVirtKbEvent),
 synced_virt_kbs: wl.list.Head(SyncedVirtKb, .link),
@@ -305,6 +308,12 @@ relay: InputRelay,
 keyboard_groups: wl.list.Head(KeyboardGroup, .link),
 
 focused: Focus = .none,
+
+/// Pangolin: the window that had the keyboard before a layer surface took it.
+/// It stays activated meanwhile: the shell's popups and overview hold the
+/// keyboard for a moment, and apps redrawing as inactive windows for each of
+/// them is wasted work (at 4K, missed frames in the overview's animation).
+window_before_layer: ?Window.Ref = null,
 
 /// Input routing state
 touch_state: enum {
@@ -481,6 +490,16 @@ pub fn destroy(seat: *Seat) void {
 pub fn queueEvent(seat: *Seat, event: Event) !void {
     seat.handleActivity();
 
+    if (event == .pointer_frame and seat.drop_next_frame) {
+        seat.drop_next_frame = false;
+        return;
+    }
+    seat.drop_next_frame = false;
+    if (seat.coalesceMotion(event)) {
+        seat.drop_next_frame = true;
+        return;
+    }
+
     seat.event_queue.pushBackBounded(event) catch {
         log.err("dropping {s} event, no space in event queue", .{@tagName(event)});
         return error.QueueFull;
@@ -488,6 +507,39 @@ pub fn queueEvent(seat: *Seat, event: Event) !void {
 
     if (server.wm.state == .idle) {
         seat.processEvents();
+    }
+}
+
+/// While the window manager is busy (dragging a window, every motion is a
+/// manage sequence), pointer motion behind a queued motion and its frame
+/// joins that motion rather than queueing: a fast mouse otherwise outruns
+/// the window manager, lags further and further behind and then fills the
+/// queue, and input gets dropped. Compositors usually handle motion once
+/// per frame anyway.
+fn coalesceMotion(seat: *Seat, event: Event) bool {
+    const queue = &seat.event_queue;
+    if (queue.len < 2 or queue.at(queue.len - 1) != .pointer_frame) return false;
+    switch (queue.atPtr(queue.len - 2).*) {
+        .pointer_motion_relative => |*queued| switch (event) {
+            .pointer_motion_relative => |ev| {
+                if (!std.meta.eql(queued.mapping, ev.mapping)) return false;
+                queued.time_msec = ev.time_msec;
+                queued.delta_x += ev.delta_x;
+                queued.delta_y += ev.delta_y;
+                queued.unaccel_dx += ev.unaccel_dx;
+                queued.unaccel_dy += ev.unaccel_dy;
+                return true;
+            },
+            else => return false,
+        },
+        .pointer_motion_absolute => |*queued| switch (event) {
+            .pointer_motion_absolute => |ev| {
+                queued.* = ev;
+                return true;
+            },
+            else => return false,
+        },
+        else => return false,
     }
 }
 
@@ -1223,6 +1275,13 @@ pub fn focus(seat: *Seat, new_focus: Focus) void {
         .window, .shell_surface, .layer_surface => assert(server.lock_manager.state != .locked),
         .lock_surface => assert(server.lock_manager.state != .unlocked),
         .override_redirect, .none => {},
+    }
+    switch (target) {
+        .window => |window| seat.window_before_layer = window.ref,
+        .layer_surface => if (seat.focused == .window) {
+            seat.window_before_layer = seat.focused.window.ref;
+        },
+        .shell_surface, .override_redirect, .lock_surface, .none => seat.window_before_layer = null,
     }
     seat.focused = target;
 

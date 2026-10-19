@@ -21,8 +21,10 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:dahlia_shared/dahlia_shared.dart';
-import 'package:flutter/painting.dart';
+import 'package:display_config/display_config.dart';
+import 'package:flutter/widgets.dart';
 import 'package:logging/logging.dart';
+import 'package:pangolin/services/session.dart';
 import 'package:pangolin/widgets/wallpaper_blur.dart';
 
 /// Keeps the image river shows from its first frame up to date (river's
@@ -31,13 +33,37 @@ import 'package:pangolin/widgets/wallpaper_blur.dart';
 abstract final class SplashCache {
   static final Logger _logger = Logger("SplashCache");
 
-  /// Wide enough to look sharp while it is shown (about a second).
-  static const int _width = 2560;
+  /// As wide as the widest screen, in its real pixels (GTK only knows
+  /// integer scales: at 1.5 it would say 5120 for a 3840 wide screen): with
+  /// PANGOLIN_WALLPAPER river shows it as the wallpaper for good.
+  static Future<int> _width() async {
+    int widest = 0;
+    try {
+      final DisplayConfigurator? displays = await DisplayConfigurator.connect()
+          .timeout(const Duration(seconds: 2));
+      if (displays != null) {
+        for (final OutputHeadState head in displays.heads) {
+          final OutputModeState? mode = head.currentMode;
+          if (!head.enabled || mode == null) continue;
+          // Turned by 90 or 270 degrees (odd transforms).
+          final int width = head.transform.isOdd ? mode.height : mode.width;
+          if (width > widest) widest = width;
+        }
+        await displays.close();
+      }
+    } on Object catch (e) {
+      _logger.info("Couldn't read the screens' sizes: $e");
+    }
+    return widest >= 1280 ? widest : 2560;
+  }
 
   static ImageResource? _written;
 
   static File get file {
     final Map<String, String> env = Platform.environment;
+    // Where river reads it (pangolin-session, pangolin-greeter).
+    final String? splash = env["PANGOLIN_SPLASH"];
+    if (splash != null && splash.isNotEmpty) return File(splash);
     final String cache = env["XDG_CACHE_HOME"]?.isNotEmpty == true
         ? env["XDG_CACHE_HOME"]!
         : "${env["HOME"] ?? "."}/.cache";
@@ -48,22 +74,62 @@ abstract final class SplashCache {
     final CustomizationService service = CustomizationService.current;
     void update() => unawaited(_update(service.wallpaper));
     service.addListener(update);
-    // Once startup is over: decoding the wallpaper again isn't urgent.
-    Timer(const Duration(seconds: 5), update);
+    if (PangolinSession.riverWallpaper) {
+      // A screen changed size: the wallpaper follows (once things settle).
+      Timer? settle;
+      WidgetsBinding.instance.addObserver(
+        _MetricsObserver(() {
+          settle?.cancel();
+          settle = Timer(const Duration(seconds: 1), () {
+            _written = null;
+            update();
+          });
+        }),
+      );
+      // river shows it as the wallpaper: right away (skipped when the file
+      // is already this wallpaper at this size).
+      update();
+    } else {
+      // Once startup is over: decoding the wallpaper again isn't urgent.
+      Timer(const Duration(seconds: 5), update);
+    }
   }
 
   static Future<void> _update(ImageResource wallpaper) async {
     if (wallpaper == _written) return;
     _written = wallpaper;
     final ImageProvider? provider = BlurredWallpaper.providerFor(wallpaper);
-    if (provider == null) return;
-    await write(provider, wallpaper.toString());
+    if (provider == null) {
+      // Not an image: the desktop surface draws it, river shows nothing.
+      if (PangolinSession.riverWallpaper) {
+        try {
+          file.deleteSync();
+        } on FileSystemException {
+          // Already gone.
+        }
+      }
+      return;
+    }
+    final int width = await _width();
+    await write(provider, "$wallpaper@$width", width: width);
+  }
+
+  /// Saves [provider] as the splash image at the width of the monitors (the
+  /// login screen, for the user it shows).
+  static Future<void> writeForScreens(
+      ImageProvider provider, String key) async {
+    final int width = await _width();
+    await write(provider, "$key@$width", width: width);
   }
 
   /// Saves [provider] as the splash image, unless it was already saved under
   /// [key] (by an earlier session). The login screen uses this with the
   /// wallpaper of the user who logged in last.
-  static Future<void> write(ImageProvider provider, String key) async {
+  static Future<void> write(
+    ImageProvider provider,
+    String key, {
+    int width = 2560,
+  }) async {
     final File source = File("${file.path}.source");
     try {
       if (file.existsSync() && source.readAsStringSync() == key) return;
@@ -72,17 +138,19 @@ abstract final class SplashCache {
     }
     try {
       final ui.Image image = await BlurredWallpaper.load(
-        ResizeImage(provider, width: _width, policy: ResizeImagePolicy.fit),
+        ResizeImage(provider, width: width, policy: ResizeImagePolicy.fit),
       );
       final ByteData? rgba =
           await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-      final int width = image.width;
-      final int height = image.height;
+      final int imageWidth = image.width;
+      final int imageHeight = image.height;
       image.dispose();
       if (rgba == null) return;
       final String path = file.path;
       final Uint8List pixels = rgba.buffer.asUint8List();
-      await Isolate.run(() => _write(path, width, height, pixels));
+      await Isolate.run(
+        () => _write(path, imageWidth, imageHeight, pixels),
+      );
       await source.writeAsString(key);
     } on Object catch (e) {
       _logger.info("Couldn't save the splash image: $e");
@@ -110,4 +178,13 @@ abstract final class SplashCache {
     temp.writeAsBytesSync(data, flush: true);
     temp.renameSync(path);
   }
+}
+
+class _MetricsObserver with WidgetsBindingObserver {
+  _MetricsObserver(this.onChange);
+
+  final VoidCallback onChange;
+
+  @override
+  void didChangeMetrics() => onChange();
 }

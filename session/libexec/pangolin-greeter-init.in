@@ -28,6 +28,30 @@ if command -v dbus-send >/dev/null 2>&1; then
 fi
 
 "$PREFIX/bin/pangolin"
+status=$?
 kill "$displays" 2>/dev/null
+# Logged in: the screens' devices stay open for a few seconds past the
+# compositor, until the desktop's river has them. When the last process
+# closes a display device, the kernel puts its console's (black) framebuffer
+# on the screen, instead of the wallpaper this screen leaves up. Opened while
+# river still holds them, so the holder doesn't become their master.
+case "${WLR_BACKENDS:-drm}" in *drm*) displays_are_real=1 ;; esac
+if [ "$status" = 0 ] && [ -n "${displays_are_real:-}" ]; then
+    hold=
+    n=3
+    for card in /dev/dri/card[0-9]*; do
+        [ -r "$card" ] && [ "$n" -le 9 ] || continue
+        hold="$hold $n<$card"
+        n=$((n + 1))
+    done
+    if [ -n "$hold" ]; then
+        (eval "exec setsid sleep 10 $hold") < /dev/null &
+        holder=$!
+        for _ in 1 2 3 4 5 6 7 8 9 10; do
+            [ -e "/proc/$holder/fd/3" ] && break
+            sleep 0.01
+        done
+    fi
+fi
 [ -n "$PANGOLIN_SESSION_PID" ] && kill -TERM "$PANGOLIN_SESSION_PID" 2>/dev/null
 exit 0

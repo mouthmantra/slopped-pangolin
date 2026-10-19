@@ -1,43 +1,40 @@
+# IMPORTANT: AI-GENERATED FORK DISCLAIMER
+
+> [!WARNING]
+> **THIS IS AN UNOFFICIAL FORK.** This project is **NOT associated with, endorsed by, or affiliated with dahliaOS** or the official Pangolin desktop environment.
+> 
+> **100% AI-GENERATED:** This fork of the Pangolin desktop was entirely brought to life using Artificial Intelligence. I did not write a single line of code, nor am I claiming to. Use entirely at your own risk.
+
+***
+
 <p align="center">
-  <img width="80%" src="https://github.com/dahliaOS/brand/blob/master/pangolin/svg/logotypewhitetext.svg#gh-dark-mode-only" />
-  <img width="80%" src="https://github.com/dahliaOS/brand/blob/master/pangolin/svg/logotypeblacktext.svg#gh-light-mode-only" />
+  <img width="80%" src="https://github.com" />
+  <img width="80%" src="https://github.com" />
 </p>
  
 <p align="center">
 <a href="https://dahliaos.io">Website</a> •
-<a href="https://dahliaos.io/discord">Discord</a> •
-<a href="https://dahliaos.io/download">Releases</a> •
-<a href="https://dahliaos.io/donate">Donate</a> •
-<a href="https://docs.dahliaos.io">Documentation</a>
-
-# Pangolin Desktop
-[![Build and Deploy to Web](https://github.com/dahliaOS/pangolin_desktop/actions/workflows/web.yml/badge.svg)](https://github.com/dahliaOS/pangolin_desktop/actions/workflows/web.yml)
-[![Locale generator](https://github.com/dahliaOS/pangolin_desktop/actions/workflows/locale_gen.yml/badge.svg)](https://github.com/dahliaOS/pangolin_desktop/actions/workflows/locale_gen.yml)
-[![Demo](https://img.shields.io/website?label=Web%20Build&url=https%3A%2F%2Fweb.dahliaos.io&style=for-the-badge)](https://web.dahliaos.io)
-[![Crowdin](https://badges.crowdin.net/e/1a53a75fb38f15843d4eb6d9b9e4215a/localized.svg?style=for-the-badge)](https://translate.dahliaos.io/pangolin)
-
- - 🖥 **Pangolin** is the desktop shell of dahliaOS.
- - 💙 **Written** in Dart/Flutter.
- - 🏝 **[Utopia](https://github.com/dahliaOS/utopia)** is the window manager of Pangolin.
- - 🐚 **Pangolin** was named after a shelled animal like the [Armadillo UI](https://9to5google.com/2018/12/26/fuchsia-armadillo-ui-gone/).
- - 🌐 **Check** the web preview [here](https://web.dahliaos.io).
+<a href="https://dahliaos.io">Discord</a> •
+<a href="https://dahliaos.io">Releases</a> •
+<a href="https://dahliaos.io">Donate</a> •
+<a href="https://dahliaos.io">Documentation</a>
 
 <p align="center">
-  <img width="100%" src="https://docs.dahliaos.io/docs/pangolin/settings.webp"
+  <img width="100%" src="https://dahliaos.io/docs/pangolin/settings.webp"
 </p>
 
-> Settings and start menu, commit [876180d](https://github.com/dahliaOS/pangolin_desktop/commit/876180df15d3b6c8720fb7474d1bcf1b5202fc67).
+> Settings and start menu, commit [876180d](https://github.com).
 
 <p align="center">
-  <img width="100%" src="https://docs.dahliaos.io/docs/pangolin/search.webp"
+  <img width="100%" src="https://dahliaos.io/docs/pangolin/search.webp"
 </p>
 
-> Calculator, Terminal, Notes and search, commit [876180d](https://github.com/dahliaOS/pangolin_desktop/commit/876180df15d3b6c8720fb7474d1bcf1b5202fc67).
+> Calculator, Terminal, Notes and search, commit [876180d](https://github.com).
 
 ## Pangolin as a desktop session
 
 Pangolin runs as a full Wayland desktop on top of the
-[river](https://codeberg.org/river/river) compositor (0.6, non-monolithic):
+[river](https://codeberg.org) compositor (0.6, non-monolithic):
 river composites and handles input, Pangolin is its window manager and shell,
 and the dahliaOS apps run as regular Wayland clients.
 
@@ -52,15 +49,14 @@ and the dahliaOS apps run as regular Wayland clients.
 
 ### How it fits together
 
-```
- river (compositor) ──river-window-management-v1──▶ Pangolin (WM + shell)
-   │                  river-xkb-bindings / layer-shell / input-management
-   │
-   ├── Pangolin desktop surface  (layer-shell BACKGROUND: wallpaper)
-   ├── Pangolin shell surface    (layer-shell TOP: taskbar, overlays; click-through
-   │                              outside its widgets via an input region)
-   └── app windows (xdg-shell) ─ dahlia_apps, flatpaks, any Wayland app
-```
+Use code with caution.
+river (compositor) ──river-window-management-v1──▶ Pangolin (WM + shell)
+│                  river-xkb-bindings / layer-shell / input-management
+│
+├── Pangolin desktop surface  (layer-shell BACKGROUND: wallpaper)
+├── Pangolin shell surface    (layer-shell TOP: taskbar, overlays; click-through
+│                              outside its widgets via an input region)
+└── app windows (xdg-shell) ─ dahlia_apps, flatpaks, any Wayland app
 
 * `packages/wayland` is a pure-Dart Wayland client (protocol bindings are
   generated from the XML in `packages/wayland/protocols`). Pangolin's river
@@ -81,25 +77,21 @@ and the dahliaOS apps run as regular Wayland clients.
 * `libgtk-layer-shell-dev`, `libxkbcommon-dev`, `libepoxy-dev`, `libwayland-dev`
 * river 0.6 (`zig` 0.16, wlroots 0.20, wayland-protocols, libevdev, pixman; see `river-main/river/README.md`):
 
-  ```
-  cd river-main/river && zig build -Doptimize=ReleaseSafe -Dxwayland --prefix ~/.local install
-  ```
+cd river-main/river && zig build -Doptimize=ReleaseSafe -Dxwayland --prefix ~/.local install
 * At runtime (optional, features degrade gracefully without them): PAM (lock
-  screen), polkit (permission prompts), `wpctl` (volume), `brightnessctl`,
-  `flatpak` and PackageKit (App Store), `wl-copy` (copying screenshots),
-  xdg-desktop-portal-wlr (screen sharing and recording), NetworkManager
-  (network and VPN, `nm-connection-editor` to edit VPNs), `pw-dump` from
-  PipeWire's tools (screen recording and microphone indicators), BlueZ,
-  UPower, power-profiles-daemon and greetd (login screen).
+screen), polkit (permission prompts), `wpctl` (volume), `brightnessctl`,
+`flatpak` and PackageKit (App Store), `wl-copy` (copying screenshots),
+xdg-desktop-portal-wlr (screen sharing and recording), NetworkManager
+(network and VPN, `nm-connection-editor` to edit VPNs), `pw-dump` from
+PipeWire's tools (screen recording and microphone indicators), BlueZ,
+UPower, power-profiles-daemon and greetd (login screen).
 * ARM64, Alpine Linux and other distributions: see
-  [docs/PLATFORMS.md](docs/PLATFORMS.md).
+[docs/PLATFORMS.md](docs/PLATFORMS.md).
 
 ### Build and install
 
-```
 tool/build.sh                 # release builds of the shell, the apps and dsettingsd
 tool/install.sh               # installs into ~/.local (use --prefix /usr/local as root)
-```
 
 Then start a session:
 
@@ -120,11 +112,9 @@ output on the terminal.
 
 #### Fedora packages
 
-```
 tool/dist.sh                  # source tarball: dist/pangolin-desktop-VERSION.tar.xz
-tool/rpm.sh                   # RPMs built from it: dist/*.rpm
-sudo dnf install dist/pangolin-desktop-*.x86_64.rpm dist/pangolin-desktop-greeter-*.x86_64.rpm
-```
+tool/rpm.sh                   # RPMs built from it: dist/.rpm
+sudo dnf install dist/pangolin-desktop-.x86_64.rpm dist/pangolin-desktop-greeter-*.x86_64.rpm
 
 `tool/rpm.sh` needs `rpmbuild` (`sudo dnf install rpm-build`, or `sudo apt
 install rpm` in a Debian toolbox) besides what `tool/build.sh` needs. The
@@ -156,14 +146,12 @@ Build as your normal user and only install as root. `pangolin-session` uses
 the river installed in its own prefix when there is one, so install river there
 too:
 
-```
 cd river-main/river
 DESTDIR="$PWD/stage" zig build -Doptimize=ReleaseSafe -Dxwayland --prefix /usr/local install
 sudo cp -r stage/usr/local/. /usr/local/
 cd ../..
 tool/build.sh --clean           # --clean: first build on this machine
 sudo tool/install.sh            # as root the prefix defaults to /usr/local
-```
 
 GDM and SDDM list sessions from `/usr/local/share/wayland-sessions`, so
 **Pangolin** shows up on the login screen. Remove a per-user install first
@@ -211,13 +199,10 @@ To develop and locally test Pangolin:
 
 ### Step 2. Run Pangolin
 
-**Note**: You can run Pangolin on any platform that Flutter supports but we recommend running it on Linux as some features of Pangolin are designed exclusively for Linux and won't work on other platforms.
 
 Run Pangolin by running:
 
-```
 make run target=linux
-```
 
 On Linux this starts Pangolin in a window with its built-in window manager.
 The apps are developed the same way: `cd apps && flutter run -d linux -a files`
@@ -226,8 +211,6 @@ The apps are developed the same way: `cd apps && flutter run -d linux -a files`
 
 List of targets:
 - linux
-- windows
-- macos
 
 Flutter has hot reloading so no need to restart the instance when it's running!
 

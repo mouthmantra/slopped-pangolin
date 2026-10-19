@@ -18,7 +18,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dahlia_shared/dahlia_shared.dart';
-import 'package:flutter/gestures.dart' show PointerEnterEvent;
 import 'package:flutter/material.dart';
 import 'package:pangolin/components/overlays/launcher/compact_launcher_overlay.dart';
 import 'package:pangolin/components/overlays/notifications/overlay.dart';
@@ -36,7 +35,6 @@ import 'package:pangolin/services/session.dart';
 import 'package:pangolin/services/shell.dart';
 import 'package:pangolin/services/wm.dart';
 import 'package:pangolin/utils/data/app_ids.dart';
-import 'package:pangolin/widgets/input_region.dart';
 import 'package:pangolin/widgets/surface/surface_layer.dart';
 import 'package:pangolin/widgets/window_icon.dart';
 import 'package:pangolin_settings/pangolin_settings.dart';
@@ -369,9 +367,9 @@ class _WindowSwitcher extends StatelessWidget {
 
 /// Hot corners: pushing the pointer into a corner of the screen runs the
 /// action chosen for it in Settings (the overview for the top left one, as
-/// in GNOME). Each enabled corner is a tiny interactive spot of the shell
-/// surface, above everything else on it, so that the same corner closes
-/// what it opened.
+/// in GNOME). river reports the corners (the shell surface doesn't cover
+/// the screen when nothing is open), so the same corner also closes what it
+/// opened.
 class _HotCorners extends StatefulWidget {
   const _HotCorners({required this.onAction});
 
@@ -382,22 +380,38 @@ class _HotCorners extends StatefulWidget {
 }
 
 class _HotCornersState extends State<_HotCorners> {
-  /// Logical pixels: the pointer stops at the very corner, two pixels
-  /// leave no doubt about reaching it at any scale.
-  static const double _size = 2;
-
-  static const Map<SessionSetting<String>, Alignment> _corners = {
-    SessionSetting.hotCornerTopLeft: Alignment.topLeft,
-    SessionSetting.hotCornerTopRight: Alignment.topRight,
-    SessionSetting.hotCornerBottomLeft: Alignment.bottomLeft,
-    SessionSetting.hotCornerBottomRight: Alignment.bottomRight,
+  static final Map<Alignment, SessionSetting<String>> _corners = {
+    Alignment.topLeft: SessionSetting.hotCornerTopLeft,
+    Alignment.topRight: SessionSetting.hotCornerTopRight,
+    Alignment.bottomLeft: SessionSetting.hotCornerBottomLeft,
+    Alignment.bottomRight: SessionSetting.hotCornerBottomRight,
   };
 
+  StreamSubscription<Alignment>? _subscription;
   DateTime _last = DateTime.fromMillisecondsSinceEpoch(0);
 
-  void _enter(PointerEnterEvent event, GestureAction action) {
-    // Not while dragging something (a file, a selection) across it.
-    if (event.buttons != 0) return;
+  @override
+  void initState() {
+    super.initState();
+    _subscription = WindowManagerService.current.hotCorners.listen(_reached);
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
+  }
+
+  void _reached(Alignment corner) {
+    final SessionSetting<String>? setting = _corners[corner];
+    if (setting == null) return;
+    final GestureAction action = GestureAction.parse(
+      PreferencesService.current.get<String>(setting.key) ??
+          setting.defaultValue,
+    );
+    if (action == GestureAction.none || action == GestureAction.switchDesktop) {
+      return;
+    }
     // Not over a fullscreen app (games, videos), as in GNOME.
     final ShellWindow? focused = WindowManagerService.current.focusedWindow;
     if (focused != null && focused.fullscreen && !focused.minimized) return;
@@ -409,37 +423,5 @@ class _HotCornersState extends State<_HotCorners> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: PreferencesService.current,
-      builder: (context, _) {
-        final PreferencesService prefs = PreferencesService.current;
-        return Stack(
-          children: [
-            for (final MapEntry(key: setting, value: corner) in _corners.entries)
-              if (GestureAction.parse(
-                    prefs.get<String>(setting.key) ?? setting.defaultValue,
-                  )
-                  case final GestureAction action
-                  when action != GestureAction.none &&
-                      action != GestureAction.switchDesktop)
-                Positioned(
-                  left: corner.x < 0 ? 0 : null,
-                  right: corner.x > 0 ? 0 : null,
-                  top: corner.y < 0 ? 0 : null,
-                  bottom: corner.y > 0 ? 0 : null,
-                  width: _size,
-                  height: _size,
-                  child: InputRegion(
-                    child: MouseRegion(
-                      onEnter: (event) => _enter(event, action),
-                      child: const SizedBox.expand(),
-                    ),
-                  ),
-                ),
-          ],
-        );
-      },
-    );
-  }
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }
