@@ -3,33 +3,23 @@
 > [!WARNING]
 > **THIS IS AN UNOFFICIAL FORK.** This project is **NOT associated with, endorsed by, or affiliated with dahliaOS** or the official Pangolin desktop environment.
 > 
-> **100% AI-GENERATED:** This fork of the Pangolin desktop was entirely brought to life using Artificial Intelligence. I did not write a single line of code, nor am I claiming to. Use entirely at your own risk.
+> **100% AI-GENERATED:** This fork of the Pangolin desktop was entirely brought to life using Artificial Intelligence. I did not write a single line of code, nor am I claiming to. Use entirely at your own risk. 
+
+**DO NOT DEPLOY THIS IN PRODUCTION ENVIRONMENTS!!!!!!!!!!!!!!!!!!!!!!!!!!!!**
 
 ***
 
-<p align="center">
-  <img width="80%" src="https://github.com" />
-  <img width="80%" src="https://github.com" />
-</p>
- 
-<p align="center">
-<a href="https://dahliaos.io">Website</a> •
-<a href="https://dahliaos.io">Discord</a> •
-<a href="https://dahliaos.io">Releases</a> •
-<a href="https://dahliaos.io">Donate</a> •
-<a href="https://dahliaos.io">Documentation</a>
 
 <p align="center">
-  <img width="100%" src="https://dahliaos.io/docs/pangolin/settings.webp"
+  <img width="100%" src="./media/DESKTOP.png" />
 </p>
 
-> Settings and start menu, commit [876180d](https://github.com).
-
+> Preview of the Pangolin desktop.
 <p align="center">
-  <img width="100%" src="https://dahliaos.io/docs/pangolin/search.webp"
+  <img width="100%" src="./media/APPS.png" >
 </p>
 
-> Calculator, Terminal, Notes and search, commit [876180d](https://github.com).
+> Calculator and Appearance Settings.
 
 ## Pangolin as a desktop session
 
