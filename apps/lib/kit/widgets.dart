@@ -97,7 +97,9 @@ class InfoRow extends StatelessWidget {
           ],
           Expanded(child: Text(label)),
           const SizedBox(width: 16),
-          Flexible(
+          // Expanded, not Flexible: a loose fit sized the value to its text,
+          // so it sat a third of the way across instead of at the end.
+          Expanded(
             flex: 2,
             child: selectable
                 ? SelectableText(

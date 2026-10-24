@@ -22,6 +22,7 @@ export 'package:dahlia_apps/kit/app.dart';
 export 'package:dahlia_apps/kit/file_dialog.dart';
 export 'package:dahlia_apps/kit/open_with.dart';
 export 'package:dahlia_apps/kit/personalize.dart';
+export 'package:dahlia_apps/kit/rail.dart';
 export 'package:dahlia_apps/kit/storage.dart';
 export 'package:dahlia_apps/kit/system.dart';
 export 'package:dahlia_apps/kit/tabs.dart';

@@ -531,8 +531,42 @@ theme (6.1).
       decoded as bytes only when they're numbers. Messages also lose
       terminal color codes (gdm-session-worker's). Checked on this
       machine's journal.
-- [ ] 4.6 Activity Monitor: Settings-style sidebar, Run task (Ctrl+R, in
+- [x] 4.6 Activity Monitor: Settings-style sidebar, Run task (Ctrl+R, in
       terminal option), field styling/alignment, polling off the UI thread.
+      Done 2026-10-24, verified headless (Flutter 3.47.7, the engine of
+      third_party/flutter_engine; stock embedder, Xvfb/X11 in a Debian
+      container, so river's blur behind the rail is untested):
+      - Settings' rail moved to the kit (kit/rail.dart: DahliaRail,
+        RailItem, RailIcon); Settings and Activity Monitor both use it.
+        Pages: Processes, then CPU, Memory, Network, Disk, each with its
+        chart (legend, tabular figures) and a details group.
+      - Polling: ProcFs.poll reads /proc on a background isolate
+        (Isolate.run), one poll at a time, rescheduled after each one; the
+        process walk only runs while Processes shows (per-process CPU is
+        then averaged since the last walk). Load average and uptime come
+        with the sample; regexes are compiled once.
+      - Run Task (button and Ctrl+R): runs the command with $SHELL -c,
+        detached, or in Terminal (`terminal -e $SHELL -c …`, the tab stays
+        open). A plain program name not in $PATH is refused with an error.
+        Found in testing and fixed: Enter unfocused the field (onSubmitted),
+        so a retry after an error couldn't be typed; clicking the switch
+        took focus from the field; Ctrl+R died after a click on empty space
+        (focus fell back to the route's scope, above the shortcuts: the
+        page is now its own FocusScope); the switch's off track was the
+        dialog's color (now on a section fill).
+      - Table: the header and rows share one column layout (fixed numeric
+        columns, sort arrow before right-aligned labels), one text size,
+        tabular figures, no divider, inside a section; rounded selection;
+        the "My processes" filter is a filled pill like the search field.
+        Names cut to the kernel's 15 characters ("xdg-desktop-por") take
+        the full name from argv[0].
+      - kit InfoRow: the value is Expanded (was a loose Flexible, so it sat
+        a third of the way across despite TextAlign.end); every details
+        list, Settings > About included, now ends at the right edge.
+      Verified: all five pages, search, the unknown-program
+      error and retry, a detached `sleep` showing in /proc, a command run
+      in Terminal (output and "[Process exited with code 0]"), Settings'
+      rail, search and page switching.
 - [ ] 4.7 Video Player: a dahliaOS app (requested 2026-10-16) that looks
       native (DahliaTitlebar, Zenit UI, no borders).
       - Playback with hardware decoding.

@@ -35,13 +35,10 @@ final DahliaAppSpec settingsApp = DahliaAppSpec(
       SettingsPage(initialPage: args.isNotEmpty ? args.first : null),
 );
 
-class _SettingsPageInfo {
+class _SettingsPageInfo extends RailDestination {
   const _SettingsPageInfo(
-      this.id, this.title, this.subtitle, this.icon, this.builder);
-  final String id;
-  final String title;
+      super.id, super.title, this.subtitle, super.icon, this.builder);
   final String subtitle;
-  final IconData icon;
   final WidgetBuilder builder;
 }
 
@@ -142,14 +139,30 @@ class _SettingsPageState extends State<SettingsPage> {
     return ListenableBuilder(
       listenable: Listenable.merge([ZenitBlur.state, PreferencesService.current]),
       builder: (context, _) => DahliaScaffold(
-        titlebarColor: _SettingsRail.colorOf(context),
+        titlebarColor: DahliaRail.colorOf(context),
         body: Row(
           children: [
-            _SettingsRail(
+            DahliaRail(
+              destinations: _pages,
               current: _searching ? null : _current,
-              searching: _searching,
               onSelected: _open,
-              onSearch: _toggleSearch,
+              leading: [
+                RailItem(
+                  tooltip: "Search",
+                  selected: _searching,
+                  onTap: _toggleSearch,
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.08),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.search_rounded,
+                        size: 20, color: theme.colorScheme.onSurface),
+                  ),
+                ),
+              ],
             ),
             Expanded(
               child: _searching
@@ -210,165 +223,6 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
-/// Navigation rail of the dahliaOS design: round accent buttons on an accent
-/// tinted pane, the current page highlighted around its button.
-class _SettingsRail extends StatelessWidget {
-  const _SettingsRail({
-    required this.current,
-    required this.searching,
-    required this.onSelected,
-    required this.onSearch,
-  });
-
-  final String? current;
-  final bool searching;
-  final ValueChanged<String> onSelected;
-  final VoidCallback onSearch;
-
-  /// Continues the title bar (same tint, translucent over river's blur).
-  static Color colorOf(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final bool dark = theme.brightness == Brightness.dark;
-    final Color base = DahliaTitlebar.accentTint
-        ? Color.alphaBlend(
-            theme.colorScheme.primary.withValues(alpha: dark ? 0.16 : 0.09),
-            theme.scaffoldBackgroundColor,
-          )
-        : theme.colorScheme.surface.themedLightness(context, 0.05);
-    return ZenitBlur.active ? base.withValues(alpha: ZenitBlur.fillOpacity) : base;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Widget rail = ColoredBox(
-      color: colorOf(context),
-      child: SizedBox(
-        width: 88,
-        child: ListView(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          children: [
-            _RailItem(
-              tooltip: "Search",
-              selected: searching,
-              onTap: onSearch,
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.08),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.search_rounded,
-                    size: 20, color: theme.colorScheme.onSurface),
-              ),
-            ),
-            const SizedBox(height: 14),
-            for (final _SettingsPageInfo? pg in _pages)
-              if (pg == null)
-                const SizedBox(height: 14)
-              else
-                _RailButton(
-                  page: pg,
-                  selected: pg.id == current,
-                  onTap: () => onSelected(pg.id),
-                ),
-          ],
-        ),
-      ),
-    );
-    if (!ZenitBlur.active) return rail;
-    return BlurRegion(
-      borderRadius: const BorderRadius.only(
-        bottomLeft: Radius.circular(DahliaTitlebar.windowRadius),
-      ),
-      child: rail,
-    );
-  }
-}
-
-class _RailButton extends StatelessWidget {
-  const _RailButton(
-      {required this.page, required this.selected, required this.onTap});
-
-  final _SettingsPageInfo page;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return _RailItem(
-      tooltip: page.title,
-      selected: selected,
-      onTap: onTap,
-      child: _PageIcon(page: page, size: 40),
-    );
-  }
-}
-
-class _RailItem extends StatelessWidget {
-  const _RailItem({
-    required this.tooltip,
-    required this.selected,
-    required this.onTap,
-    required this.child,
-  });
-
-  final String tooltip;
-  final bool selected;
-  final VoidCallback onTap;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final bool dark = theme.brightness == Brightness.dark;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-      child: Tooltip(
-        message: tooltip,
-        waitDuration: const Duration(milliseconds: 400),
-        child: Material(
-          color: selected
-              ? theme.colorScheme.primary.withValues(alpha: dark ? 0.32 : 0.2)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: onTap,
-            child: SizedBox(
-              height: 56,
-              child: Center(child: child),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PageIcon extends StatelessWidget {
-  const _PageIcon({required this.page, required this.size});
-
-  final _SettingsPageInfo page;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primary,
-        shape: BoxShape.circle,
-      ),
-      child:
-          Icon(page.icon, size: size / 2, color: theme.colorScheme.onPrimary),
-    );
-  }
-}
-
 class _SearchResults extends StatelessWidget {
   const _SearchResults({required this.results, required this.onSelected});
 
@@ -402,7 +256,7 @@ class _SearchResults extends StatelessWidget {
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   child: Row(
                     children: [
-                      _PageIcon(page: pg, size: 36),
+                      RailIcon(icon: pg.icon, size: 36),
                       const SizedBox(width: 14),
                       Expanded(
                         child: Column(

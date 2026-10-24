@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import 'dart:io';
+import 'dart:isolate';
 
 /// A process as read from /proc/<pid>.
 class ProcessInfo {
@@ -72,6 +73,8 @@ class SystemSample {
     required this.netTx,
     required this.diskRead,
     required this.diskWrite,
+    required this.loadAverage,
+    required this.uptime,
     required this.time,
   });
 
@@ -85,6 +88,8 @@ class SystemSample {
   final int netTx;
   final int diskRead;
   final int diskWrite;
+  final String loadAverage;
+  final Duration uptime;
   final DateTime time;
 
   int get memUsed => memTotal - memAvailable;
@@ -110,8 +115,33 @@ class SystemRates {
   final double diskWritePerSec;
 }
 
+/// One poll: the system sample and, when asked for, the process list.
+class Snapshot {
+  const Snapshot(this.sample, this.processes);
+
+  final SystemSample sample;
+
+  /// Null when the poll skipped the processes.
+  final List<ProcessInfo>? processes;
+}
+
 abstract final class ProcFs {
   static final Map<int, String> _users = _readUsers();
+
+  static final RegExp _uid = RegExp(r"^Uid:\s+(\d+)", multiLine: true);
+  static final RegExp _threads = RegExp(r"^Threads:\s+(\d+)", multiLine: true);
+  static final RegExp _rss = RegExp(r"^VmRSS:\s+(\d+)", multiLine: true);
+  static final RegExp _core = RegExp(r"^cpu\d+ ");
+  static final RegExp _space = RegExp(r"\s+");
+  static final RegExp _wholeDisk =
+      RegExp(r"^(sd[a-z]+|vd[a-z]+|xvd[a-z]+|hd[a-z]+|nvme\d+n\d+|mmcblk\d+)$");
+
+  /// Reads a [Snapshot] on a background isolate: a full /proc walk takes long
+  /// enough to drop frames on slow machines.
+  static Future<Snapshot> poll({required bool withProcesses}) => Isolate.run(
+        () => Snapshot(sample(), withProcesses ? processes() : null),
+        debugName: "activity_monitor poll",
+      );
 
   static Map<int, String> _readUsers() {
     final Map<int, String> users = {};
@@ -154,21 +184,31 @@ abstract final class ProcFs {
       final List<String> fields = stat.substring(close + 2).split(" ");
       if (fields.length < 20) continue;
 
-      int field(String key) {
-        final Match? m = RegExp("^$key:\\s+(\\d+)", multiLine: true).firstMatch(status);
+      int field(RegExp key) {
+        final Match? m = key.firstMatch(status);
         return m == null ? 0 : int.parse(m.group(1)!);
       }
 
-      String cmdline = (_read("/proc/$pid/cmdline") ?? "").replaceAll("\u0000", " ").trim();
+      final String rawCmdline = _read("/proc/$pid/cmdline") ?? "";
+      String cmdline = rawCmdline.replaceAll("\u0000", " ").trim();
       if (cmdline.isEmpty) cmdline = "[$comm]";
+
+      // The kernel cuts comm to 15 characters ("xdg-desktop-por"): take the
+      // full name from argv[0] when it starts with it.
+      String name = comm;
+      if (comm.length == 15) {
+        final String argv0 = rawCmdline.split("\u0000").first;
+        final String base = argv0.substring(argv0.lastIndexOf("/") + 1);
+        if (base.length > comm.length && base.startsWith(comm)) name = base;
+      }
 
       final ProcessInfo info = ProcessInfo(
         pid: pid,
-        name: comm,
+        name: name,
         state: fields[0],
-        uid: field("Uid"),
-        threads: field("Threads"),
-        rssBytes: field("VmRSS") * 1024,
+        uid: field(_uid),
+        threads: field(_threads),
+        rssBytes: field(_rss) * 1024,
         cpuTicks: (int.tryParse(fields[11]) ?? 0) + (int.tryParse(fields[12]) ?? 0),
         commandLine: cmdline,
       );
@@ -181,7 +221,7 @@ abstract final class ProcFs {
   static SystemSample sample() {
     final String stat = _read("/proc/stat") ?? "";
     CpuTimes parse(String line) {
-      final List<int> v = line.split(RegExp(r"\s+")).skip(1).map((s) => int.tryParse(s) ?? 0).toList();
+      final List<int> v = line.split(_space).skip(1).map((s) => int.tryParse(s) ?? 0).toList();
       final int idle = v.length > 4 ? v[3] + v[4] : 0;
       final int total = v.fold(0, (a, b) => a + b);
       return CpuTimes(total - idle, total);
@@ -192,7 +232,7 @@ abstract final class ProcFs {
     for (final String line in stat.split("\n")) {
       if (line.startsWith("cpu ")) {
         cpu = parse(line);
-      } else if (RegExp(r"^cpu\d+ ").hasMatch(line)) {
+      } else if (_core.hasMatch(line)) {
         cores.add(parse(line));
       }
     }
@@ -215,13 +255,11 @@ abstract final class ProcFs {
     int read = 0;
     int write = 0;
     for (final String line in (_read("/proc/diskstats") ?? "").split("\n")) {
-      final List<String> f = line.trim().split(RegExp(r"\s+"));
+      final List<String> f = line.trim().split(_space);
       if (f.length < 10) continue;
       final String name = f[2];
       // Whole disks only, partitions would be counted twice.
-      if (!RegExp(r"^(sd[a-z]+|vd[a-z]+|xvd[a-z]+|hd[a-z]+|nvme\d+n\d+|mmcblk\d+)$").hasMatch(name)) {
-        continue;
-      }
+      if (!_wholeDisk.hasMatch(name)) continue;
       read += (int.tryParse(f[5]) ?? 0) * 512;
       write += (int.tryParse(f[9]) ?? 0) * 512;
     }
@@ -237,6 +275,8 @@ abstract final class ProcFs {
       netTx: tx,
       diskRead: read,
       diskWrite: write,
+      loadAverage: loadAverage(),
+      uptime: uptime(),
       time: DateTime.now(),
     );
   }
