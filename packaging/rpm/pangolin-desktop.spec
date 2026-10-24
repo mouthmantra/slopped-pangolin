@@ -19,7 +19,7 @@
 
 Name:           pangolin-desktop
 Version:        1.1.0
-Release:        11%{?dist}
+Release:        12%{?dist}
 Summary:        The dahliaOS desktop (Pangolin) on the river Wayland compositor
 
 # Pangolin and the dahliaOS apps: Apache-2.0; river: GPL-3.0-only (its
@@ -205,6 +205,14 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %ghost %attr(0644,pangolin-greeter,pangolin-greeter) %{_localstatedir}/log/PangolinGreeter.log
 
 %changelog
+* Sat Oct 24 2026 Logan <loganctorres1@gmail.com> - 1.1.0-12
+- Activity Monitor: a sidebar like Settings' (Processes, CPU, Memory,
+  Network, Disk), Run Task (Ctrl+R, optionally in Terminal), aligned
+  process columns with full process names, and system polling off the UI
+  thread
+- Details lists (Settings > About and others) align their values at the
+  right edge
+
 * Mon Oct 19 2026 Logan <loganctorres1@gmail.com> - 1.1.0-11
 - Login and lock screen no longer lag when typing: a keystroke or a
   blinking cursor redrew the whole screen; now only what changed is redrawn
