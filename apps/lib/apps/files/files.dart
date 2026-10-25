@@ -335,7 +335,10 @@ class _FilesPageState extends State<FilesPage> {
               _selectTab(i == 9 ? _tabs.length - 1 : i - 1),
       },
       child: DahliaScaffold(
-        glass: true,
+        // Not glass (an opaque body; the title bar stays frosted as in every
+        // app): a window-sized blur flashed while the window was moved,
+        // resized, focused or animated (user, 2026-10-25, 1.1.0-19 on
+        // NVIDIA; roadmap 8.17).
         // Tabs from the window's edge, in a taller row, as the design has.
         showIcon: false,
         titlebarHeight: 54,

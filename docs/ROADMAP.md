@@ -755,8 +755,9 @@ theme (6.1).
       - Dragging files or the selection onto folders, tabs and places
         moves them, Ctrl copies.
       - Translucent body over the wallpaper while river blurs
-        (DahliaScaffold glass), opaque when inactive. The status bar is
-        gone, as in the design. Window 1280x800 by default.
+        (DahliaScaffold glass), opaque when inactive: off again since
+        1.1.0-20, it flashed (8.17). The status bar is gone, as in the
+        design. Window 1280x800 by default.
       Tests: apps/test/files (tags, type names, drops). Walked through
       headless: every view, rubber band, dragging onto a folder, tagging.
       [ ] Dragging to and from other apps' windows and the desktop needs
@@ -1126,6 +1127,33 @@ theme (6.1).
       applied until a later commit (focus and size changes redraw and
       resend them), or river (Blur.zig) drops regions that arrive before
       the window is mapped.
+- [ ] 8.17 Blur flashes during window interactions (user, 2026-10-25,
+      1.1.0-19, Files): focusing, unfocusing, resizing, moving,
+      minimizing, maximizing and closing made the blur glitch and flash
+      dangerously (photosensitivity). Files was the first window with a
+      window-sized blur region (DahliaScaffold glass); title bars of every
+      app have had blur for long without such reports. 1.1.0-20 turns
+      Files' glass body off, so no app sends a window-sized region. Found:
+      - river renders with GLES2 on the NVIDIA GPU (RTX 4060 laptop, Intel
+        iGPU secondary); the log of that session has 38 "connector DP-8:
+        Atomic commit failed: Device or resource busy" and 11 "error(wm):
+        timeout occurred, some imperfect frames may be shown", no "blur
+        failed".
+      - A blur re-renders only when what's below it or its region changes,
+        i.e. every frame of an interaction, into one output buffer per
+        node (Blur.zig Node.output, cleared then drawn), shown by the
+        scene in the same frame; the base level starts black and skips
+        items without a texture (textureOf), which would show as dark
+        flashes behind a translucent window.
+      - Focus changes remove and re-add the regions (opaque inactive
+        windows); set_regions applies on the next commit, which can be a
+        frame after the content changed.
+      To do before glass comes back: reproduce in a nested river with
+      GLES (and on the machine with PANGOLIN_ANIMATION_SCALE to slow it
+      down), find whether frames alternate (failed commits on DP-8 and
+      buffer age, or the single output buffer), then double-buffer blur
+      outputs, keep the previous blur when an item below has no texture
+      yet, and send region changes with the frame that needs them.
 - [x] 8.8 Overview close button hard to hit (user report 2026-10-17). It sat
       half outside its window's slot, and Flutter only hit-tests inside a
       widget's bounds: half the button ignored clicks, and moving onto it
