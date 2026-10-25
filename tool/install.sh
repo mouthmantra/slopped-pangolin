@@ -187,6 +187,11 @@ cp "$PORTAL" "$P/libexec/pangolin/pangolin-portal"
 if [ -x "$RIVER" ]; then
     cp "$RIVER" "$P/libexec/pangolin/river"
     chmod 755 "$P/libexec/pangolin/river"
+elif [ -n "$DESTDIR" ]; then
+    # A package has no river to fall back on (1.1.0-17 shipped without it
+    # when zig wasn't found, and sessions didn't start).
+    echo "install.sh: $RIVER is missing (tool/build.sh needs zig 0.16 on PATH or in ZIG); not staging a package without river" >&2
+    exit 1
 fi
 # The bundles keep their build-time modes: open them up the same way.
 chmod -R a+rX "$P/lib/pangolin" "$P/lib/dahlia-apps" "$P/libexec/pangolin"
