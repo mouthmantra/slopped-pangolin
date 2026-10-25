@@ -141,7 +141,7 @@ Future<void> main() async {
   }
   await PangolinSession.init();
 
-  // The login screen (display manager), run by greetd.
+  // The login screen, run by pangolin-dm (or greetd).
   if (PangolinSession.isSession &&
       Platform.environment["PANGOLIN_GREETER"] == "1") {
     await _runGreeter();

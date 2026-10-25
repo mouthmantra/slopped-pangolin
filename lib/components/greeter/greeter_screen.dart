@@ -21,13 +21,14 @@ import 'package:dahlia_shared/dahlia_shared.dart';
 import 'package:display_config/display_config.dart' show SharedUserFiles;
 import 'package:flutter/material.dart';
 import 'package:pangolin/components/login/login_kit.dart';
+import 'package:pangolin/services/display_manager.dart';
 import 'package:pangolin/services/greetd.dart';
 import 'package:pangolin/services/session.dart';
 import 'package:pangolin/services/splash_cache.dart';
 import 'package:pangolin/services/wallpaper_share.dart';
 import 'package:pangolin/widgets/wallpaper_blur.dart';
 
-/// Pangolin's login screen (display manager), run by greetd, as ChromeOS's:
+/// Pangolin's login screen, run by pangolin-dm (or greetd), as ChromeOS's:
 /// the user's wallpaper blurred, the user with one password field, the other
 /// users below, and a shelf with power and the time.
 ///
@@ -90,13 +91,13 @@ class _GreeterScreenState extends State<GreeterScreen>
         : kAlwaysCompleteAnimation,
   );
 
-  GreetdClient? _greetd;
+  LoginBackend? _login;
   int _user = 0;
   int _session = 0;
   bool _busy = false;
   String? _error;
 
-  /// What greetd asks for (password prompt, second factor...).
+  /// What PAM asks for (password prompt, second factor...).
   String _prompt = "Password";
   bool _secret = true;
   bool _inSession = false;
@@ -169,7 +170,7 @@ class _GreeterScreenState extends State<GreeterScreen>
     _shake.dispose();
     _appear.dispose();
     _leave.dispose();
-    unawaited(_greetd?.close());
+    unawaited(_login?.close());
     super.dispose();
   }
 
@@ -207,14 +208,14 @@ class _GreeterScreenState extends State<GreeterScreen>
   }
 
   Future<void> _connect() async {
-    if (!GreetdClient.available) {
-      setState(() => _error = "greetd isn't running this greeter");
+    if (!LoginBackend.available) {
+      setState(() => _error = "No display manager runs this login screen");
       return;
     }
     try {
-      _greetd = await GreetdClient.connect();
+      _login = await LoginBackend.connect();
     } on Object catch (e) {
-      setState(() => _error = "Can't reach greetd: $e");
+      setState(() => _error = "Can't reach the display manager: $e");
     }
   }
 
@@ -266,13 +267,13 @@ class _GreeterScreenState extends State<GreeterScreen>
   Future<void> _cancel() async {
     if (_inSession) {
       _inSession = false;
-      await _greetd?.cancelSession();
+      await _login?.cancel();
     }
   }
 
   Future<void> _submit() async {
-    final GreetdClient? greetd = _greetd;
-    if (greetd == null || _busy) return;
+    final LoginBackend? login = _login;
+    if (login == null || _busy) return;
     final String user = _userName;
     if (user.isEmpty) return;
     // The field is emptied right away: what is typed while the answer is
@@ -284,76 +285,76 @@ class _GreeterScreenState extends State<GreeterScreen>
       _error = null;
     });
 
-    GreetdReply reply;
+    // Messages before the first question (or between questions) need an
+    // empty answer to go on; the last one stays in sight.
+    Future<LoginReply> skipMessages(LoginReply first) async {
+      LoginReply reply = first;
+      while (reply is LoginInfo) {
+        final String text = reply.text.trim();
+        if (text.isNotEmpty && mounted) setState(() => _error = text);
+        reply = await login.answer(null);
+      }
+      return reply;
+    }
+
+    LoginReply reply;
     if (!_inSession) {
-      reply = await greetd.createSession(user);
+      reply = await skipMessages(await login.begin(user));
       _inSession = true;
       // Answer the first question with what was typed.
-      if (reply is GreetdAuthMessage && reply.needsAnswer) {
-        reply = await greetd.answer(answer);
-      }
+      if (reply is LoginQuestion) reply = await login.answer(answer);
     } else {
-      reply = await greetd.answer(answer);
+      reply = await login.answer(answer);
     }
-
-    // Informational messages need an empty answer to go on.
-    while (reply is GreetdAuthMessage && !reply.needsAnswer) {
-      reply = await greetd.answer(null);
-    }
+    reply = await skipMessages(reply);
 
     switch (reply) {
-      case GreetdSuccess():
-        await _start(greetd, user);
-      case GreetdAuthMessage(:final String message, :final String type):
-        // Another question (e.g. a second factor).
+      case LoginVerified() || LoginStarted():
+        await _start(login, user);
+      case LoginQuestion(:final String text, :final bool secret):
+        // Another question (a second factor, a security key's PIN, a new
+        // password for an expired one).
         setState(() {
           _busy = false;
-          _prompt = message.trim().isEmpty ? "Password" : message.trim();
-          _secret = type == "secret";
+          _prompt = text.trim().isEmpty ? "Password" : text.trim();
+          _secret = secret;
         });
         _refocus();
-      case GreetdError(:final String type, :final String description):
-        await _cancel();
+      case LoginFailed(:final bool wrongAnswer, :final String text):
+        _inSession = false;
         _fail(
-          type == "auth_error"
+          wrongAnswer
               ? "Incorrect password, try again"
-              : description.isNotEmpty
-                  ? description
+              : text.isNotEmpty
+                  ? text
                   : "Couldn't log in",
         );
+      case LoginInfo():
+        break;
     }
   }
 
-  Future<void> _start(GreetdClient greetd, String user) async {
+  Future<void> _start(LoginBackend login, String user) async {
     final LoginSession? session =
         _sessions.isEmpty ? null : _sessions[_session];
-    final List<String> command = session?.command ?? ["/bin/sh", "-l"];
-    final List<String> env = [
-      // Wayland sessions only: nothing here starts an X server.
-      "XDG_SESSION_TYPE=wayland",
-      "XDG_SESSION_CLASS=user",
-      // The desktop starts on the wallpaper this screen leaves behind,
-      // instead of fading in from black.
-      "PANGOLIN_FROM_GREETER=1",
-      if (session != null && session.desktopNames.isNotEmpty)
-        "XDG_CURRENT_DESKTOP=${session.desktopNames}",
-      if (session != null) "XDG_SESSION_DESKTOP=${session.id}",
-    ];
-    final GreetdReply reply = await greetd.startSession(command, env);
-    if (reply is! GreetdSuccess) {
+    // Wayland sessions only (the display manager sets XDG_SESSION_TYPE and
+    // the session's desktop names). The desktop starts on the wallpaper this
+    // screen leaves behind, instead of fading in from black.
+    final LoginReply reply = await login.start(session, const ["PANGOLIN_FROM_GREETER=1"]);
+    if (reply is! LoginStarted) {
       await _cancel();
       _fail(
-        reply is GreetdError && reply.description.isNotEmpty
-            ? reply.description
+        reply is LoginFailed && reply.text.isNotEmpty
+            ? reply.text
             : "Couldn't start the session",
       );
       return;
     }
     _saveChoices(user, session?.id ?? "");
-    // Down to the sharp wallpaper, then leave: greetd starts the session
-    // once the greeter (and its compositor) exit.
+    // Down to the sharp wallpaper, then leave: the display manager starts
+    // the session once the greeter (and its compositor) exit.
     await _leave.forward();
-    await greetd.close();
+    await login.close();
     exit(0);
   }
 

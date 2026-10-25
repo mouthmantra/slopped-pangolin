@@ -2,8 +2,10 @@
 # Copyright 2026 The dahliaOS Authors
 # SPDX-License-Identifier: Apache-2.0
 #
-# Pangolin's login screen for greetd: river with Pangolin in greeter mode.
-# greetd starts it as Pangolin's greeter user (see tool/install.sh --greeter):
+# Pangolin's login screen: river with Pangolin in greeter mode. Pangolin's
+# display manager (pangolin-dm, dm/) starts it as the greeter user in a
+# session of class greeter, with PANGOLIN_DM_SOCK to talk back. It also still
+# runs under greetd (see tool/install.sh --greeter):
 #
 #   [default_session]
 #   command = "@BINDIR@/pangolin-greeter"
@@ -14,7 +16,7 @@ PREFIX="@PREFIX@"
 # Nothing goes to the console: everything logs to
 # /var/log/PangolinGreeter.log (created by tool/install.sh --greeter), or to
 # the greeter's state directory. PANGOLIN_LOG=FILE picks another file.
-# Not even greetd's VT gets a byte: the first text written to a console makes
+# Not even the VT gets a byte: the first text written to a console makes
 # the kernel switch the screen to it, and from then on it shows (black)
 # between the login screen and the desktop.
 if [ -z "$PANGOLIN_LOGGING" ]; then

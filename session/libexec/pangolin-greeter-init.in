@@ -4,7 +4,7 @@
 #
 # river init of the login screen: sets up the displays as the desktop has
 # them, runs Pangolin in greeter mode, and ends the compositor when it exits
-# (greetd then starts the chosen session).
+# (the display manager then starts the chosen session).
 
 PREFIX="@PREFIX@"
 LIBEXEC="$PREFIX/libexec/pangolin"
