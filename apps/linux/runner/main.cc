@@ -8,7 +8,7 @@
 // app_id the Pangolin taskbar uses to match windows with desktop entries.
 static const DahliaAppInfo kApps[] = {
     {"settings", "Settings", 1100, 720},
-    {"files", "Files", 1040, 660},
+    {"files", "Files", 1280, 800},
     {"store", "App Store", 1120, 740},
     {"clock", "Clock", 760, 560},
     {"welcome", "Welcome", 900, 620},

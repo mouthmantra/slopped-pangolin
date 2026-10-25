@@ -50,15 +50,57 @@ abstract final class FileOps {
     }
     String dir(String key, String fallback) => dirs[key] ?? p.join(home, fallback);
 
+    // The dahliaOS design's order: Home, Desktop, Documents, Pictures,
+    // Downloads; outlined glyphs.
     return [
-      Place("Home", Icons.home_rounded, home),
-      Place("Desktop", Icons.desktop_windows_rounded, dir("DESKTOP", "Desktop")),
-      Place("Documents", Icons.description_rounded, dir("DOCUMENTS", "Documents")),
-      Place("Downloads", Icons.download_rounded, dir("DOWNLOAD", "Downloads")),
-      Place("Music", Icons.music_note_rounded, dir("MUSIC", "Music")),
-      Place("Pictures", Icons.image_rounded, dir("PICTURES", "Pictures")),
-      Place("Videos", Icons.movie_rounded, dir("VIDEOS", "Videos")),
+      Place("Home", Icons.home_outlined, home),
+      Place("Desktop", Icons.desktop_windows_outlined, dir("DESKTOP", "Desktop")),
+      Place("Documents", Icons.description_outlined, dir("DOCUMENTS", "Documents")),
+      Place("Pictures", Icons.image_outlined, dir("PICTURES", "Pictures")),
+      Place("Downloads", Icons.file_download_outlined, dir("DOWNLOAD", "Downloads")),
+      Place("Music", Icons.music_note_outlined, dir("MUSIC", "Music")),
+      Place("Videos", Icons.movie_outlined, dir("VIDEOS", "Videos")),
     ].where((place) => place.path == home || Directory(place.path).existsSync()).toList();
+  }
+
+  /// Cloud drives the user has set up: folders the sync clients make in the
+  /// home folder, and GNOME Online Accounts mounts (gvfs).
+  static List<Place> cloudPlaces() {
+    final String home = SystemUtils.home;
+    final List<Place> places = [
+      for (final (String folder, String label) in const [
+        ("OneDrive", "OneDrive"),
+        ("Google Drive", "Google Drive"),
+        ("GoogleDrive", "Google Drive"),
+        ("Nextcloud", "NextCloud"),
+        ("Dropbox", "Dropbox"),
+        ("MEGA", "MEGA"),
+        ("pCloudDrive", "pCloud"),
+      ])
+        if (Directory(p.join(home, folder)).existsSync()) Place(label, Icons.cloud_outlined, p.join(home, folder)),
+    ];
+    final String runtime = Platform.environment["XDG_RUNTIME_DIR"] ?? "";
+    final Directory gvfs = Directory(p.join(runtime, "gvfs"));
+    if (runtime.isNotEmpty && gvfs.existsSync()) {
+      try {
+        for (final FileSystemEntity mount in gvfs.listSync()) {
+          final String name = p.basename(mount.path);
+          final String? label = switch (name.split(":").first) {
+            "google-drive" => "Google Drive",
+            "onedrive" => "OneDrive",
+            "dav" || "davs" => "NextCloud",
+            _ => null,
+          };
+          final String? user = RegExp(r"user=([^,]+)").firstMatch(name)?.group(1);
+          if (label != null) {
+            places.add(Place(user == null ? label : "$label ($user)", Icons.cloud_outlined, mount.path));
+          }
+        }
+      } on FileSystemException {
+        // No gvfs mounts readable.
+      }
+    }
+    return places;
   }
 
   /// Mounted removable/extra volumes.

@@ -18,9 +18,11 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dahlia_apps/apps/files/file_ops.dart';
+import 'package:dahlia_apps/apps/files/files_model.dart';
+import 'package:dahlia_apps/apps/files/folder_view.dart';
+import 'package:dahlia_apps/apps/files/papirus.dart';
 import 'package:dahlia_apps/kit/kit.dart';
 import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaru_window/yaru_window.dart';
 
@@ -30,124 +32,10 @@ final DahliaAppSpec filesApp = DahliaAppSpec(
   builder: (context, args) => FilesPage(initialPaths: args),
 );
 
-class _Entry {
-  _Entry(this.entity, this.stat)
-      : name = p.basename(entity.path),
-        isDir = stat.type == FileSystemEntityType.directory;
-
-  final FileSystemEntity entity;
-  final FileStat stat;
-  final String name;
-  final bool isDir;
-
-  String get path => entity.path;
-  bool get hidden => name.startsWith(".");
-  late final FileKind kind = kindOf(path, isDirectory: isDir);
-}
-
-enum _SortKey { name, size, modified, type }
-
-enum _ClipboardMode { copy, cut }
-
-/// Files cut or copied in any tab of the window.
-class _FileClipboard extends ChangeNotifier {
-  List<String> _items = const [];
-  _ClipboardMode _mode = _ClipboardMode.copy;
-
-  List<String> get items => _items;
-  bool get isEmpty => _items.isEmpty;
-  bool isCut(String path) => _mode == _ClipboardMode.cut && _items.contains(path);
-
-  void set(Iterable<String> items, _ClipboardMode mode) {
-    _items = List.unmodifiable(items);
-    _mode = mode;
-    // Plain paths on the system clipboard: other windows (and the terminal)
-    // can paste them too.
-    Clipboard.setData(ClipboardData(text: _items.join("\n")));
-    notifyListeners();
-  }
-
-  /// The items to paste and whether they should be moved. A cut is consumed
-  /// by its paste. When nothing was copied in this window, existing paths on
-  /// the system clipboard (e.g. copied in another Files window) are copied.
-  Future<(List<String>, bool)> take() async {
-    if (_items.isNotEmpty) {
-      final (List<String>, bool) result = (_items, _mode == _ClipboardMode.cut);
-      if (_mode == _ClipboardMode.cut) {
-        _items = const [];
-        notifyListeners();
-      }
-      return result;
-    }
-    final ClipboardData? data = await Clipboard.getData(Clipboard.kTextPlain);
-    final List<String> paths = [];
-    for (String line in (data?.text ?? "").split("\n")) {
-      line = line.trim();
-      if (line.startsWith("file://")) line = Uri.tryParse(line)?.toFilePath() ?? "";
-      if (p.isAbsolute(line) &&
-          FileSystemEntity.typeSync(line, followLinks: false) != FileSystemEntityType.notFound) {
-        paths.add(line);
-      }
-    }
-    return (paths, false);
-  }
-}
-
-/// Location and navigation history of one tab.
-class _FolderTab extends ChangeNotifier {
-  _FolderTab(this._path, {this.grid = true, this.showHidden = false});
-
-  String _path;
-  final List<String> _back = [];
-  final List<String> _forward = [];
-
-  /// View options, kept per tab and inherited by tabs opened from it.
-  bool grid;
-  bool showHidden;
-
-  String get path => _path;
-  bool get canBack => _back.isNotEmpty;
-  bool get canForward => _forward.isNotEmpty;
-  bool get canGoUp => p.dirname(_path) != _path;
-  bool get inTrash => _path == FileOps.trashFiles;
-
-  String get title {
-    if (inTrash) return "Trash";
-    if (_path == SystemUtils.home) return "Home";
-    if (_path == "/") return "Computer";
-    return p.basename(_path);
-  }
-
-  void navigate(String location, {bool record = true}) {
-    final String path = p.normalize(location);
-    if (path == _path) return;
-    if (record) {
-      _back.add(_path);
-      _forward.clear();
-    }
-    _path = path;
-    notifyListeners();
-  }
-
-  void back() {
-    if (_back.isEmpty) return;
-    _forward.add(_path);
-    navigate(_back.removeLast(), record: false);
-  }
-
-  void forward() {
-    if (_forward.isEmpty) return;
-    _back.add(_path);
-    navigate(_forward.removeLast(), record: false);
-  }
-
-  void up() {
-    if (canGoUp) navigate(p.dirname(_path));
-  }
-}
-
-/// The Files window: a tab strip in the title bar, the places sidebar, and
-/// one folder view per tab.
+/// The Files window, as the dahliaOS design draws it: tabs in the title
+/// bar; a navigation row (back, forward, up, refresh, the path, search,
+/// settings); a sidebar of collapsible sections (Favourites, Drives, Cloud
+/// Drives); and one folder view per tab. Translucent over the wallpaper.
 class FilesPage extends StatefulWidget {
   const FilesPage({this.initialPaths = const [], super.key});
 
@@ -161,32 +49,39 @@ class FilesPage extends StatefulWidget {
 class _FilesPageState extends State<FilesPage> {
   static const int _maxClosedTabs = 16;
 
-  final List<_FolderTab> _tabs = [];
+  final List<FolderTab> _tabs = [];
   final List<String> _closedTabs = [];
-  final _FileClipboard _clipboard = _FileClipboard();
+  final FileClipboard _clipboard = FileClipboard();
   late final List<Place> _places = FileOps.userPlaces();
+  final GlobalKey<_NavigationBarState> _navigation = GlobalKey();
   int _current = 0;
   String? _windowTitle;
+  Timer? _tabSpring;
 
-  _FolderTab get _tab => _tabs[_current];
+  FolderTab get _tab => _tabs[_current];
 
   @override
   void initState() {
     super.initState();
     for (final String arg in widget.initialPaths) {
       final String? path = _resolveArgument(arg);
-      if (path != null) _insertTab(_FolderTab(path));
+      if (path != null) _insertTab(FolderTab(path));
     }
-    if (_tabs.isEmpty) _insertTab(_FolderTab(SystemUtils.home));
+    if (_tabs.isEmpty) _insertTab(FolderTab(SystemUtils.home));
     _current = 0;
+    // Glyphs until Papirus' index is read (a few milliseconds).
+    unawaited(Papirus.load().then((_) {
+      if (mounted) setState(() {});
+    }));
   }
 
   @override
   void dispose() {
-    for (final _FolderTab tab in _tabs) {
+    for (final FolderTab tab in _tabs) {
       tab.dispose();
     }
     _clipboard.dispose();
+    _tabSpring?.cancel();
     super.dispose();
   }
 
@@ -206,7 +101,7 @@ class _FilesPageState extends State<FilesPage> {
     };
   }
 
-  void _insertTab(_FolderTab tab, {int? at}) {
+  void _insertTab(FolderTab tab, {int? at}) {
     tab.addListener(_onTabChanged);
     _tabs.insert(at ?? _tabs.length, tab);
   }
@@ -217,7 +112,13 @@ class _FilesPageState extends State<FilesPage> {
 
   /// Opens [path] in a new tab next to the current one.
   void _openTab(String path, {bool activate = true}) {
-    final _FolderTab tab = _FolderTab(path, grid: _tab.grid, showHidden: _tab.showHidden);
+    final FolderTab tab = FolderTab(
+      path,
+      view: _tab.view,
+      showHidden: _tab.showHidden,
+      sort: _tab.sort,
+      ascending: _tab.ascending,
+    );
     setState(() {
       _insertTab(tab, at: _current + 1);
       if (activate) _current++;
@@ -232,7 +133,7 @@ class _FilesPageState extends State<FilesPage> {
       YaruWindow.of(context).close();
       return;
     }
-    final _FolderTab tab = _tabs[index];
+    final FolderTab tab = _tabs[index];
     setState(() {
       _tabs.removeAt(index);
       if (index < _current || _current == _tabs.length) _current--;
@@ -275,19 +176,68 @@ class _FilesPageState extends State<FilesPage> {
   void _moveTab(int from, int to) {
     if (from == to || to < 0 || to >= _tabs.length) return;
     setState(() {
-      final _FolderTab current = _tab;
+      final FolderTab current = _tab;
       _tabs.insert(to, _tabs.removeAt(from));
       _current = _tabs.indexOf(current);
     });
   }
 
-  IconData _iconFor(_FolderTab tab) {
+  IconData _iconFor(FolderTab tab) {
     if (tab.inTrash) return Icons.delete_outline_rounded;
-    if (tab.path == "/") return Icons.computer_rounded;
+    if (tab.path == "/") return Icons.computer_outlined;
     for (final Place place in _places) {
       if (place.path == tab.path) return place.icon;
     }
-    return Icons.folder_rounded;
+    return Icons.folder_outlined;
+  }
+
+  /// Files dropped on a folder, a tab or a sidebar place.
+  Future<void> _drop(List<String> paths, String target) async {
+    try {
+      await dropFiles(paths, target);
+    } on FileSystemException catch (e) {
+      if (!mounted) return;
+      final String reason = e.osError?.message ?? e.message;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text("$reason${e.path != null ? ": ${p.basename(e.path!)}" : ""}")));
+    }
+    for (final FolderTab tab in _tabs) {
+      if (p.equals(tab.path, target) || paths.any((path) => p.equals(p.dirname(path), tab.path))) tab.reload();
+    }
+  }
+
+  /// A tab takes drops into its folder, and comes forward when files are
+  /// held over it.
+  Widget _tabDropTarget(int index, Widget tab) {
+    return DragTarget<FileDragData>(
+      onWillAcceptWithDetails: (_) => true,
+      onMove: (_) {
+        if (index == _current) return;
+        _tabSpring ??= Timer(const Duration(milliseconds: 600), () {
+          _tabSpring = null;
+          if (mounted) _selectTab(index);
+        });
+      },
+      onLeave: (_) {
+        _tabSpring?.cancel();
+        _tabSpring = null;
+      },
+      onAcceptWithDetails: (d) {
+        _tabSpring?.cancel();
+        _tabSpring = null;
+        _drop(d.data.paths, _tabs[index].path);
+      },
+      builder: (context, candidates, _) => candidates.isEmpty
+          ? tab
+          : DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border.all(color: Theme.of(context).colorScheme.primary, width: 2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: tab,
+            ),
+    );
   }
 
   Future<void> _showTabMenu(int index, Offset position) async {
@@ -376,14 +326,22 @@ class _FilesPageState extends State<FilesPage> {
             _moveTab(_current, _current + 1),
         const SingleActivator(LogicalKeyboardKey.pageUp, control: true, shift: true): () =>
             _moveTab(_current, _current - 1),
+        const SingleActivator(LogicalKeyboardKey.keyL, control: true): () =>
+            _navigation.currentState?.editPath(true),
+        const SingleActivator(LogicalKeyboardKey.keyF, control: true): () =>
+            _navigation.currentState?.focusSearch(),
         for (int i = 1; i <= 9; i++)
           SingleActivator(LogicalKeyboardKey(LogicalKeyboardKey.digit1.keyId + i - 1), alt: true): () =>
               _selectTab(i == 9 ? _tabs.length - 1 : i - 1),
       },
       child: DahliaScaffold(
+        glass: true,
+        // Tabs from the window's edge, in a taller row, as the design has.
+        showIcon: false,
+        titlebarHeight: 54,
         title: DahliaTabStrip(
           tabs: [
-            for (final _FolderTab tab in _tabs)
+            for (final FolderTab tab in _tabs)
               DahliaTabData(
                 id: tab,
                 title: tab.title,
@@ -398,33 +356,45 @@ class _FilesPageState extends State<FilesPage> {
           onNew: _newTab,
           newTooltip: "New tab (Ctrl+T)",
           onContextMenu: _showTabMenu,
+          wrapTab: _tabDropTarget,
+          maxTabWidth: 224,
         ),
-        body: Row(
+        body: Column(
           children: [
-            SidebarPane(
-              width: 200,
-              child: _Sidebar(
-                places: _places,
-                current: _tab.path,
-                onNavigate: (path) => _tab.navigate(path),
-                onOpenInNewTab: (path) => _openTab(path, activate: false),
-              ),
+            _NavigationBar(
+              key: _navigation,
+              tab: _tab,
+              onOpenInNewTab: (path) => _openTab(path, activate: false),
             ),
             Expanded(
-              child: IndexedStack(
-                index: _current,
+              child: Row(
                 children: [
-                  for (int i = 0; i < _tabs.length; i++)
-                    ExcludeFocus(
-                      key: ObjectKey(_tabs[i]),
-                      excluding: i != _current,
-                      child: _FolderView(
-                        tab: _tabs[i],
-                        active: i == _current,
-                        clipboard: _clipboard,
-                        onOpenInNewTab: _openTab,
-                      ),
+                  _Sidebar(
+                    places: _places,
+                    current: _tab.path,
+                    onNavigate: (path) => _tab.navigate(path),
+                    onOpenInNewTab: (path) => _openTab(path, activate: false),
+                    onDrop: _drop,
+                  ),
+                  Expanded(
+                    child: IndexedStack(
+                      index: _current,
+                      children: [
+                        for (int i = 0; i < _tabs.length; i++)
+                          ExcludeFocus(
+                            key: ObjectKey(_tabs[i]),
+                            excluding: i != _current,
+                            child: FolderView(
+                              tab: _tabs[i],
+                              active: i == _current,
+                              clipboard: _clipboard,
+                              onOpenInNewTab: _openTab,
+                              onDrop: _drop,
+                            ),
+                          ),
+                      ],
                     ),
+                  ),
                 ],
               ),
             ),
@@ -435,782 +405,277 @@ class _FilesPageState extends State<FilesPage> {
   }
 }
 
-/// Contents of one tab: toolbar, files and status bar.
-class _FolderView extends StatefulWidget {
-  const _FolderView({
-    required this.tab,
-    required this.active,
-    required this.clipboard,
-    required this.onOpenInNewTab,
-  });
+/// Back, forward, up and refresh; the path as breadcrumbs (Home ›
+/// Documents), editable with a double click or Ctrl+L; search in the
+/// folder; and the settings menu.
+class _NavigationBar extends StatefulWidget {
+  const _NavigationBar({required this.tab, required this.onOpenInNewTab, super.key});
 
-  final _FolderTab tab;
-  final bool active;
-  final _FileClipboard clipboard;
-  final void Function(String path, {bool activate}) onOpenInNewTab;
+  final FolderTab tab;
+  final ValueChanged<String> onOpenInNewTab;
 
   @override
-  State<_FolderView> createState() => _FolderViewState();
+  State<_NavigationBar> createState() => _NavigationBarState();
 }
 
-class _FolderViewState extends State<_FolderView> {
-  List<_Entry> _entries = [];
-  String? _error;
-  bool _loading = true;
-  String? _loadedPath;
+class _NavigationBarState extends State<_NavigationBar> {
+  final TextEditingController _search = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
+  bool _editing = false;
 
-  final Set<String> _selection = {};
-  String? _anchor;
-  _SortKey _sort = _SortKey.name;
-  bool _ascending = true;
-  String _filter = "";
-  bool _editingPath = false;
-  int? _freeSpace;
-
-  StreamSubscription<FileSystemEvent>? _watcher;
-  Timer? _refreshDebounce;
-  final FocusNode _focus = FocusNode(debugLabel: "folder view");
-  final TextEditingController _filterController = TextEditingController();
-
-  _FolderTab get _tab => widget.tab;
-  String get _path => _tab.path;
-  bool get _inTrash => _tab.inTrash;
+  FolderTab get _tab => widget.tab;
 
   @override
   void initState() {
     super.initState();
-    _tab.addListener(_onLocationChanged);
-    widget.clipboard.addListener(_onClipboardChanged);
-    _load();
-    if (widget.active) _requestFocus();
+    _search.text = _tab.filter;
   }
 
   @override
-  void didUpdateWidget(_FolderView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.tab != widget.tab) {
-      oldWidget.tab.removeListener(_onLocationChanged);
-      widget.tab.addListener(_onLocationChanged);
-      _onLocationChanged();
-    }
-    if (widget.active && !oldWidget.active) _requestFocus();
+  void didUpdateWidget(_NavigationBar old) {
+    super.didUpdateWidget(old);
+    // Another tab, or the folder changed (which clears its search).
+    if (_search.text != _tab.filter) _search.text = _tab.filter;
+    if (old.tab != widget.tab) _editing = false;
   }
 
   @override
   void dispose() {
-    _tab.removeListener(_onLocationChanged);
-    widget.clipboard.removeListener(_onClipboardChanged);
-    _watcher?.cancel();
-    _refreshDebounce?.cancel();
-    _focus.dispose();
-    _filterController.dispose();
+    _search.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
-  void _requestFocus() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && widget.active) _focus.requestFocus();
-    });
-  }
+  void editPath(bool editing) => setState(() => _editing = editing);
 
-  void _onClipboardChanged() {
-    if (mounted) setState(() {});
-  }
+  void focusSearch() => _searchFocus.requestFocus();
 
-  void _onLocationChanged() {
-    if (_path == _loadedPath) return;
-    setState(() {
-      _selection.clear();
-      _anchor = null;
-      _filter = "";
-      _filterController.clear();
-      _editingPath = false;
-      _loading = true;
-    });
-    _load();
-  }
-
-  Future<void> _load() async {
-    final String path = _path;
-    final Directory dir = Directory(path);
-    final List<_Entry> entries = [];
-    String? error;
-    try {
-      if (path == FileOps.trashFiles) await dir.create(recursive: true);
-      await for (final FileSystemEntity e in dir.list(followLinks: false)) {
-        try {
-          entries.add(_Entry(e, await FileStat.stat(e.path)));
-        } on FileSystemException {
-          // Broken link or vanished file.
-        }
-      }
-    } on FileSystemException catch (e) {
-      error = e.osError?.message ?? e.message;
-    }
-    final int? free = error == null ? await FileOps.freeSpace(path) : null;
-
-    // The tab may have moved on while this folder was being read.
-    if (!mounted || path != _path) return;
-
-    if (_loadedPath != path) {
-      _watcher?.cancel();
-      _watcher = null;
-      if (error == null) {
-        _watcher = dir.watch().listen(
-          (_) {
-            _refreshDebounce?.cancel();
-            _refreshDebounce = Timer(const Duration(milliseconds: 250), _load);
-          },
-          onError: (_) {},
-        );
-      }
-    }
-
-    setState(() {
-      _loadedPath = path;
-      _loading = false;
-      _entries = entries;
-      _error = error;
-      _freeSpace = free;
-      _selection.removeWhere((selected) => !entries.any((e) => e.path == selected));
-    });
-  }
-
-  List<_Entry> get _visible {
-    final List<_Entry> list = _entries
-        .where((e) => _tab.showHidden || !e.hidden)
-        .where((e) => _filter.isEmpty || e.name.toLowerCase().contains(_filter.toLowerCase()))
-        .toList();
-    int compare(_Entry a, _Entry b) {
-      if (a.isDir != b.isDir) return a.isDir ? -1 : 1;
-      final int result = switch (_sort) {
-        _SortKey.name => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
-        _SortKey.size => a.stat.size.compareTo(b.stat.size),
-        _SortKey.modified => a.stat.modified.compareTo(b.stat.modified),
-        _SortKey.type => p.extension(a.name).compareTo(p.extension(b.name)),
-      };
-      return _ascending ? result : -result;
-    }
-
-    return list..sort(compare);
-  }
-
-  List<_Entry> get _selectedEntries => _entries.where((e) => _selection.contains(e.path)).toList();
-
-  void _toggleHidden() => setState(() => _tab.showHidden = !_tab.showHidden);
-
-  /// Folders open here; files with their default app (Open With… changes
-  /// it), else with the dahliaOS app for them, else the user picks one.
-  Future<void> _open(_Entry entry) async {
-    if (entry.isDir) {
-      _tab.navigate(entry.path);
-      return;
-    }
-    final DesktopApp? app = DesktopApps.load().defaultFor(DesktopApps.typeOf(entry.path));
-    if (app != null && await DesktopApps.launch(app, paths: [entry.path])) return;
-    switch (entry.kind) {
-      case FileKind.text || FileKind.code:
-        SystemUtils.launchApp("text_editor", [entry.path]);
-      case FileKind.image:
-        SystemUtils.launchApp("gallery", [entry.path]);
-      default:
-        if (mounted) await showOpenWithDialog(context, [entry.path]);
-    }
-  }
-
-  void _openSelectedInNewTabs() {
-    for (final _Entry entry in _selectedEntries.where((e) => e.isDir)) {
-      widget.onOpenInNewTab(entry.path, activate: false);
-    }
-  }
-
-  void _select(_Entry entry, {bool toggle = false, bool range = false}) {
-    setState(() {
-      if (range && _anchor != null) {
-        final List<_Entry> visible = _visible;
-        final int a = visible.indexWhere((e) => e.path == _anchor);
-        final int b = visible.indexOf(entry);
-        if (a != -1 && b != -1) {
-          _selection
-            ..clear()
-            ..addAll(visible.sublist(a < b ? a : b, (a < b ? b : a) + 1).map((e) => e.path));
-          return;
-        }
-      }
-      if (toggle) {
-        _selection.contains(entry.path) ? _selection.remove(entry.path) : _selection.add(entry.path);
-      } else {
-        _selection
-          ..clear()
-          ..add(entry.path);
-      }
-      _anchor = entry.path;
-    });
-  }
-
-  void _showMessage(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  Future<void> _run(Future<void> Function() op) async {
-    try {
-      await op();
-    } on FileSystemException catch (e) {
-      final String reason = e.osError?.message ?? e.message;
-      _showMessage("$reason${e.path != null ? ": ${p.basename(e.path!)}" : ""}");
-    } catch (e) {
-      _showMessage("$e");
-    }
-    await _load();
-  }
-
-  void _copySelection({bool cut = false}) {
-    if (_selection.isEmpty || _inTrash) return;
-    widget.clipboard.set(_selection, cut ? _ClipboardMode.cut : _ClipboardMode.copy);
-  }
-
-  Future<void> _paste() async {
-    if (_inTrash) return;
-    final (List<String> items, bool move) = await widget.clipboard.take();
-    if (items.isEmpty) return;
-    await _run(() async {
-      for (final String item in items) {
-        if (p.equals(item, _path) || p.isWithin(item, _path)) {
-          throw FileSystemException("Can't paste a folder into itself", item);
-        }
-        move ? await FileOps.move(item, _path) : await FileOps.copy(item, _path);
-      }
-    });
-  }
-
-  Future<void> _trashSelection() async {
-    if (_selection.isEmpty) return;
-    if (_inTrash) {
-      await _deleteSelection();
-      return;
-    }
-    final List<String> items = _selection.toList();
-    await _run(() async {
-      for (final String item in items) {
-        await FileOps.trash(item);
-      }
-    });
-  }
-
-  Future<void> _deleteSelection() async {
-    if (_selection.isEmpty) return;
-    final int count = _selection.length;
-    final bool? ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text("Permanently delete $count item${count == 1 ? "" : "s"}?"),
-        content: const Text("This can't be undone."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text("Delete")),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    final List<String> items = _selection.toList();
-    final bool inTrash = _inTrash;
-    await _run(() async {
-      for (final String item in items) {
-        await FileOps.deletePermanently(item);
-        if (inTrash) {
-          final File info = File(p.join(FileOps.trashInfo, "${p.basename(item)}.trashinfo"));
-          if (info.existsSync()) await info.delete();
-        }
-      }
-    });
-  }
-
-  Future<void> _restoreSelection() async {
-    final List<String> items = _selection.toList();
-    await _run(() async {
-      for (final String item in items) {
-        await FileOps.restore(item);
-      }
-    });
-  }
-
-  Future<String?> _askName(String title, String initial, String action) async {
-    final String? name = await showDialog<String>(
-      context: context,
-      builder: (context) => _NameDialog(title: title, initial: initial, action: action),
-    );
-    if (name != null && (name.contains("/") || name == "." || name == "..")) {
-      _showMessage("Names can't contain “/” or be “.” or “..”");
-      return null;
-    }
-    return name;
-  }
-
-  Future<void> _rename(_Entry entry) async {
-    final String? name = await _askName("Rename", entry.name, "Rename");
-    if (name == null || name.isEmpty || name == entry.name) return;
-    await _run(() => FileOps.rename(entry.path, name));
-  }
-
-  Future<void> _newFolder() async {
-    if (_inTrash) return;
-    final String? name = await _askName("New Folder", FileOps.uniqueName(_path, "New Folder"), "Create");
-    if (name == null || name.isEmpty) return;
-    await _run(() => Directory(p.join(_path, name)).create());
-  }
-
-  Future<void> _newFile() async {
-    if (_inTrash) return;
-    final String? name = await _askName("New File", FileOps.uniqueName(_path, "Untitled.txt"), "Create");
-    if (name == null || name.isEmpty) return;
-    await _run(() => File(p.join(_path, name)).create(exclusive: true));
-  }
-
-  Future<void> _properties(_Entry entry) async {
-    await showDialog<void>(
-      context: context,
-      builder: (context) => _PropertiesDialog(entry: entry),
-    );
-  }
-
-  void _goToTypedPath(String value) {
-    _setEditingPath(false);
+  void _submitPath(String value) {
+    setState(() => _editing = false);
     String path = value.trim();
     if (path == "~" || path.startsWith("~/")) path = SystemUtils.home + path.substring(1);
     if (path.isEmpty) return;
-    path = p.normalize(p.isAbsolute(path) ? path : p.join(_path, path));
+    path = p.normalize(p.isAbsolute(path) ? path : p.join(_tab.path, path));
     switch (FileSystemEntity.typeSync(path)) {
       case FileSystemEntityType.directory:
         _tab.navigate(path);
       case FileSystemEntityType.notFound:
-        _showMessage("“$value” doesn't exist");
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text("“$value” doesn't exist")));
       default:
         _tab.navigate(p.dirname(path));
     }
   }
 
-  Future<void> _showContextMenu(Offset position, _Entry? entry) async {
-    if (entry != null && !_selection.contains(entry.path)) _select(entry);
-    final bool multi = _selection.length > 1;
-    final bool allDirs = _selectedEntries.isNotEmpty && _selectedEntries.every((e) => e.isDir);
-    final List<PopupMenuEntry<String>> items = [
-      if (entry != null) ...[
-        if (!multi) const PopupMenuItem(value: "open", child: Text("Open")),
-        if (!_inTrash && _selectedEntries.isNotEmpty && _selectedEntries.every((e) => !e.isDir))
-          const PopupMenuItem(value: "openwith", child: Text("Open With…")),
-        if (allDirs && !_inTrash)
-          PopupMenuItem(value: "newtab", child: Text(multi ? "Open in New Tabs" : "Open in New Tab")),
-        if (!multi && !entry.isDir)
-          const PopupMenuItem(value: "edit", child: Text("Open in Text Editor")),
-        if (!multi && entry.isDir && !_inTrash)
-          const PopupMenuItem(value: "terminal", child: Text("Open in Terminal")),
-        const PopupMenuDivider(),
-        if (_inTrash) ...[
-          const PopupMenuItem(value: "restore", child: Text("Restore")),
-          const PopupMenuItem(value: "delete", child: Text("Delete Permanently")),
-        ] else ...[
-          const PopupMenuItem(value: "cut", child: Text("Cut")),
-          const PopupMenuItem(value: "copy", child: Text("Copy")),
-          if (!multi) const PopupMenuItem(value: "rename", child: Text("Rename…")),
-          const PopupMenuItem(value: "trash", child: Text("Move to Trash")),
-        ],
-        if (!multi) ...[
-          const PopupMenuDivider(),
-          const PopupMenuItem(value: "properties", child: Text("Properties")),
-        ],
-      ] else ...[
-        if (!_inTrash) ...[
-          const PopupMenuItem(value: "newfolder", child: Text("New Folder…")),
-          const PopupMenuItem(value: "newfile", child: Text("New File…")),
-          const PopupMenuItem(value: "paste", child: Text("Paste")),
-          const PopupMenuItem(value: "terminalhere", child: Text("Open in Terminal")),
-        ] else
-          PopupMenuItem(value: "empty", enabled: _entries.isNotEmpty, child: const Text("Empty Trash")),
-        const PopupMenuDivider(),
-        const PopupMenuItem(value: "selectall", child: Text("Select All")),
-        CheckedPopupMenuItem(value: "hidden", checked: _tab.showHidden, child: const Text("Show Hidden Files")),
-      ],
-    ];
+  /// The path's crumbs: from Home inside the home folder, from the local
+  /// drive elsewhere.
+  List<(String, String)> _crumbs() {
+    final String path = _tab.path;
+    if (_tab.inTrash) return [("Trash", path)];
+    final String home = SystemUtils.home;
+    final (String root, String label) =
+        p.equals(path, home) || p.isWithin(home, path) ? (home, "Home") : ("/", "Local drive");
+    final List<(String, String)> crumbs = [(label, root)];
+    String at = root;
+    for (final String part in p.split(p.relative(path, from: root))) {
+      if (part == ".") continue;
+      at = p.join(at, part);
+      crumbs.add((part, at));
+    }
+    return crumbs;
+  }
 
+  Future<void> _showSettings(Offset position) async {
     final String? action = await showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx, position.dy),
-      items: items,
+      items: [
+        CheckedPopupMenuItem(value: "hidden", checked: _tab.showHidden, child: const Text("Show Hidden Files")),
+        const PopupMenuDivider(),
+        const PopupMenuItem(value: "window", child: Text("New Window")),
+        const PopupMenuItem(value: "terminal", child: Text("Open in Terminal")),
+      ],
     );
-    if (!mounted || action == null) return;
-
     switch (action) {
-      case "open":
-        await _open(entry!);
-      case "openwith":
-        await showOpenWithDialog(context, [for (final _Entry e in _selectedEntries) e.path]);
-      case "newtab":
-        _openSelectedInNewTabs();
-      case "edit":
-        SystemUtils.launchApp("text_editor", [entry!.path]);
-      case "terminal":
-        SystemUtils.launchApp("terminal", ["--working-directory", entry!.path]);
-      case "terminalhere":
-        SystemUtils.launchApp("terminal", ["--working-directory", _path]);
-      case "cut":
-        _copySelection(cut: true);
-      case "copy":
-        _copySelection();
-      case "rename":
-        await _rename(entry!);
-      case "trash":
-        await _trashSelection();
-      case "delete":
-        await _deleteSelection();
-      case "restore":
-        await _restoreSelection();
-      case "properties":
-        await _properties(entry!);
-      case "newfolder":
-        await _newFolder();
-      case "newfile":
-        await _newFile();
-      case "paste":
-        await _paste();
-      case "empty":
-        await _run(FileOps.emptyTrash);
-      case "selectall":
-        setState(() => _selection.addAll(_visible.map((e) => e.path)));
       case "hidden":
-        _toggleHidden();
+        _tab.update(() => _tab.showHidden = !_tab.showHidden);
+      case "window":
+        SystemUtils.launchApp("files", [_tab.path]);
+      case "terminal":
+        SystemUtils.launchApp("terminal", ["--working-directory", _tab.path]);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final List<_Entry> visible = _visible;
-    final int selectedSize = _selectedEntries.where((e) => !e.isDir).fold(0, (sum, e) => sum + e.stat.size);
-    final int clipboardCount = widget.clipboard.items.length;
+    final Color dim = theme.colorScheme.onSurface.withValues(alpha: 0.7);
+    final Color field = theme.colorScheme.onSurface.withValues(alpha: theme.brightness == Brightness.dark ? 0.08 : 0.045);
+    final List<(String, String)> crumbs = _crumbs();
 
-    // The toolbar (with the location and filter fields) sits outside the
-    // view's shortcuts, so typing there isn't mistaken for file commands.
-    final Widget toolbar = _Toolbar(
-      path: _path,
-      inTrash: _inTrash,
-      canBack: _tab.canBack,
-      canForward: _tab.canForward,
-      canGoUp: _tab.canGoUp,
-      grid: _tab.grid,
-      editingPath: _editingPath,
-      filterController: _filterController,
-      onBack: _tab.back,
-      onForward: _tab.forward,
-      onUp: _tab.up,
-      onNavigate: (path) => _tab.navigate(path),
-      onOpenInNewTab: (path) => widget.onOpenInNewTab(path, activate: false),
-      onSubmitPath: _goToTypedPath,
-      onEditPath: _setEditingPath,
-      onToggleView: () => setState(() => _tab.grid = !_tab.grid),
-      onFilter: (v) => setState(() => _filter = v),
-      onNewFolder: _newFolder,
-      onEmptyTrash: () => _run(FileOps.emptyTrash),
-    );
+    Widget nav(String tooltip, IconData icon, VoidCallback? onPressed) => IconButton(
+          tooltip: tooltip,
+          iconSize: 20,
+          color: theme.colorScheme.onSurface,
+          icon: Icon(icon),
+          onPressed: onPressed,
+        );
 
-    final Widget files = GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onTap: () {
-        setState(_selection.clear);
-        _focus.requestFocus();
-      },
-      onSecondaryTapUp: (d) => _showContextMenu(d.globalPosition, null),
-      child: _loading && _entries.isEmpty
-          ? const SizedBox.expand()
-          : _error != null
-              ? EmptyState(icon: Icons.block_rounded, title: "Can't open this folder", subtitle: _error)
-              : visible.isEmpty
-                  ? EmptyState(
-                      icon: _inTrash ? Icons.delete_outline_rounded : Icons.folder_open_rounded,
-                      title: _filter.isNotEmpty
-                          ? "No matches"
-                          : _inTrash
-                              ? "Trash is empty"
-                              : "This folder is empty",
-                    )
-                  : _tab.grid
-                      ? _buildGrid(visible)
-                      : _buildList(visible),
-    );
-
-    final Widget statusBar = Container(
-      height: 28,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      color: theme.colorScheme.surface,
-      child: DefaultTextStyle.merge(
-        style: theme.textTheme.bodySmall,
-        child: Row(
-          children: [
-            Text(
-              _selection.isEmpty
-                  ? "${visible.length} item${visible.length == 1 ? "" : "s"}"
-                  : "${_selection.length} selected${selectedSize > 0 ? " (${formatBytes(selectedSize)})" : ""}",
-            ),
-            const Spacer(),
-            if (clipboardCount > 0)
-              Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: Text("$clipboardCount item${clipboardCount == 1 ? "" : "s"} on clipboard"),
-              ),
-            if (_freeSpace != null) Text("${formatBytes(_freeSpace!)} free"),
-          ],
-        ),
-      ),
-    );
-
-    return Column(
-      children: [
-        toolbar,
-        const Divider(height: 1),
-        Expanded(
-          child: CallbackShortcuts(
-            bindings: {
-              const SingleActivator(LogicalKeyboardKey.delete): _trashSelection,
-              const SingleActivator(LogicalKeyboardKey.delete, shift: true): _deleteSelection,
-              const SingleActivator(LogicalKeyboardKey.f2): () {
-                final List<_Entry> selected = _selectedEntries;
-                if (selected.length == 1) _rename(selected.first);
-              },
-              const SingleActivator(LogicalKeyboardKey.f5): _load,
-              const SingleActivator(LogicalKeyboardKey.keyR, control: true): _load,
-              const SingleActivator(LogicalKeyboardKey.keyC, control: true): _copySelection,
-              const SingleActivator(LogicalKeyboardKey.keyX, control: true): () => _copySelection(cut: true),
-              const SingleActivator(LogicalKeyboardKey.keyV, control: true): _paste,
-              const SingleActivator(LogicalKeyboardKey.keyN, control: true, shift: true): _newFolder,
-              const SingleActivator(LogicalKeyboardKey.keyA, control: true): () =>
-                  setState(() => _selection.addAll(visible.map((e) => e.path))),
-              const SingleActivator(LogicalKeyboardKey.keyH, control: true): _toggleHidden,
-              const SingleActivator(LogicalKeyboardKey.keyL, control: true): () => _setEditingPath(true),
-              const SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true): _tab.back,
-              const SingleActivator(LogicalKeyboardKey.arrowRight, alt: true): _tab.forward,
-              const SingleActivator(LogicalKeyboardKey.arrowUp, alt: true): _tab.up,
-              const SingleActivator(LogicalKeyboardKey.home, alt: true): () => _tab.navigate(SystemUtils.home),
-              const SingleActivator(LogicalKeyboardKey.backspace): _tab.back,
-              const SingleActivator(LogicalKeyboardKey.escape): () => setState(_selection.clear),
-              const SingleActivator(LogicalKeyboardKey.enter): () {
-                final List<_Entry> selected = _selectedEntries;
-                if (selected.length == 1) _open(selected.first);
-              },
-              const SingleActivator(LogicalKeyboardKey.enter, control: true): _openSelectedInNewTabs,
+    final Widget location = _editing
+        ? Focus(
+            // Leaving the field (click elsewhere) cancels editing.
+            onFocusChange: (focused) {
+              if (!focused) setState(() => _editing = false);
             },
-            child: Focus(
-              focusNode: _focus,
-              autofocus: widget.active,
-              child: Column(
-                children: [
-                  Expanded(child: files),
-                  statusBar,
-                ],
+            child: TextFormField(
+              key: ValueKey(_tab.path),
+              initialValue: _tab.path,
+              autofocus: true,
+              style: const TextStyle(fontSize: 14),
+              decoration: const InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                filled: false,
+                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 11),
               ),
+              onFieldSubmitted: _submitPath,
             ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _setEditingPath(bool editing) {
-    if (editing == _editingPath) return;
-    setState(() => _editingPath = editing);
-    if (!editing) _focus.requestFocus();
-  }
-
-  Widget _gestures(_Entry entry, Widget child) {
-    return GestureDetector(
-      onTap: () {
-        _select(
-          entry,
-          toggle: HardwareKeyboard.instance.isControlPressed,
-          range: HardwareKeyboard.instance.isShiftPressed,
-        );
-        _focus.requestFocus();
-      },
-      onDoubleTap: () => _open(entry),
-      onTertiaryTapUp: entry.isDir && !_inTrash ? (_) => widget.onOpenInNewTab(entry.path, activate: false) : null,
-      onSecondaryTapUp: (d) => _showContextMenu(d.globalPosition, entry),
-      child: child,
-    );
-  }
-
-  Widget _buildGrid(List<_Entry> entries) {
-    final ThemeData theme = Theme.of(context);
-    return GridView.builder(
-      padding: const EdgeInsets.all(12),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 120,
-        mainAxisExtent: 120,
-        crossAxisSpacing: 4,
-        mainAxisSpacing: 4,
-      ),
-      itemCount: entries.length,
-      itemBuilder: (context, index) {
-        final _Entry entry = entries[index];
-        final bool selected = _selection.contains(entry.path);
-        final bool cut = widget.clipboard.isCut(entry.path);
-        return _gestures(
-          entry,
-          Opacity(
-            opacity: cut || entry.hidden ? 0.5 : 1,
-            child: Container(
-              decoration: BoxDecoration(
-                color: selected ? theme.colorScheme.primary.withValues(alpha: 0.2) : null,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.all(6),
-              child: Column(
-                children: [
-                  Expanded(child: Center(child: _EntryIcon(entry: entry, size: 56))),
-                  const SizedBox(height: 4),
-                  Text(
-                    entry.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildList(List<_Entry> entries) {
-    final ThemeData theme = Theme.of(context);
-    final DateFormat format = DateFormat.yMMMd().add_Hm();
-
-    Widget header(String label, _SortKey key, {int flex = 1}) => Expanded(
-          flex: flex,
-          child: InkWell(
-            onTap: () => setState(() {
-              if (_sort == key) {
-                _ascending = !_ascending;
-              } else {
-                _sort = key;
-                _ascending = true;
-              }
-            }),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Row(
-                children: [
-                  Text(label, style: theme.textTheme.labelMedium),
-                  if (_sort == key)
-                    Icon(_ascending ? Icons.arrow_drop_up_rounded : Icons.arrow_drop_down_rounded, size: 18),
-                ],
-              ),
-            ),
-          ),
-        );
-
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            children: [
-              const SizedBox(width: 32),
-              header("Name", _SortKey.name, flex: 4),
-              header("Size", _SortKey.size),
-              header("Type", _SortKey.type),
-              header("Modified", _SortKey.modified, flex: 2),
-            ],
-          ),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: ListView.builder(
-            itemCount: entries.length,
-            itemExtent: 36,
-            itemBuilder: (context, index) {
-              final _Entry entry = entries[index];
-              final bool selected = _selection.contains(entry.path);
-              final bool cut = widget.clipboard.isCut(entry.path);
-              return _gestures(
-                entry,
-                Container(
-                  color: selected ? theme.colorScheme.primary.withValues(alpha: 0.15) : null,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Opacity(
-                    opacity: cut || entry.hidden ? 0.55 : 1,
-                    child: Row(
-                      children: [
-                        SizedBox(width: 32, child: _EntryIcon(entry: entry, size: 20)),
-                        Expanded(flex: 4, child: Text(entry.name, overflow: TextOverflow.ellipsis)),
-                        Expanded(child: Text(entry.isDir ? "—" : formatBytes(entry.stat.size), style: theme.textTheme.bodySmall)),
-                        Expanded(
-                          child: Text(
-                            entry.isDir ? "Folder" : entry.kind.name[0].toUpperCase() + entry.kind.name.substring(1),
-                            style: theme.textTheme.bodySmall,
+          )
+        : GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onDoubleTap: () => editPath(true),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                reverse: true,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  children: [
+                    for (int i = 0; i < crumbs.length; i++) ...[
+                      if (i > 0) Icon(Icons.chevron_right_rounded, size: 16, color: dim),
+                      GestureDetector(
+                        onTertiaryTapUp: (_) => widget.onOpenInNewTab(crumbs[i].$2),
+                        child: TextButton(
+                          style: TextButton.styleFrom(
+                            foregroundColor: i == crumbs.length - 1 ? theme.colorScheme.onSurface : dim,
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                            textStyle: const TextStyle(fontSize: 14),
                           ),
+                          onPressed: () => _tab.navigate(crumbs[i].$2),
+                          child: Text(crumbs[i].$1),
                         ),
-                        Expanded(flex: 2, child: Text(format.format(entry.stat.modified), style: theme.textTheme.bodySmall)),
-                      ],
-                    ),
-                  ),
+                      ),
+                    ],
+                  ],
                 ),
-              );
-            },
+              ),
+            ),
+          );
+
+    return Container(
+      // A step between the title bar and the window: the dahliaOS design's
+      // second row.
+      color: Color.alphaBlend(
+        theme.colorScheme.onSurface.withValues(alpha: theme.brightness == Brightness.dark ? 0.04 : 0.03),
+        DahliaTitlebar.backgroundOf(context).withValues(alpha: 0.5),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
+      child: Row(
+        children: [
+          nav("Back (Alt+Left)", Icons.arrow_back_rounded, _tab.canBack ? _tab.back : null),
+          const SizedBox(width: 8),
+          nav("Forward (Alt+Right)", Icons.arrow_forward_rounded, _tab.canForward ? _tab.forward : null),
+          const SizedBox(width: 8),
+          nav("Up (Alt+Up)", Icons.arrow_upward_rounded, _tab.canGoUp ? _tab.up : null),
+          const SizedBox(width: 8),
+          nav("Refresh (F5)", Icons.refresh_rounded, _tab.reload),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Container(
+              height: 40,
+              decoration: BoxDecoration(color: field, borderRadius: BorderRadius.circular(6)),
+              child: location,
+            ),
           ),
-        ),
-      ],
+          const SizedBox(width: 24),
+          SizedBox(
+            width: 250,
+            height: 40,
+            child: TextField(
+              controller: _search,
+              focusNode: _searchFocus,
+              style: const TextStyle(fontSize: 14),
+              onChanged: (v) => _tab.update(() => _tab.filter = v),
+              decoration: InputDecoration(
+                hintText: "Search in ${_tab.title}",
+                hintStyle: TextStyle(color: dim, fontSize: 14),
+                suffixIcon: _search.text.isEmpty
+                    ? Icon(Icons.search_rounded, size: 18, color: dim)
+                    : IconButton(
+                        tooltip: "Clear",
+                        iconSize: 16,
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: () {
+                          _search.clear();
+                          _tab.update(() => _tab.filter = "");
+                        },
+                      ),
+                isDense: true,
+                filled: true,
+                fillColor: field,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide.none),
+                enabledBorder:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide.none),
+                focusedBorder:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide.none),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Builder(
+            builder: (context) => nav("Settings", Icons.settings_outlined, () {
+              final RenderBox box = context.findRenderObject()! as RenderBox;
+              _showSettings(box.localToGlobal(Offset(0, box.size.height)));
+            }),
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _EntryIcon extends StatelessWidget {
-  const _EntryIcon({required this.entry, required this.size});
-
-  final _Entry entry;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    if (entry.kind == FileKind.image && size > 32 && entry.stat.size < 30 * 1024 * 1024) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(6),
-        child: Image.file(
-          File(entry.path),
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-          cacheWidth: (size * 2).round(),
-          errorBuilder: (context, _, __) => _icon(context),
-        ),
-      );
-    }
-    return _icon(context);
-  }
-
-  Widget _icon(BuildContext context) {
-    final (IconData icon, Color color) = iconFor(entry.kind, Theme.of(context).colorScheme);
-    return Icon(icon, size: size, color: color);
-  }
-}
-
-class _Sidebar extends StatelessWidget {
+/// Favourites, Drives and Cloud Drives, each a collapsible section; the
+/// current place filled in the accent colour. Places take dropped files.
+class _Sidebar extends StatefulWidget {
   const _Sidebar({
     required this.places,
     required this.current,
     required this.onNavigate,
     required this.onOpenInNewTab,
+    required this.onDrop,
   });
 
   final List<Place> places;
   final String current;
   final ValueChanged<String> onNavigate;
   final ValueChanged<String> onOpenInNewTab;
+  final Future<void> Function(List<String> paths, String target) onDrop;
 
-  Future<void> _showMenu(BuildContext context, Offset position, String path) async {
+  @override
+  State<_Sidebar> createState() => _SidebarState();
+}
+
+class _SidebarState extends State<_Sidebar> {
+  final Set<String> _collapsed = {};
+
+  Future<void> _showMenu(Offset position, String path) async {
     final String? action = await showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx, position.dy),
@@ -1221,272 +686,153 @@ class _Sidebar extends StatelessWidget {
     );
     switch (action) {
       case "open":
-        onNavigate(path);
+        widget.onNavigate(path);
       case "newtab":
-        onOpenInNewTab(path);
+        widget.onOpenInNewTab(path);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final List<Place> volumes = FileOps.volumes();
+    final Color line = theme.colorScheme.onSurface.withValues(alpha: 0.1);
+    final List<Place> drives = [
+      const Place("Local drive", Icons.computer_outlined, "/"),
+      ...FileOps.volumes(),
+    ];
+    final List<Place> cloud = FileOps.cloudPlaces();
 
-    Widget section(String title) => Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 8, 4),
-          child: Text(title, style: theme.textTheme.labelSmall?.copyWith(color: theme.disabledColor)),
-        );
-
-    // Middle click or the context menu opens a place in a new tab.
-    Widget tile(IconData icon, String label, String path) => GestureDetector(
-          onTertiaryTapUp: (_) => onOpenInNewTab(path),
-          onSecondaryTapUp: (d) => _showMenu(context, d.globalPosition, path),
-          child: SidebarTile(
-            icon: icon,
-            label: label,
-            selected: current == path,
-            onTap: () => onNavigate(path),
-          ),
-        );
-
-    return ListView(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      children: [
-        section("Places"),
-        for (final Place place in places) tile(place.icon, place.label, place.path),
-        section("Devices"),
-        tile(Icons.computer_rounded, "Computer", "/"),
-        for (final Place volume in volumes) tile(volume.icon, volume.label, volume.path),
-        const SizedBox(height: 8),
-        tile(Icons.delete_outline_rounded, "Trash", FileOps.trashFiles),
-      ],
-    );
-  }
-}
-
-class _Toolbar extends StatelessWidget {
-  const _Toolbar({
-    required this.path,
-    required this.inTrash,
-    required this.canBack,
-    required this.canForward,
-    required this.canGoUp,
-    required this.grid,
-    required this.editingPath,
-    required this.filterController,
-    required this.onBack,
-    required this.onForward,
-    required this.onUp,
-    required this.onNavigate,
-    required this.onOpenInNewTab,
-    required this.onSubmitPath,
-    required this.onEditPath,
-    required this.onToggleView,
-    required this.onFilter,
-    required this.onNewFolder,
-    required this.onEmptyTrash,
-  });
-
-  final String path;
-  final bool inTrash;
-  final bool canBack;
-  final bool canForward;
-  final bool canGoUp;
-  final bool grid;
-  final bool editingPath;
-  final TextEditingController filterController;
-  final VoidCallback onBack;
-  final VoidCallback onForward;
-  final VoidCallback onUp;
-  final ValueChanged<String> onNavigate;
-  final ValueChanged<String> onOpenInNewTab;
-  final ValueChanged<String> onSubmitPath;
-  final ValueChanged<bool> onEditPath;
-  final VoidCallback onToggleView;
-  final ValueChanged<String> onFilter;
-  final VoidCallback onNewFolder;
-  final VoidCallback onEmptyTrash;
-
-  @override
-  Widget build(BuildContext context) {
-    final List<String> parts = p.split(path);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      child: Row(
+    Widget section(String title, IconData icon, List<Place> places, {bool divider = true}) {
+      final bool open = !_collapsed.contains(title);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          IconButton(tooltip: "Back (Alt+Left)", icon: const Icon(Icons.arrow_back_rounded), onPressed: canBack ? onBack : null),
-          IconButton(tooltip: "Forward (Alt+Right)", icon: const Icon(Icons.arrow_forward_rounded), onPressed: canForward ? onForward : null),
-          IconButton(tooltip: "Up (Alt+Up)", icon: const Icon(Icons.arrow_upward_rounded), onPressed: canGoUp ? onUp : null),
-          const SizedBox(width: 4),
-          Expanded(
-            child: editingPath
-                ? Focus(
-                    // Leaving the field (click elsewhere) cancels editing.
-                    onFocusChange: (focused) {
-                      if (!focused) onEditPath(false);
-                    },
-                    child: TextFormField(
-                      key: ValueKey(path),
-                      initialValue: path,
-                      autofocus: true,
-                      decoration: const InputDecoration(isDense: true),
-                      onFieldSubmitted: onSubmitPath,
-                    ),
-                  )
-                : GestureDetector(
-                    onDoubleTap: () => onEditPath(true),
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      reverse: true,
-                      child: Row(
-                        children: [
-                          for (int i = 0; i < parts.length; i++) ...[
-                            if (i > 1) const Icon(Icons.chevron_right_rounded, size: 16),
-                            GestureDetector(
-                              onTertiaryTapUp: (_) => onOpenInNewTab(p.joinAll(parts.sublist(0, i + 1))),
-                              child: TextButton(
-                                style: TextButton.styleFrom(
-                                  visualDensity: VisualDensity.compact,
-                                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                                ),
-                                onPressed: () => onNavigate(p.joinAll(parts.sublist(0, i + 1))),
-                                child: Text(i == 0 ? "/" : parts[i]),
-                              ),
-                            ),
-                          ],
-                        ],
+          if (divider)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+              child: SizedBox(height: 1, child: ColoredBox(color: line)),
+            ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(6),
+              onTap: () => setState(() => open ? _collapsed.add(title) : _collapsed.remove(title)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                child: Row(
+                  children: [
+                    Icon(icon, size: 22, color: theme.colorScheme.onSurface),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w500, fontSize: 15),
                       ),
                     ),
-                  ),
-          ),
-          IconButton(
-            tooltip: "Edit location (Ctrl+L)",
-            icon: Icon(editingPath ? Icons.close_rounded : Icons.edit_location_alt_outlined),
-            onPressed: () => onEditPath(!editingPath),
-          ),
-          const SizedBox(width: 4),
-          SearchField(width: 180, hint: "Filter", controller: filterController, onChanged: onFilter),
-          const SizedBox(width: 4),
-          if (inTrash)
-            TextButton.icon(onPressed: onEmptyTrash, icon: const Icon(Icons.delete_forever_rounded), label: const Text("Empty"))
-          else
-            IconButton(tooltip: "New folder (Ctrl+Shift+N)", icon: const Icon(Icons.create_new_folder_outlined), onPressed: onNewFolder),
-          IconButton(
-            tooltip: grid ? "List view" : "Grid view",
-            icon: Icon(grid ? Icons.view_list_rounded : Icons.grid_view_rounded),
-            onPressed: onToggleView,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _NameDialog extends StatefulWidget {
-  const _NameDialog({required this.title, required this.initial, required this.action});
-
-  final String title;
-  final String initial;
-  final String action;
-
-  @override
-  State<_NameDialog> createState() => _NameDialogState();
-}
-
-class _NameDialogState extends State<_NameDialog> {
-  // Owned here so it outlives the dialog's closing animation.
-  late final TextEditingController _controller = TextEditingController(text: widget.initial)
-    ..selection = TextSelection(
-      baseOffset: 0,
-      extentOffset: p.basenameWithoutExtension(widget.initial).length,
-    );
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.title),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        onSubmitted: (v) => Navigator.pop(context, v.trim()),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, _controller.text.trim()),
-          child: Text(widget.action),
-        ),
-      ],
-    );
-  }
-}
-
-class _PropertiesDialog extends StatefulWidget {
-  const _PropertiesDialog({required this.entry});
-  final _Entry entry;
-
-  @override
-  State<_PropertiesDialog> createState() => _PropertiesDialogState();
-}
-
-class _PropertiesDialogState extends State<_PropertiesDialog> {
-  int? _size;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.entry.isDir) {
-      FileOps.directorySize(widget.entry.path).then((s) {
-        if (mounted) setState(() => _size = s);
-      });
-    } else {
-      _size = widget.entry.stat.size;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final _Entry entry = widget.entry;
-    final DateFormat format = DateFormat.yMMMMd().add_jms();
-    final String? original = p.isWithin(FileOps.trashFiles, entry.path)
-        ? FileOps.trashedOriginalPath(entry.path)
-        : null;
-    return AlertDialog(
-      title: Row(
-        children: [
-          _EntryIcon(entry: entry, size: 32),
-          const SizedBox(width: 12),
-          Expanded(child: Text(entry.name, overflow: TextOverflow.ellipsis)),
-        ],
-      ),
-      content: SizedBox(
-        width: 420,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            InfoRow(label: "Type", value: entry.isDir ? "Folder" : (FileOps.mimeType(entry.path) ?? "File")),
-            InfoRow(label: "Location", value: p.dirname(entry.path)),
-            if (original != null) InfoRow(label: "Original location", value: original),
-            InfoRow(
-              label: "Size",
-              value: _size == null ? "Calculating…" : "${formatBytes(_size!)} ($_size bytes)",
+                    AnimatedRotation(
+                      turns: open ? 0 : -0.25,
+                      duration: const Duration(milliseconds: 150),
+                      child: Icon(Icons.expand_more_rounded, size: 22, color: theme.colorScheme.onSurface),
+                    ),
+                  ],
+                ),
+              ),
             ),
-            InfoRow(label: "Modified", value: format.format(entry.stat.modified)),
-            InfoRow(label: "Accessed", value: format.format(entry.stat.accessed)),
-            InfoRow(label: "Permissions", value: permissionString(entry.stat)),
-          ],
+          ),
+          if (open)
+            for (final Place place in places)
+              _PlaceTile(
+                place: place,
+                selected: widget.current == place.path,
+                onTap: () => widget.onNavigate(place.path),
+                onMiddleClick: () => widget.onOpenInNewTab(place.path),
+                onContextMenu: (position) => _showMenu(position, place.path),
+                onDrop: (paths) => widget.onDrop(paths, place.path),
+              ),
+        ],
+      );
+    }
+
+    return Container(
+      width: 260,
+      color: theme.colorScheme.onSurface.withValues(alpha: theme.brightness == Brightness.dark ? 0.05 : 0.03),
+      child: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        children: [
+          section(
+            "Favourites",
+            Icons.star_outline_rounded,
+            [...widget.places, Place("Trash", Icons.delete_outline_rounded, FileOps.trashFiles)],
+            divider: false,
+          ),
+          section("Drives", Icons.laptop_rounded, drives),
+          if (cloud.isNotEmpty) section("Cloud Drives", Icons.cloud_outlined, cloud),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlaceTile extends StatelessWidget {
+  const _PlaceTile({
+    required this.place,
+    required this.selected,
+    required this.onTap,
+    required this.onMiddleClick,
+    required this.onContextMenu,
+    required this.onDrop,
+  });
+
+  final Place place;
+  final bool selected;
+  final VoidCallback onTap;
+  final VoidCallback onMiddleClick;
+  final ValueChanged<Offset> onContextMenu;
+  final ValueChanged<List<String>> onDrop;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final Color foreground = selected ? theme.colorScheme.onPrimary : theme.colorScheme.onSurface;
+    return DragTarget<FileDragData>(
+      onWillAcceptWithDetails: (d) => !d.data.paths.contains(place.path),
+      onAcceptWithDetails: (d) => onDrop(d.data.paths),
+      builder: (context, candidates, _) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 1, 16, 1),
+        child: GestureDetector(
+          onTertiaryTapUp: (_) => onMiddleClick(),
+          onSecondaryTapUp: (d) => onContextMenu(d.globalPosition),
+          child: Material(
+            color: selected
+                ? theme.colorScheme.primary
+                : candidates.isNotEmpty
+                    ? theme.colorScheme.primary.withValues(alpha: 0.2)
+                    : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(6),
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(26, 12, 12, 12),
+                child: Row(
+                  children: [
+                    Icon(place.icon, size: 19, color: foreground),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        place.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium?.copyWith(color: foreground, fontSize: 14),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text("Close")),
-      ],
     );
   }
 }

@@ -726,7 +726,41 @@ theme (6.1).
       the sidebar, other windows and the desktop) and selected with a
       rubber-band selection box, as well as by click, Ctrl and Shift (see
       5.3).
-- [ ] 4.9 Welcome app rewrite (user, 2026-10-24; for 1.1.0-17): a total
+      Done 2026-10-25 (apps/lib/apps/files: files.dart the window,
+      folder_view.dart the views, files_model.dart, file_tags.dart):
+      - Title bar tabs from the window's edge in a taller row, no app
+        icon; tabs take dropped files and come forward when files are held
+        over them.
+      - Navigation row: back, forward, up, refresh; breadcrumbs from Home
+        (or Local drive), double click or Ctrl+L to type a path; "Search in
+        <folder>" (Ctrl+F); settings (hidden files, new window, terminal).
+      - Sidebar: Favourites (Home, Desktop, Documents, Pictures, Downloads,
+        Music, Videos, Trash), Drives (Local drive, mounted media), Cloud
+        Drives when there are any (sync folders such as ~/OneDrive, GNOME
+        Online Accounts mounts); collapsible, divided, the current place
+        accent filled; places take drops (Trash trashes).
+      - Toolbar: accent New (folder, file) or Empty in the trash; the view
+        switcher (Details, Tiles, Small, Medium, Large icons; icons only
+        when narrow); copy, paste, delete | terminal, selection mode,
+        sort, one information button (properties).
+      - Details: Name, Date modified, Size, Type ("PDF Document",
+        "Figma Design"…), Tag; resizable columns, 48 px rows, outlined
+        icons, no row lines. Tags are colour dots kept in user.xdg.tags
+        (as Dolphin keeps them), set from the context menu (Tag…).
+      - Selection: click, Ctrl, Shift, a rubber band from empty space (in
+        Details beside the names, as in Windows), with auto-scroll; Ctrl
+        or Shift adds to it; the selection mode toggles items by click.
+      - Dragging files or the selection onto folders, tabs and places
+        moves them, Ctrl copies.
+      - Translucent body over the wallpaper while river blurs
+        (DahliaScaffold glass), opaque when inactive. The status bar is
+        gone, as in the design. Window 1280x800 by default.
+      Tests: apps/test/files (tags, type names, drops). Walked through
+      headless: every view, rubber band, dragging onto a folder, tagging.
+      [ ] Dragging to and from other apps' windows and the desktop needs
+      Wayland drag and drop in the runner (GTK drag source/target with
+      text/uri-list); not done yet. [ ] On the machine, with blur.
+- [ ] 4.9 Welcome app rewrite (user, 2026-10-24; after 4.8): a total
       rewrite and rejuvenation. `docs/design/welcome-current.webp` is the
       Welcome app as it is now, which the user has a problem with: it is
       not a design reference. (Today: a dark window with the dahliaOS logo,
