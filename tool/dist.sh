@@ -27,7 +27,7 @@ tar --create --file - -C "$ROOT" \
     --exclude=./dist --exclude=./build --exclude=./apps/build \
     --exclude=./river-main/river/zig-out \
     --exclude=./session/dsettingsd/build --exclude=./session/displays/build \
-    --exclude=./session/cursors/build \
+    --exclude=./session/cursors/build --exclude=./dm/build \
     . | xz -T0 -6 > "$OUT/$NAME.tar.xz.tmp"
 mv "$OUT/$NAME.tar.xz.tmp" "$OUT/$NAME.tar.xz"
 echo "$OUT/$NAME.tar.xz"

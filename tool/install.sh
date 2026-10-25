@@ -134,6 +134,10 @@ uninstall() {
         done
     fi
     if [ "$UNINSTALL" = 1 ] && [ "$(id -u)" = 0 ]; then
+        rm -f "$P/lib/systemd/system/pangolin-dm.service"
+        for service in pangolin-dm pangolin-dm-greeter; do
+            grep -qs "tool/install.sh" "/etc/pam.d/$service" && rm -f "/etc/pam.d/$service"
+        done
         rm -f /etc/systemd/system/plymouth-quit.service.d/pangolin-greeter.conf
         rmdir /etc/systemd/system/plymouth-quit.service.d 2>/dev/null || true
         rm -f /etc/logrotate.d/pangolin
@@ -161,7 +165,8 @@ APPS_BUNDLE="$ROOT/apps/build/linux/$FLUTTER_ARCH/$MODE/bundle"
 DSETTINGSD="$ROOT/session/dsettingsd/build/dsettingsd"
 DISPLAYS="$ROOT/session/displays/build/pangolin-displays"
 PORTAL="$ROOT/session/portal/build/pangolin-portal"
-for f in "$SHELL_BUNDLE/pangolin" "$APPS_BUNDLE/dahlia_apps" "$DSETTINGSD" "$DISPLAYS" "$PORTAL"; do
+DM="$ROOT/dm/build/pangolin-dm"
+for f in "$SHELL_BUNDLE/pangolin" "$APPS_BUNDLE/dahlia_apps" "$DSETTINGSD" "$DISPLAYS" "$PORTAL" "$DM"; do
     [ -x "$f" ] || { echo "install.sh: $f is missing, run tool/build.sh first" >&2; exit 1; }
 done
 
@@ -182,6 +187,7 @@ ln -s ../lib/dahlia-apps/dahlia_apps "$P/bin/dahlia_apps"
 cp "$DSETTINGSD" "$P/libexec/pangolin/dsettingsd"
 cp "$DISPLAYS" "$P/libexec/pangolin/pangolin-displays"
 cp "$PORTAL" "$P/libexec/pangolin/pangolin-portal"
+cp "$DM" "$P/libexec/pangolin/pangolin-dm"
 # Pangolin needs its own river (window effects, blur, gestures extensions):
 # in libexec, apart from a river the distribution may have.
 if [ -x "$RIVER" ]; then
@@ -205,6 +211,7 @@ subst "$ROOT/session/libexec/pangolin-gtk-style-off.in" "$P/libexec/pangolin/pan
 chmod 755 "$P/bin/pangolin-greeter" "$P/libexec/pangolin/pangolin-greeter-init"
 chmod 755 "$P/bin/pangolin-session" "$P/libexec/pangolin/pangolin-river-init" \
     "$P/libexec/pangolin/dsettingsd" "$P/libexec/pangolin/pangolin-displays" \
+    "$P/libexec/pangolin/pangolin-dm" \
     "$P/libexec/pangolin/pangolin-portal" "$P/libexec/pangolin/pangolin-read-logs" \
     "$P/libexec/pangolin/pangolin-gtk-style-off"
 
@@ -263,6 +270,49 @@ if [ -n "$DESTDIR" ] || [ "$(id -u)" = 0 ]; then
     subst "$ROOT/session/polkit/io.dahliaos.logs.policy.in" \
         "$DESTDIR/usr/share/polkit-1/actions/io.dahliaos.logs.policy"
     chmod 644 "$DESTDIR/usr/share/polkit-1/actions/io.dahliaos.logs.policy"
+fi
+# Pangolin's display manager (dm/): its unit for system installs and
+# packages (a display manager runs as root), off until enabled.
+if [ -n "$DESTDIR" ] || [ "$(id -u)" = 0 ]; then
+    mkdir -p "$P/lib/systemd/system"
+    subst "$ROOT/session/systemd/pangolin-dm.service.in" "$P/lib/systemd/system/pangolin-dm.service"
+    chmod 644 "$P/lib/systemd/system/pangolin-dm.service"
+fi
+# Its PAM services when no package provides them: Fedora's stacks
+# (password-auth, as gdm-password) or Debian's (common-*).
+if [ -z "$DESTDIR" ] && [ "$(id -u)" = 0 ] && [ -d /etc/pam.d ]; then
+    for service in pangolin-dm pangolin-dm-greeter; do
+        if [ -e "/etc/pam.d/$service" ] && ! grep -q "tool/install.sh" "/etc/pam.d/$service"; then
+            continue
+        fi
+        {
+            echo "#%PAM-1.0"
+            echo "# $service, written by tool/install.sh (Pangolin's display manager)."
+            if [ -e /etc/pam.d/password-auth ]; then
+                grep -v '^#' "$ROOT/packaging/rpm/$service.pam"
+            elif [ "$service" = pangolin-dm ]; then
+                echo "auth     requisite pam_nologin.so"
+                echo "@include common-auth"
+                echo "-auth    optional  pam_gnome_keyring.so"
+                echo "@include common-account"
+                echo "session  [success=ok ignore=ignore module_unknown=ignore default=bad] pam_selinux.so close"
+                echo "session  required  pam_loginuid.so"
+                echo "session  optional  pam_keyinit.so force revoke"
+                echo "session  [success=ok ignore=ignore module_unknown=ignore default=bad] pam_selinux.so open"
+                echo "@include common-session"
+                echo "-session optional  pam_gnome_keyring.so auto_start"
+                echo "@include common-password"
+            else
+                echo "auth     required  pam_permit.so"
+                echo "@include common-account"
+                echo "session  optional  pam_keyinit.so force revoke"
+                echo "session  required  pam_limits.so"
+                echo "session  required  pam_loginuid.so"
+                echo "-session optional  pam_systemd.so"
+            fi
+        } > "/etc/pam.d/$service"
+        chmod 644 "/etc/pam.d/$service"
+    done
 fi
 if [ "$in_home" = 1 ]; then
     sed -i '/^TryExec=/d' "$SHARE/wayland-sessions/pangolin.desktop"

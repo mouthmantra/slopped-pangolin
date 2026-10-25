@@ -30,6 +30,7 @@ pubspec.lock
 .pub-cache/
 .pub/
 /build/
+/dm/build/
 /ios/
 /android/
 

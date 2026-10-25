@@ -167,13 +167,40 @@ theme (6.1).
       logins; `ssh-add -l` lists the keys. Autologin still leaves the
       keyring locked. The lock screen (pam.d/pangolin) doesn't need it,
       since the keyring stays unlocked.
-- [ ] 1.9 Total greeter refactor: Pangolin's own display manager (user,
+- [~] 1.9 Total greeter refactor: Pangolin's own display manager (user,
       2026-10-25). Built from the ground up with GDM's architecture, with no
       greetd, so the hand-off from the login screen to the desktop can be
       seamless, and performance optimized throughout. Replaces greetd and
       everything built for it: `greetd-pangolin.toml`/`.conf`, the
       `Requires: greetd` of the greeter RPM, `lib/services/greetd.dart`, the
       greetd parts of `pangolin-greeter`/`pangolin-greeter-init`.
+      First milestone done 2026-10-25, see docs/DISPLAY_MANAGER.md:
+      - dm/: the daemon and the session worker (pangolin-dm --worker), in
+        C with only libc and libpam (not Zig as proposed: PAM and VTs are C
+        interfaces, as in GDM). The greeter session (class greeter) and the
+        user's session open through PAM, so logind registers them and
+        pam_systemd_home unlocks homed homes; the session's command comes
+        from its desktop file, not from the greeter; a login shell runs it;
+        nothing touches the VT. pangolin-dm.service (VT 1, after
+        plymouth-quit with --retain-splash), PAM services pangolin-dm (as
+        gdm-password) and pangolin-dm-greeter (as gdm-launch-environment).
+      - Protocol: framed key/value pairs on a socket only the greeter user
+        reaches (instead of a D-Bus peer socket: no D-Bus library in the
+        daemon), with GDM's steps: begin, questions and messages, answer,
+        verified or failed, start; one reply per request.
+      - The greeter talks to it through LoginBackend
+        (lib/services/display_manager.dart), which still speaks greetd's
+        protocol where greetd runs it. The greeter RPM no longer requires
+        greetd and ships pangolin-dm (labeled xdm_exec_t).
+      - Tests: dm/tests/run.sh, as any user (PAM services from a scratch
+        folder with a test module, a scripted greeter, a test session):
+        the conversation, a wrong then the right password, a session name
+        with a path refused, the session's environment (allowed variables
+        only). test/display_manager_test.dart: the greeter's client.
+      [ ] On the machine (VT, logind, SELinux, the greeter user's session,
+      a password and a homed login). [ ] Next milestones: the seamless
+      hand-off, homed users and avatars, suspend unlock, fingerprint and
+      smartcard, autologin, user switching, seats, removing greetd.
       Architecture, mapped from GDM:
       - Daemon (gdm → `pangolin-dm`): a root system service,
         `pangolin-dm.service` with `Alias=display-manager.service`,

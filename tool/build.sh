@@ -147,6 +147,15 @@ else
     echo "==> river: zig not found, keeping the river already built (if any)"
 fi
 
+# The display manager (dm/): C and libpam only.
+echo "==> pangolin-dm"
+mkdir -p "$ROOT/dm/build"
+DM_FLAGS="-O2 -g"
+[ "$MODE" = debug ] && DM_FLAGS="-O0 -g"
+# shellcheck disable=SC2086
+${CC:-cc} -std=c17 $DM_FLAGS -Wall -Wextra -D_FORTIFY_SOURCE=2 -fstack-protector-strong \
+    -o "$ROOT/dm/build/pangolin-dm" "$ROOT"/dm/src/*.c -l:libpam.so.0
+
 # Pangolin's build of Flutter's Linux embedder (tool/build_engine.sh): frames
 # at the display's refresh rate instead of 60 Hz, and only what changed sent
 # to the compositor. Release builds of the same engine version only.

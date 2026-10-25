@@ -1,0 +1,23 @@
+# Pangolin's display manager (dm/, docs/DISPLAY_MANAGER.md): the login
+# screen on VT 1, then the session. Use it instead of GDM with
+#   systemctl disable gdm && systemctl enable pangolin-dm
+[Unit]
+Description=Pangolin Display Manager
+Documentation=https://github.com/mouthmantra/slopped-pangolin/blob/main/docs/DISPLAY_MANAGER.md
+Conflicts=getty@tty1.service
+After=getty@tty1.service systemd-user-sessions.service plymouth-start.service
+# Plymouth quits keeping its last frame (the greeter package's drop-in makes
+# it --retain-splash), so nothing but the splash shows until the greeter.
+After=plymouth-quit.service
+OnFailure=plymouth-quit.service
+
+[Service]
+ExecStart=@PREFIX@/libexec/pangolin/pangolin-dm --vt 1 --greeter @BINDIR@/pangolin-greeter
+Restart=always
+KillMode=mixed
+IgnoreSIGPIPE=no
+EnvironmentFile=-/etc/locale.conf
+KeyringMode=shared
+
+[Install]
+Alias=display-manager.service
