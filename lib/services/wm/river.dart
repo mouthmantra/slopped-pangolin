@@ -574,7 +574,13 @@ class RiverWindowManagerService extends WindowManagerService
     _newWindows.remove(window);
     _showDesktopMinimized?.remove(window);
     for (final _Seat seat in _seats) {
-      if (seat.op?.window == window) seat.op = null;
+      if (seat.op?.window == window) {
+        seat.op = null;
+        // river's op goes on until op_end: ended in the next manage sequence
+        // (requests are only allowed in one), or no click ever reaches
+        // anything again.
+        seat.opOrphaned = true;
+      }
       if (seat.pendingOp?.window == window) seat.pendingOp = null;
       if (seat.hovered == window) seat.hovered = null;
     }
@@ -1092,6 +1098,21 @@ class RiverWindowManagerService extends WindowManagerService
 
   void _manageOperations() {
     for (final _Seat seat in _seats) {
+      // An op river has and the shell doesn't (its window closed mid-drag,
+      // or op_release came with no op here): end it. op_release is sent only
+      // once per op, so a release ignored here would leave river in the op
+      // for good, with the pointer moving but every click swallowed. A new
+      // op waits for the next sequence (river takes one op request per
+      // sequence).
+      if (seat.op == null && (seat.opOrphaned || seat.opReleased)) {
+        seat.opOrphaned = false;
+        seat.opReleased = false;
+        seat.pendingOp = null;
+        seat.proxy.opEnd();
+        _snapPreview.value = null;
+        continue;
+      }
+
       final _OpRequest? request = seat.pendingOp;
       seat.pendingOp = null;
       if (request != null && seat.op == null && !request.window._fullscreen) {
@@ -2641,6 +2662,9 @@ class _Seat {
   int opDx = 0;
   int opDy = 0;
   bool opReleased = false;
+
+  /// river still has an op whose window closed (see _manageOperations).
+  bool opOrphaned = false;
 
   void dispose() {
     for (final RiverXkbBindingV1 b in keyBindings) {

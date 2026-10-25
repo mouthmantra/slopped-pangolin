@@ -1215,6 +1215,13 @@ pub fn manageFinish(seat: *Seat) void {
                 .start_y = @intFromFloat(if (held) seat.cursor.press_y else seat.cursor.wlr_cursor.y),
             };
             seat.cursor.opStartPointer();
+            // Pangolin: with every button already up (the window manager
+            // answered after the release, e.g. once a manage sequence timed
+            // out) no release is coming, so report it now: otherwise the op
+            // only ends with a click, which the op swallows. A release left
+            // over from an earlier op must not end this one either.
+            seat.wm_scheduled.op_release = !held;
+            if (!held) server.wm.dirtyWindowing();
         },
         .end => seat.cursor.opEndPointer(),
     }

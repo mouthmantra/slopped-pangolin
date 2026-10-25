@@ -853,6 +853,25 @@ theme (6.1).
       tray apps. `/test` removed from .gitignore so test/ is tracked.
       Left: mark the chevron when a hidden item needs attention; Quick
       Settings' "Tray icons" section duplicates the panel.
+- [x] 8.13 Mouse dead after using an X11 app (user, 2026-10-24, 1.1.0-14,
+      Steam): the pointer moved but no click reached anything, also after
+      killing the app; the keyboard worked; only logging out helped. Cause:
+      a window that closed during a pointer op (its title bar pressed or
+      dragged) made the shell drop its op (_onWindowClosed: seat.op =
+      null) without op_end. river stays in op mode until op_end; it sends
+      op_release once per op, and the shell ignored it (no op), so every
+      click went to the op for good. Steam opens and closes windows all the
+      time. Fixed: the shell ends an op whose window closed, and any op
+      river reports a release for that it doesn't have, in the next manage
+      sequence (river.dart _manageOperations, opOrphaned); river reports
+      the release at once when the window manager starts an op after every
+      button is already up (a manage sequence that timed out), and a
+      release left from an earlier op no longer ends a new one
+      (Seat.manageFinish). Reproduced on a nested session with XWayland
+      (private /tmp/.X11-unix in a mount namespace): an xterm killed while
+      its title bar is held left river in op mode (clicks dead); fixed
+      build: the op ends, the launcher and notifications open; normal
+      title-bar drags unchanged.
 - [x] 8.8 Overview close button hard to hit (user report 2026-10-17). It sat
       half outside its window's slot, and Flutter only hit-tests inside a
       widget's bounds: half the button ignored clicks, and moving onto it
