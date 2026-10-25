@@ -216,11 +216,23 @@ class DahliaScaffold extends StatelessWidget {
     this.floatingActionButton,
     this.bottomBar,
     this.titlebarColor,
+    this.glass = false,
+    this.showIcon = true,
+    this.titlebarHeight = 48,
     super.key,
   });
 
+  /// The app icon at the start of the title bar.
+  final bool showIcon;
+  final double titlebarHeight;
+
   /// Defaults to [DahliaTitlebar.backgroundOf].
   final Color? titlebarColor;
+
+  /// The body too is frosted glass over what's behind the window (while
+  /// river blurs, see [ZenitBlur]), as the title bar is; its content then
+  /// draws on a translucent background.
+  final bool glass;
 
   final Widget body;
   final Widget? title;
@@ -241,12 +253,54 @@ class DahliaScaffold extends StatelessWidget {
         leading: titlebarLeading,
         actions: titlebarActions,
         backgroundColor: titlebarColor,
+        showIcon: showIcon,
+        height: titlebarHeight,
       ),
-      body: ColoredBox(color: background, child: body),
+      body: glass ? _GlassBody(color: background, child: body) : ColoredBox(color: background, child: body),
       floatingActionButton: floatingActionButton,
       bottomNavigationBar: bottomBar == null
           ? null
           : ColoredBox(color: background, child: bottomBar),
+    );
+  }
+}
+
+/// A window body that river blurs behind, in the window's color at
+/// [ZenitBlur.fillOpacity]; opaque while blur is off (or the window is
+/// inactive and the user wants those opaque).
+class _GlassBody extends StatelessWidget {
+  const _GlassBody({required this.color, required this.child});
+
+  final Color color;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: ZenitBlur.state,
+      builder: (context, _) {
+        if (!ZenitBlur.active) return ColoredBox(color: color, child: child);
+        return StreamBuilder<YaruWindowState>(
+          stream: YaruWindow.of(context).states(),
+          builder: (context, snapshot) {
+            final YaruWindowState? state = snapshot.data;
+            final bool square = state?.isMaximized == true || state?.isFullscreen == true;
+            final BorderRadius radius = square
+                ? BorderRadius.zero
+                : const BorderRadius.vertical(bottom: Radius.circular(DahliaTitlebar.windowRadius));
+            return BlurRegion(
+              borderRadius: radius,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: ZenitBlur.fillOpacity + 0.08),
+                  borderRadius: radius,
+                ),
+                child: child,
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

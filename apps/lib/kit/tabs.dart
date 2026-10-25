@@ -45,6 +45,7 @@ class DahliaTabStrip extends StatefulWidget {
     this.onContextMenu,
     this.minTabWidth = 96,
     this.maxTabWidth = 220,
+    this.wrapTab,
     super.key,
   });
 
@@ -60,6 +61,10 @@ class DahliaTabStrip extends StatefulWidget {
   final void Function(int index, Offset globalPosition)? onContextMenu;
   final double minTabWidth;
   final double maxTabWidth;
+
+  /// Wraps each tab, e.g. in a drop target (Files takes files dropped on a
+  /// tab).
+  final Widget Function(int index, Widget tab)? wrapTab;
 
   @override
   State<DahliaTabStrip> createState() => _DahliaTabStripState();
@@ -206,6 +211,7 @@ class _DahliaTabStripState extends State<DahliaTabStrip> {
     if (dragging) {
       tab = Transform.translate(offset: Offset(_dragDx, 0), child: tab);
     }
+    if (widget.wrapTab != null) tab = widget.wrapTab!(index, tab);
     if (widget.onReorder == null || widget.tabs.length < 2) return tab;
 
     return RawGestureDetector(
