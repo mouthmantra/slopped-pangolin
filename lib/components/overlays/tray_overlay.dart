@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dahlia_shared/dahlia_shared.dart';
 import 'package:flutter/material.dart';
+import 'package:pangolin/services/session.dart';
 import 'package:pangolin/services/shell.dart';
 import 'package:pangolin/services/tray.dart';
 import 'package:pangolin/services/wm.dart';
@@ -44,13 +45,14 @@ class _TrayMenuOverlayState extends ShellOverlayState<TrayMenuOverlay>
           MediaQuery.of(context).size.width / 2,
           WindowManagerService.current.controller.wmBounds.bottom,
         );
-    final rowCount = items.isNotEmpty ? (items.length / 4).ceil() : 1;
-    final layoutHeight =
-        _itemSize * rowCount + _itemPadding * (rowCount - 1) + _sidePadding * 2;
 
+    // Anchored 8 px above the taskbar by its bottom, as the other popups:
+    // placed from an estimated height, the panel (taller by its outline)
+    // reached into the taskbar's area, and river's opening animation, which
+    // hides that area, cut a strip out of the taskbar.
     return Positioned(
       left: origin.dx - _layoutWidth / 2,
-      top: origin.dy - layoutHeight - 8.0,
+      bottom: PangolinSession.taskbarHeight + 8.0,
       child: PopupTransition(
         animation: animation,
         showing: controller.showing,

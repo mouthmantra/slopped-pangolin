@@ -14,6 +14,12 @@ refresh rate) comes after this list.
 4.7 Video Player) and the requested changes to existing apps. 3. The GTK
 theme (6.1).
 
+**Release plan (user, 2026-10-24):**
+- 1.1.0-16: the tray flyout's visual artifacts (8.14) and GNOME Keyring
+  unlocked in Pangolin sessions (1.5).
+- 1.1.0-17: visual changes: the Files redesign (4.8) and the Welcome app
+  rewrite (4.9).
+
 ## Carried over from the previous request
 
 - [x] File chooser portal (verified through xdg-desktop-portal and direct calls): UI (`apps/lib/kit/file_chooser.dart`, windows
@@ -603,6 +609,41 @@ theme (6.1).
       No video package in apps/pubspec.yaml yet; pick a libmpv-based
       player (e.g. media_kit) so codecs come from the system.
 
+- [ ] 4.8 Files redesign (user, 2026-10-24; for 1.1.0-17): today's Files
+      "looks like a sorry copy" of the prototype on dahliaOS.io and is very
+      barren. It should look almost exactly like the Figma prototype,
+      `docs/design/files-prototype.webp`, minus its duplicate information
+      icon (the toolbar has two "i" buttons; keep one). From the prototype:
+      - Tabs in the title bar (icon, name, close; "+" for a new tab), the
+        window controls on the same row.
+      - A navigation row: back, forward, up, refresh; a breadcrumb path
+        bar (Home › Documents); a search field ("Search in Home"); a
+        settings button.
+      - A sidebar of collapsible sections with headers and chevrons:
+        Favourites (Home, Desktop, Documents, Pictures, Downloads, Recycle
+        Bin), Drives (local drives, removable media such as the live USB),
+        Cloud Drives (OneDrive, Google Drive, NextCloud, when configured).
+        The current place is an accent-filled row.
+      - A toolbar: an accent "New" button; a segmented view switcher
+        (Details, Tiles, Small icons, Medium icons, Large icons); copy,
+        paste, delete, properties; open in terminal, selection mode, sort
+        (A-Z), information.
+      - Details view: columns Name (with the sort chevron), Date modified,
+        Size, Type and Tag (a coloured dot), with resizable column
+        dividers; file-type icons; comfortable row height; no row lines.
+      - The window translucent over the wallpaper, as in the prototype.
+      Interaction: files and folders can be dragged (between folders, tabs,
+      the sidebar, other windows and the desktop) and selected with a
+      rubber-band selection box, as well as by click, Ctrl and Shift (see
+      5.3).
+- [ ] 4.9 Welcome app rewrite (user, 2026-10-24; for 1.1.0-17): a total
+      rewrite and rejuvenation. `docs/design/welcome-current.webp` is the
+      Welcome app as it is now, which the user has a problem with: it is
+      not a design reference. (Today: a dark window with the dahliaOS logo,
+      "Welcome!", a description cut off with an ellipsis, chips
+      (Customizable, Lightweight, Private, Open source), page dots, Back
+      and Next.) The new design is still to be decided with the user.
+
 ## 5. Files, desktop icons, associations
 
 - [ ] 5.1 Papirus icons (beige folders) ONLY USED FOR FILE ICONS. The rest of the icons will remain the ones unique to Pangolin.
@@ -872,6 +913,18 @@ theme (6.1).
       its title bar is held left river in op mode (clicks dead); fixed
       build: the op ends, the launcher and notifications open; normal
       title-bar drags unchanged.
+- [x] 8.14 Tray flyout artifacts (user, 2026-10-24, 1.1.0-14): opening the
+      flyout cut a dark strip out of the taskbar's top rows, and closing it
+      carried a light line up with the panel. river animates a popup by
+      hiding its area of the shell surface and animating a copy of it
+      (PopupTransition, margin 8 below); the flyout was placed by `top`
+      from an estimated height, the real panel (its outline) was taller, so
+      that area reached about 3 px into the taskbar. It is now anchored by
+      its bottom, 8 px above the taskbar, as Quick Settings, notifications
+      and the launcher are. Nested session with three tray items and
+      PANGOLIN_ANIMATION_SCALE=10: before, the taskbar rows under the panel
+      went from (227,198,193) to (194,77,60) while opening; after, they
+      keep the taskbar's colour while opening and closing.
 - [x] 8.8 Overview close button hard to hit (user report 2026-10-17). It sat
       half outside its window's slot, and Flutter only hit-tests inside a
       widget's bounds: half the button ignored clicks, and moving onto it
