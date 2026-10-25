@@ -951,6 +951,42 @@ theme (6.1).
       and corner arcs 12% darker in light mode.
 - [~] 6.3 Interface font everywhere (component themes, overlays, button base);
       [ ] also GTK/child processes (font-name).
+- [ ] 6.7 Total blur refactor (user, 2026-10-25): after installing Pangolin
+      in a Fedora container, the user concluded that the blur code is the
+      biggest source of visual bugs. Rewrite it, river side
+      (river-main/river/river/Blur.zig: regions, cutouts, the hairline,
+      tints, part animations) and client side (ZenitBlur in
+      packages/zenit_ui, session/native/river_blur.cc, the shell's and the
+      apps' BlurRegions), rather than patching it further. Known bugs it
+      must end, each to be re-tested after:
+      - 8.17: blur flashing during window interactions (moves, resizes,
+        focus, minimize/maximize/close animations), dangerous for
+        photosensitive people; Files' translucent body stays off until
+        this is done.
+      - 8.16: apps start with a translucent title bar but no blur until
+        focus or size changes (regions sent once, before the window is
+        mapped, and never again).
+      - 2.1, 2.2: blur and popup animations after plugging in a display
+        and after suspend/resume.
+      - 8.11, 8.14: stale pixels and cut strips around animated popups.
+      Goals:
+      - Correct first: a blur region applies with the buffer it belongs
+        to (in the same commit), is never shown empty, black or half
+        drawn (no reuse of a buffer still on screen: double buffered
+        outputs; the previous blur kept while something below has no
+        texture yet), and follows the window in the same frame when it
+        moves or animates. Works the same on Intel, AMD and NVIDIA, one
+        GPU or two (the user's RTX 4060 renders, the Intel iGPU drives the
+        panel), on one screen and several, at 1x and fractional scales.
+      - Fast: no full re-blur every frame of a move or resize when what's
+        behind didn't change (damage-aware, reuse the downsampled levels),
+        bounded cost for large regions, smooth at 4K.
+      - Simple: one model for blur, cutouts and tints, documented.
+      Test plan: a nested river with GLES (and the machine) driving
+      scripted moves, resizes, focus changes and animations while frames
+      are captured, with a check that flags any frame whose brightness
+      jumps (a flash detector), slowed down with PANGOLIN_ANIMATION_SCALE
+      to look at them.
 
 ## 7. Quick Settings and Settings
 
@@ -1200,7 +1236,8 @@ theme (6.1).
       - Focus changes remove and re-add the regions (opaque inactive
         windows); set_regions applies on the next commit, which can be a
         frame after the content changed.
-      To do before glass comes back: reproduce in a nested river with
+      Part of the total blur refactor (6.7). To do before glass comes
+      back: reproduce in a nested river with
       GLES (and on the machine with PANGOLIN_ANIMATION_SCALE to slow it
       down), find whether frames alternate (failed commits on DP-8 and
       buffer age, or the single output buffer), then double-buffer blur
