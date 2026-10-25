@@ -19,7 +19,7 @@
 
 Name:           pangolin-desktop
 Version:        1.1.0
-Release:        20%{?dist}
+Release:        21%{?dist}
 Summary:        The dahliaOS desktop (Pangolin) on the river Wayland compositor
 
 # Pangolin and the dahliaOS apps: Apache-2.0; river and the Papirus icons
@@ -230,6 +230,12 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %ghost %attr(0644,pangolin-greeter,pangolin-greeter) %{_localstatedir}/log/PangolinGreeter.log
 
 %changelog
+* Sun Oct 25 2026 Logan <loganctorres1@gmail.com> - 1.1.0-21
+- pangolin-dm, Pangolin's own display manager (built like GDM: a daemon, a
+  PAM session worker per login, the login screen as its own user), in the
+  greeter package, which no longer requires greetd; off until enabled
+  (systemctl disable gdm && systemctl enable pangolin-dm)
+
 * Sun Oct 25 2026 Logan <loganctorres1@gmail.com> - 1.1.0-20
 - Files' window body is opaque again: its window-sized blur flashed while
   the window was moved, resized, focused or animated
