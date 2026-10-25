@@ -798,6 +798,36 @@ theme (6.1).
       Screen capture, a desktop right-click menu in an Area capture.
       Known: Screencopy binds the first wl_output, not the shell's, with
       several monitors on (as before).
+- [x] 8.11 Stale pixels in shell popups (user, 2026-10-24, 1.1.0-12 on the
+      machine): app menu, tray, Quick Settings, notifications, right-click
+      menus: stale or garbage pixels, flashes on open/close, blur in the
+      wrong place, popups cut off. Reproduced on a nested session (river
+      in Xvfb, pixman): after the screenshot tool closed, opening Quick
+      Settings showed the tool's last frame (its shade over the frozen
+      launcher) everywhere but one rectangle. Patched embedder: 3 of 5
+      identical runs; stock embedder: 0 of 3; with
+      WLR_SCENE_DEBUG_DAMAGE=rerender (river ignores damage) still there,
+      so the shell's own buffers hold the old pixels: GTK's partial repaint,
+      not the damage sent to river.
+      Likely cause (fl_view_renderer.cc / fl_compositor_opengl.cc in the
+      patch): GTK's paint takes all damage accumulated so far
+      (fl_compositor_opengl_take_damage) though it was queued for, and
+      clipped to, the damage of an earlier frame; a frame presented on the
+      raster thread in between has its damage consumed unpainted, the next
+      redraw finds none (peek_damage: empty) and paints nothing there, and
+      that buffer keeps old pixels (they flash in as buffers rotate).
+      Fixed in the patch (2026-10-24): fl_view_renderer_draw compares the
+      damage it took with what the paint covered (painted_region: GTK's
+      clip on cr, whole frame pixels only). What lies outside, within the
+      view, goes back as a region (fl_compositor_opengl_add_damage, never
+      "everything", which the next clipped paint would take again) and is
+      queued as a redraw; only the painted part is reported to river (none
+      at all when nothing painted changed). Engine rebuilt with
+      tool/build_engine.sh; an unchanged rebuild came out byte-identical to
+      the committed library. Nested session, the same steps: 0 of 5 runs
+      with stale pixels (3 of 5 before); the idle taskbar corner matches;
+      no redraw loop (shell CPU at idle 0.24 s per 10 s, 0.22 s before).
+      [ ] On the machine (4K@165, the GPU path rather than pixman).
 - [x] 8.8 Overview close button hard to hit (user report 2026-10-17). It sat
       half outside its window's slot, and Flutter only hit-tests inside a
       widget's bounds: half the button ignored clicks, and moving onto it

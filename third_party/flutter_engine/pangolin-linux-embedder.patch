@@ -139,7 +139,7 @@ index 66797b32..79b16f71 100644
      "fl_window_state_monitor.cc",
    ]
 diff --git a/engine/src/flutter/shell/platform/linux/fl_compositor_opengl.cc b/engine/src/flutter/shell/platform/linux/fl_compositor_opengl.cc
-index ebcad245..cfd0a770 100644
+index ebcad245..b5a9434f 100644
 --- a/engine/src/flutter/shell/platform/linux/fl_compositor_opengl.cc
 +++ b/engine/src/flutter/shell/platform/linux/fl_compositor_opengl.cc
 @@ -7,6 +7,10 @@
@@ -350,7 +350,7 @@ index ebcad245..cfd0a770 100644
    g_mutex_clear(&self->frame_mutex);
  
    G_OBJECT_CLASS(fl_compositor_opengl_parent_class)->dispose(object);
-@@ -348,3 +519,31 @@ FlCompositorOpenGL* fl_compositor_opengl_new(FlTaskRunner* task_runner,
+@@ -348,3 +519,49 @@ FlCompositorOpenGL* fl_compositor_opengl_new(FlTaskRunner* task_runner,
  
    return self;
  }
@@ -370,6 +370,24 @@ index ebcad245..cfd0a770 100644
 +  return damage;
 +}
 +
++void fl_compositor_opengl_add_damage(FlCompositorOpenGL* self,
++                                     const cairo_region_t* region) {
++  g_return_if_fail(FL_IS_COMPOSITOR_OPENGL(self));
++  g_autoptr(GMutexLocker) locker = g_mutex_locker_new(&self->frame_mutex);
++  if (region == nullptr) {
++    g_clear_pointer(&self->damage, cairo_region_destroy);
++    self->damage_full = TRUE;
++    return;
++  }
++  if (self->damage_full) {
++    return;
++  }
++  if (self->damage == nullptr) {
++    self->damage = cairo_region_create();
++  }
++  cairo_region_union(self->damage, region);
++}
++
 +cairo_region_t* fl_compositor_opengl_peek_damage(FlCompositorOpenGL* self) {
 +  g_return_val_if_fail(FL_IS_COMPOSITOR_OPENGL(self), nullptr);
 +  g_autoptr(GMutexLocker) locker = g_mutex_locker_new(&self->frame_mutex);
@@ -383,10 +401,10 @@ index ebcad245..cfd0a770 100644
 +  return cairo_region_copy(self->damage);
 +}
 diff --git a/engine/src/flutter/shell/platform/linux/fl_compositor_opengl.h b/engine/src/flutter/shell/platform/linux/fl_compositor_opengl.h
-index 77641a7a..17d8c8a3 100644
+index 77641a7a..9f598da9 100644
 --- a/engine/src/flutter/shell/platform/linux/fl_compositor_opengl.h
 +++ b/engine/src/flutter/shell/platform/linux/fl_compositor_opengl.h
-@@ -42,6 +42,27 @@ FlCompositorOpenGL* fl_compositor_opengl_new(FlTaskRunner* task_runner,
+@@ -42,6 +42,38 @@ FlCompositorOpenGL* fl_compositor_opengl_new(FlTaskRunner* task_runner,
                                               FlOpenGLManager* opengl_manager,
                                               gboolean shareable);
  
@@ -410,6 +428,17 @@ index 77641a7a..17d8c8a3 100644
 + * Returns: (transfer full) (nullable): a region.
 + */
 +cairo_region_t* fl_compositor_opengl_peek_damage(FlCompositorOpenGL* self);
++
++/**
++ * fl_compositor_opengl_add_damage:
++ * @compositor: an #FlCompositorOpenGL.
++ * @region: (nullable): frame pixels, or %NULL for everything.
++ *
++ * Pangolin: gives back damage taken but not painted (it goes to the next
++ * fl_compositor_opengl_take_damage()).
++ */
++void fl_compositor_opengl_add_damage(FlCompositorOpenGL* self,
++                                     const cairo_region_t* region);
 +
  G_END_DECLS
  
@@ -765,10 +794,16 @@ index 43407460..aa48f56c 100644
    fl_view_signals[SIGNAL_FIRST_FRAME] =
        g_signal_new("first-frame", fl_view_get_type(), G_SIGNAL_RUN_LAST, 0,
 diff --git a/engine/src/flutter/shell/platform/linux/fl_view_renderer.cc b/engine/src/flutter/shell/platform/linux/fl_view_renderer.cc
-index dba92d94..c3086422 100644
+index dba92d94..190ea422 100644
 --- a/engine/src/flutter/shell/platform/linux/fl_view_renderer.cc
 +++ b/engine/src/flutter/shell/platform/linux/fl_view_renderer.cc
-@@ -8,6 +8,7 @@
+@@ -4,10 +4,13 @@
+ 
+ #include "flutter/shell/platform/linux/fl_view_renderer.h"
+ 
++#include <cmath>
++
+ #include <gdk/gdkwayland.h>
  
  #include "flutter/shell/platform/linux/fl_compositor.h"
  #include "flutter/shell/platform/linux/fl_compositor_opengl.h"
@@ -776,7 +811,56 @@ index dba92d94..c3086422 100644
  #include "flutter/shell/platform/linux/fl_compositor_software.h"
  #include "flutter/shell/platform/linux/fl_engine_private.h"
  #include "flutter/shell/platform/linux/fl_opengl_manager.h"
-@@ -76,7 +77,29 @@ static gboolean redraw_cb(gpointer user_data) {
+@@ -40,6 +43,48 @@ static guint fl_view_renderer_signals[LAST_SIGNAL];
+ 
+ G_DEFINE_TYPE(FlViewRenderer, fl_view_renderer, GTK_TYPE_DRAWING_AREA)
+ 
++// Pangolin: queues a redraw of [region] (frame pixels), rounding outwards.
++static void queue_draw_frame_region(GtkWidget* widget,
++                                    const cairo_region_t* region,
++                                    gint scale_factor) {
++  cairo_region_t* logical = cairo_region_create();
++  for (int i = 0; i < cairo_region_num_rectangles(region); i++) {
++    cairo_rectangle_int_t r;
++    cairo_region_get_rectangle(region, i, &r);
++    cairo_rectangle_int_t l = {r.x / scale_factor, r.y / scale_factor, 0, 0};
++    l.width = (r.x + r.width + scale_factor - 1) / scale_factor - l.x;
++    l.height = (r.y + r.height + scale_factor - 1) / scale_factor - l.y;
++    cairo_region_union_rectangle(logical, &l);
++  }
++  gtk_widget_queue_draw_region(widget, logical);
++  cairo_region_destroy(logical);
++}
++
++// Pangolin: what [cr] paints (GTK's clip: the region queued and what older
++// buffers miss), in frame pixels: only pixels wholly inside. Null when the
++// clip isn't made of rectangles.
++static cairo_region_t* painted_region(cairo_t* cr, gint scale_factor) {
++  cairo_rectangle_list_t* rects = cairo_copy_clip_rectangle_list(cr);
++  if (rects->status != CAIRO_STATUS_SUCCESS) {
++    cairo_rectangle_list_destroy(rects);
++    return nullptr;
++  }
++  cairo_region_t* painted = cairo_region_create();
++  for (int i = 0; i < rects->num_rectangles; i++) {
++    const cairo_rectangle_t& r = rects->rectangles[i];
++    int left = static_cast<int>(std::ceil(r.x * scale_factor));
++    int top = static_cast<int>(std::ceil(r.y * scale_factor));
++    int right = static_cast<int>(std::floor((r.x + r.width) * scale_factor));
++    int bottom = static_cast<int>(std::floor((r.y + r.height) * scale_factor));
++    if (right > left && bottom > top) {
++      cairo_rectangle_int_t rect = {left, top, right - left, bottom - top};
++      cairo_region_union_rectangle(painted, &rect);
++    }
++  }
++  cairo_rectangle_list_destroy(rects);
++  return painted;
++}
++
+ // Redraw the view from the GTK thread.
+ static gboolean redraw_cb(gpointer user_data) {
+   g_autoptr(FlViewRenderer) self = FL_VIEW_RENDERER(user_data);
+@@ -76,7 +121,19 @@ static gboolean redraw_cb(gpointer user_data) {
      return G_SOURCE_REMOVE;
    }
  
@@ -789,17 +873,7 @@ index dba92d94..c3086422 100644
 +                FL_COMPOSITOR_OPENGL(self->compositor))
 +          : nullptr;
 +  if (damage != nullptr && frame_size_matches) {
-+    cairo_region_t* logical = cairo_region_create();
-+    for (int i = 0; i < cairo_region_num_rectangles(damage); i++) {
-+      cairo_rectangle_int_t r;
-+      cairo_region_get_rectangle(damage, i, &r);
-+      cairo_rectangle_int_t l = {r.x / scale_factor, r.y / scale_factor, 0, 0};
-+      l.width = (r.x + r.width + scale_factor - 1) / scale_factor - l.x;
-+      l.height = (r.y + r.height + scale_factor - 1) / scale_factor - l.y;
-+      cairo_region_union_rectangle(logical, &l);
-+    }
-+    gtk_widget_queue_draw_region(render_widget, logical);
-+    cairo_region_destroy(logical);
++    queue_draw_frame_region(render_widget, damage, scale_factor);
 +  } else {
 +    gtk_widget_queue_draw(render_widget);
 +  }
@@ -807,7 +881,7 @@ index dba92d94..c3086422 100644
  
    return G_SOURCE_REMOVE;
  }
-@@ -161,6 +184,43 @@ static gboolean fl_view_renderer_draw(GtkWidget* widget, cairo_t* cr) {
+@@ -161,6 +218,84 @@ static gboolean fl_view_renderer_draw(GtkWidget* widget, cairo_t* cr) {
    gboolean result = fl_compositor_render(
        self->compositor, cr, gtk_widget_get_window(widget), wait_for_frame);
  
@@ -815,16 +889,57 @@ index dba92d94..c3086422 100644
 +  // is on its surface (no GTK decorations or other widgets that may have
 +  // changed with it).
 +  if (FL_IS_COMPOSITOR_OPENGL(self->compositor)) {
-+    cairo_region_t* damage = fl_compositor_opengl_take_damage(
-+        FL_COMPOSITOR_OPENGL(self->compositor));
++    FlCompositorOpenGL* compositor = FL_COMPOSITOR_OPENGL(self->compositor);
++    cairo_region_t* damage = fl_compositor_opengl_take_damage(compositor);
 +    GdkWindow* window = gtk_widget_get_window(widget);
 +    GdkWindow* toplevel = gdk_window_get_toplevel(window);
 +    GtkAllocation allocation;
 +    gtk_widget_get_allocation(widget, &allocation);
++
++    // Pangolin: the damage taken can be more than this paint covers. The
++    // raster thread doesn't wait for GTK: a frame presented after this
++    // redraw was queued adds damage outside the queued region, to which the
++    // paint is clipped. What lies outside goes back, to be painted and
++    // reported with the next draw. Dropped, it would never be painted in
++    // this buffer, whose old pixels then show whenever it comes round again
++    // (stale or flashing parts of popups that have closed).
++    gboolean trimmed = FALSE;
++    gint scale_factor = gtk_widget_get_scale_factor(widget);
++    cairo_region_t* painted =
++        result ? painted_region(cr, scale_factor) : cairo_region_create();
++    if (painted != nullptr) {
++      // Within the view: damage outside it can never be painted, and handed
++      // back it would be redrawn for ever.
++      cairo_rectangle_int_t all = {0, 0, allocation.width * scale_factor,
++                                   allocation.height * scale_factor};
++      cairo_region_t* missed = cairo_region_create_rectangle(&all);
++      if (damage != nullptr) {
++        cairo_region_intersect(missed, damage);
++      }
++      cairo_region_subtract(missed, painted);
++      if (!cairo_region_is_empty(missed)) {
++        // As a region even when everything was taken: "everything" again
++        // would be taken by the next draw, whose paint is clipped too.
++        fl_compositor_opengl_add_damage(compositor, missed);
++        queue_draw_frame_region(widget, missed, scale_factor);
++        // Only what this paint changed is reported.
++        if (damage == nullptr) {
++          damage = cairo_region_copy(painted);
++        } else {
++          cairo_region_intersect(damage, painted);
++        }
++        trimmed = TRUE;
++      }
++      cairo_region_destroy(missed);
++      cairo_region_destroy(painted);
++    }
++
 +    gint x = 0, y = 0;
 +    GtkWidget* top_widget = gtk_widget_get_toplevel(widget);
++    // An empty region after trimming: nothing this paint covered changed.
 +    gboolean whole_surface =
-+        result && damage != nullptr && !cairo_region_is_empty(damage) &&
++        result && damage != nullptr &&
++        (!cairo_region_is_empty(damage) || trimmed) &&
 +        gtk_widget_translate_coordinates(widget, top_widget, 0, 0, &x, &y) &&
 +        x == 0 && y == 0 &&
 +        allocation.width == gdk_window_get_width(toplevel) &&
