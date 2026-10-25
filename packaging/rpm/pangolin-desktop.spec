@@ -19,7 +19,7 @@
 
 Name:           pangolin-desktop
 Version:        1.1.0
-Release:        19%{?dist}
+Release:        20%{?dist}
 Summary:        The dahliaOS desktop (Pangolin) on the river Wayland compositor
 
 # Pangolin and the dahliaOS apps: Apache-2.0; river and the Papirus icons
@@ -208,6 +208,10 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %ghost %attr(0644,pangolin-greeter,pangolin-greeter) %{_localstatedir}/log/PangolinGreeter.log
 
 %changelog
+* Sun Oct 25 2026 Logan <loganctorres1@gmail.com> - 1.1.0-20
+- Files' window body is opaque again: its window-sized blur flashed while
+  the window was moved, resized, focused or animated
+
 * Sun Oct 25 2026 Logan <loganctorres1@gmail.com> - 1.1.0-19
 - Files redesigned after the dahliaOS design: tabs in the title bar, a
   navigation row with breadcrumbs and search, collapsible sidebar sections
