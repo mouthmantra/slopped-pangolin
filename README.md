@@ -178,31 +178,75 @@ the background. Tabs can be reordered by dragging. Terminal uses
 
 ## Development
 
-To develop and locally test Pangolin:
+### Tools
 
-### Step 1. Install development tools
+* Flutter, stable (3.47 at the moment), with the Linux desktop toolchain and
+  the libraries under [Requirements](#requirements).
+* Zig 0.16, for river (`tool/build.sh` builds river only when `zig` is on
+  `PATH` or in `ZIG`; a package build without it fails).
+* A C compiler and libpam, for the display manager in `dm/`.
+* `rpmbuild` for Fedora packages. In a Debian or Ubuntu toolbox on a
+  Fedora host, `sudo apt install rpm`; install the packages on the host.
 
-1. Install [Flutter](https://docs.flutter.dev/get-started/install)
-2. Install an IDE of your choice (we recommend [VSCode](https://code.visualstudio.com/))
-    * We also recommend installing Dart and Flutter extensions if you're opting in for VSCode.
-    For other IDEs, please inform yourself.
+### Where things are
 
-### Step 2. Run Pangolin
+| Path | What |
+| --- | --- |
+| `lib/` | The shell: taskbar, launcher, overview, Quick Settings, notifications, lock screen, greeter, and the window manager (`lib/services/wm/river.dart`, river's window management protocol) |
+| `apps/` | The dahliaOS apps, one multi-call binary (`dahlia_apps <app>`); shared widgets in `apps/lib/kit/` |
+| `packages/` | Zenit UI, settings, display configuration, system controls, Wayland bindings |
+| `river-main/river/` | river with Pangolin's protocols (blur, animations, gestures) |
+| `dm/` | `pangolin-dm`, the display manager ([docs/DISPLAY_MANAGER.md](docs/DISPLAY_MANAGER.md)) |
+| `session/` | Session scripts, native code for the Flutter runners, desktop files, icons, PAM, portals |
+| `assets/gtk/` | The dahliaOS GTK theme's CSS (`lib/services/gtk_theme.dart` generates it) |
+| `third_party/flutter_engine/` | Pangolin's build of Flutter's Linux embedder (high refresh rate, damage), rebuilt with `tool/build_engine.sh` |
+| `packaging/rpm/` | The Fedora spec and its files |
+| `docs/ROADMAP.md` | What is done, in progress and planned |
 
+### Building and running
 
-Run Pangolin by running:
+```sh
+tool/build.sh            # release builds; --debug for debug builds, --clean to start over
+tool/install.sh          # into ~/.local
+~/.local/bin/pangolin-session --nested    # the whole session in a window of your desktop
+```
 
-make run target=linux
+An app on its own, with hot reload: `cd apps && flutter run -d linux -a files`
+(the argument picks the app). The shell needs river, so it runs inside a
+session. Logs: `~/.local/state/pangolin/Pangolin.log`, or `PANGOLIN_LOG=-` to
+keep them on the terminal; `PANGOLIN_ANIMATION_SCALE=10` slows river's
+animations down.
 
-On Linux this starts Pangolin in a window with its built-in window manager.
-The apps are developed the same way: `cd apps && flutter run -d linux -a files`
-(the first argument picks the app). To test the full session, see
-[Pangolin as a desktop session](#pangolin-as-a-desktop-session).
+### Tests
 
-List of targets:
-- linux
+```sh
+flutter test                         # the shell (test/)
+(cd apps && flutter test)            # the apps (apps/test/)
+(cd packages/display_config && dart run test/layout_check.dart)
+dm/tests/run.sh                      # pangolin-dm, end to end, no root needed
+```
 
-Flutter has hot reloading so no need to restart the instance when it's running!
+### Packages
+
+```sh
+FEDORA=45 tool/rpm.sh    # dist/pangolin-desktop-*.rpm and the greeter package
+```
+
+Bump `Release:` and add a changelog entry in
+`packaging/rpm/pangolin-desktop.spec` for each build you install, so `dnf`
+sees it as an upgrade.
+
+### Things to know
+
+* `flutter pub get` rewrites `linux/flutter/generated_plugins.cmake` (and the
+  apps' one): don't commit those changes.
+* Some build output from the original import is tracked by git
+  (`apps/build/`, `river-main/river/zig-out/` and `.zig-cache/`): building in
+  place changes it, don't commit that either.
+* Anything that starts the apps or services for a test should give them
+  their own `XDG_CONFIG_HOME`, `XDG_DATA_HOME` and friends, so they never
+  write into your real configuration (a nested session uses yours on
+  purpose).
 
 ## Contribute
 
