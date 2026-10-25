@@ -96,7 +96,7 @@ class _SessionCommandsState extends State<SessionCommands> {
       case ShellCommand.openActivityMonitor:
         _launch(DahliaApps.activityMonitor);
       case ShellCommand.screenshot:
-        ScreenshotTool.open();
+        unawaited(ScreenshotTool.open());
       case ShellCommand.screenshotScreen:
         unawaited(ScreenshotTool.captureScreen());
       case ShellCommand.volumeUp:

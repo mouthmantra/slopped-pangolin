@@ -525,7 +525,7 @@ class _QsMainState extends State<QsMain>
             Icons.screenshot_monitor_rounded,
           ),
           enabled: false,
-          onPressed: (_) => ScreenshotTool.open(),
+          onPressed: (_) => unawaited(ScreenshotTool.open(fromPopup: true)),
         );
       case QuickControl.lock:
         return QsToggleButton(

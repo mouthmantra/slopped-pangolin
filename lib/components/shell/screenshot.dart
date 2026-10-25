@@ -19,10 +19,12 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:dahlia_shared/dahlia_shared.dart' show Constants;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
+import 'package:pangolin/components/shell/shell_popups.dart';
 import 'package:pangolin/services/notifications.dart';
 import 'package:pangolin/services/screencopy.dart';
 import 'package:pangolin/services/session.dart';
@@ -34,9 +36,39 @@ import 'package:zenit_ui/zenit_ui.dart';
 
 /// Opens the screenshot tool.
 abstract final class ScreenshotTool {
-  static void open() {
-    ShellService.current.dismissEverything();
-    ShellService.current.showOverlay(ScreenshotOverlay.overlayId);
+  static bool _opening = false;
+
+  /// Opens the tool on a still of the screen as it is, as GNOME's does:
+  /// popups, menus, the overview and the launcher stay in the picture
+  /// (opening the tool closes them, and many close on the first click
+  /// anyway). An area or the whole screen is cut from the still; a window
+  /// is captured live, on its own.
+  ///
+  /// From a control inside a popup ([fromPopup]: Quick Settings' button),
+  /// the popup closes first and stays out of the still.
+  static Future<void> open({bool fromPopup = false}) async {
+    if (_opening ||
+        ShellService.current.currentlyShown(ScreenshotOverlay.overlayId)) {
+      return;
+    }
+    _opening = true;
+    try {
+      if (fromPopup) {
+        ShellService.current.dismissEverything();
+        await Future<void>.delayed(
+          Constants.animationDuration + const Duration(milliseconds: 50),
+        );
+      }
+      final ui.Image? still = await Screencopy.capture();
+      // Menus are routes above the overlays; the still keeps them.
+      shellNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+      await ShellService.current.showOverlay(
+        ScreenshotOverlay.overlayId,
+        args: {"still": still},
+      );
+    } finally {
+      _opening = false;
+    }
   }
 
   /// Captures the whole screen right away (Shift+Print).
@@ -63,14 +95,21 @@ class _ScreenshotState extends ShellOverlayState<ScreenshotOverlay> {
   ShellWindow? _hovered;
   bool _capturing = false;
 
+  /// The screen when the tool opened (null if it couldn't be captured: then
+  /// areas are captured live, as windows are).
+  ui.Image? _still;
+
   @override
   void dispose() {
     _focus.dispose();
+    _still?.dispose();
     super.dispose();
   }
 
   @override
   FutureOr<void> requestShow(Map<String, dynamic> args) {
+    _still?.dispose();
+    _still = args["still"] as ui.Image?;
     _mode = _Mode.area;
     _selection = null;
     _hovered = null;
@@ -83,7 +122,11 @@ class _ScreenshotState extends ShellOverlayState<ScreenshotOverlay> {
   @override
   FutureOr<void> requestDismiss(Map<String, dynamic> args) {
     controller.showing = false;
-    animationController.reverse();
+    animationController.reverse().then((_) {
+      if (controller.showing) return;
+      _still?.dispose();
+      _still = null;
+    });
   }
 
   void _close() =>
@@ -128,6 +171,15 @@ class _ScreenshotState extends ShellOverlayState<ScreenshotOverlay> {
         region = null;
     }
     region = region?.intersect(Offset.zero & screen);
+    final ui.Image? still = _still;
+    if (still != null && _mode != _Mode.window) {
+      // Cut from the still: what was on screen when the tool opened.
+      setState(() => _capturing = true);
+      final ui.Image cut = await _crop(still, region ?? Offset.zero & screen, screen);
+      _close();
+      await _ScreenshotSaver.save(cut);
+      return;
+    }
     setState(() => _capturing = true);
     // The tool must be gone from the screen before capturing it.
     await SchedulerBinding.instance.endOfFrame;
@@ -139,6 +191,29 @@ class _ScreenshotState extends ShellOverlayState<ScreenshotOverlay> {
       // Windows have rounded corners: keep what's around them out.
       cornerRadius: _mode == _Mode.window ? 12 : 0,
     );
+  }
+
+  /// [region] (logical, of a [screen]-sized surface) of [still], in its
+  /// pixels.
+  static Future<ui.Image> _crop(ui.Image still, Rect region, Size screen) {
+    final double kx = still.width / screen.width;
+    final double ky = still.height / screen.height;
+    final Rect source = Rect.fromLTRB(
+      (region.left * kx).roundToDouble(),
+      (region.top * ky).roundToDouble(),
+      (region.right * kx).roundToDouble(),
+      (region.bottom * ky).roundToDouble(),
+    );
+    final ui.PictureRecorder recorder = ui.PictureRecorder();
+    Canvas(recorder).drawImageRect(
+      still,
+      source,
+      Offset.zero & source.size,
+      Paint()..filterQuality = FilterQuality.none,
+    );
+    return recorder
+        .endRecording()
+        .toImage(source.width.toInt(), source.height.toInt());
   }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
@@ -169,6 +244,15 @@ class _ScreenshotState extends ShellOverlayState<ScreenshotOverlay> {
           opacity: animation,
           child: Stack(
             children: [
+              // The screen as it was, under the shade.
+              if (_still case final ui.Image still)
+                Positioned.fill(
+                  child: RawImage(
+                    image: still,
+                    fit: BoxFit.fill,
+                    filterQuality: FilterQuality.none,
+                  ),
+                ),
               Positioned.fill(
                 child: MouseRegion(
                   cursor: _mode == _Mode.area
@@ -449,6 +533,11 @@ abstract final class _ScreenshotSaver {
     if (cornerRadius > 0 && region != null && region.width > 0) {
       image = await _roundCorners(image, cornerRadius * image.width / region.width);
     }
+    await save(image);
+  }
+
+  /// Saves [image] (and disposes of it).
+  static Future<void> save(ui.Image image) async {
     final ByteData? png =
         await image.toByteData(format: ui.ImageByteFormat.png);
     image.dispose();

@@ -783,6 +783,21 @@ theme (6.1).
       - keyboard: Super+arrows walk through zones (half → quarter),
         Super+Up/Down maximize and restore;
       - setting to turn snap layouts and snap assist off.
+- [x] 8.10 Screenshots of popups (user, 2026-10-24): the overview, launcher,
+      notifications, search, Quick Settings, tray and right-click menus
+      couldn't be captured: ScreenshotTool.open dismissed every overlay
+      (and showOverlay dismisses them again by default). Now, as GNOME's
+      tool does, Print freezes the screen first (Screencopy.capture) and
+      the tool opens on that still: an area or the whole screen is cut from
+      it, so popups and menus are in the picture; a window is still
+      captured live. Shell menus (routes on shellNavigatorKey) are closed
+      once the still is taken. Quick Settings' Screenshot button closes
+      Quick Settings first (fromPopup) so it isn't in the still. Shift+Print
+      (whole screen, at once) already kept popups. Verified on a nested
+      session (river 1.1.0-13 + this shell in Xvfb): the launcher in a
+      Screen capture, a desktop right-click menu in an Area capture.
+      Known: Screencopy binds the first wl_output, not the shell's, with
+      several monitors on (as before).
 - [x] 8.8 Overview close button hard to hit (user report 2026-10-17). It sat
       half outside its window's slot, and Flutter only hit-tests inside a
       widget's bounds: half the button ignored clicks, and moving onto it
