@@ -736,7 +736,18 @@ theme (6.1).
 
 ## 5. Files, desktop icons, associations
 
-- [ ] 5.1 Papirus icons (beige folders) ONLY USED FOR FILE ICONS. The rest of the icons will remain the ones unique to Pangolin.
+- [~] 5.1 Papirus icons (beige folders) ONLY USED FOR FILE ICONS. The rest of the icons will remain the ones unique to Pangolin.
+      Done 2026-10-25 for Files only (user: "for the files app, and the
+      files app only"): apps/assets/papirus holds Papirus' file-type icons
+      and its palebrown (beige) folders at 24 and 64 px (3.3 MB, from
+      GitHub, commit bf539287, copied by tool/papirus_icons.py; links
+      become index.json). Files' views, drag feedback and properties draw
+      them (apps/lib/apps/files/papirus.dart): by MIME type with generic
+      fallbacks; Home, Desktop, Documents, Downloads, Music, Pictures,
+      Videos and named folders (.git, Dropbox, Projects…) get their
+      emblems. Sidebar, tabs and everything outside Files keep Pangolin's
+      icons; the file chooser too. GPL-3.0 noted in docs/DISTRIBUTING.md,
+      its text installed with the other licenses.
       The same file icons on the desktop (5.3).
 - [~] 5.2 Open With… in Files; [ ] Settings > Apps default apps per type.
 - [ ] 5.3 Desktop icons: ~/Desktop's files and folders on the desktop with the

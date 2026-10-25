@@ -22,10 +22,10 @@ Version:        1.1.0
 Release:        18%{?dist}
 Summary:        The dahliaOS desktop (Pangolin) on the river Wayland compositor
 
-# Pangolin and the dahliaOS apps: Apache-2.0; river: GPL-3.0-only (its
-# protocols MIT); bundled Flutter and Dart packages: BSD-3-Clause and MIT;
-# Inter: OFL-1.1; Adwaita's hand pointers: CC-BY-SA-3.0. See
-# docs/DISTRIBUTING.md.
+# Pangolin and the dahliaOS apps: Apache-2.0; river and the Papirus icons
+# of Files: GPL-3.0-only (river's protocols MIT); bundled Flutter and Dart
+# packages: BSD-3-Clause and MIT; Inter: OFL-1.1; Adwaita's hand pointers:
+# CC-BY-SA-3.0. See docs/DISTRIBUTING.md.
 License:        Apache-2.0 AND GPL-3.0-only AND MIT AND BSD-3-Clause AND OFL-1.1 AND CC-BY-SA-3.0
 URL:            https://github.com/dahliaOS/pangolin_desktop
 Source0:        %{name}-%{version}.tar.xz

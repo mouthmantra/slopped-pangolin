@@ -454,6 +454,8 @@ cp "$ROOT/LICENSE" "$SHARE/licenses/pangolin/Apache-2.0.txt"
 cp "$ROOT"/river-main/river/LICENSES/*.txt "$SHARE/licenses/pangolin/"
 cp "$ROOT/packages/zenit_ui/lib/src/fonts/OFL.txt" "$SHARE/licenses/pangolin/OFL-1.1-Inter.txt"
 cp "$ROOT/tool/cursors/adwaita/README.md" "$SHARE/licenses/pangolin/Adwaita-cursors.md"
+cp "$ROOT/apps/assets/papirus/LICENSE" "$SHARE/licenses/pangolin/GPL-3.0-Papirus.txt"
+cp "$ROOT/apps/assets/papirus/README.md" "$SHARE/licenses/pangolin/Papirus.md"
 chmod -R a+rX "$SHARE/licenses/pangolin"
 touch "$SHARE/icons/hicolor"
 if [ -n "$DESTDIR" ]; then

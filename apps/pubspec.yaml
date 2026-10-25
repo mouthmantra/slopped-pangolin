@@ -58,4 +58,10 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icons/
+    # Papirus, for Files only (assets/papirus/README.md).
+    - assets/papirus/
+    - assets/papirus/24/mimetypes/
+    - assets/papirus/24/places/
+    - assets/papirus/64/mimetypes/
+    - assets/papirus/64/places/
     - assets/images/
