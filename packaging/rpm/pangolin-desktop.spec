@@ -77,21 +77,22 @@ Pangolin's river, with its extensions (window effects, blur, gestures), is
 installed in %{_libexecdir}/pangolin, apart from Fedora's river.
 
 %package greeter
-Summary:        Pangolin's login screen for greetd
+Summary:        Pangolin's login screen and display manager
 Requires:       %{name} = %{version}-%{release}
-Requires:       greetd
+Requires:       pam
 Requires(pre):  shadow-utils
 Requires(post): systemd
 Recommends:     policycoreutils-python-utils
 
 %description greeter
-Pangolin's login screen, run by greetd as its own user (pangolin-greeter):
-it shows the selected user's wallpaper and the display setup of their
-desktop, keeps the boot splash up until it appears, and fades into the
-desktop.
+Pangolin's display manager (pangolin-dm, built like GDM: a daemon, a
+privileged session worker per login, the login screen as its own user,
+pangolin-greeter) and its login screen: it shows the selected user's
+wallpaper and the display setup of their desktop, keeps the boot splash up
+until it appears, and fades into the desktop.
 
 Use it instead of GDM with:
-  systemctl disable gdm && systemctl enable greetd
+  systemctl disable gdm && systemctl enable pangolin-dm
 
 %prep
 %autosetup -n %{name}-%{version}
@@ -114,9 +115,8 @@ install -Dpm 0644 packaging/rpm/pangolin.tmpfiles %{buildroot}%{_prefix}/lib/tmp
 install -dm 0755 %{buildroot}%{_localstatedir}/lib/pangolin
 install -dm 1777 %{buildroot}%{_localstatedir}/lib/pangolin/users
 
-install -Dpm 0644 packaging/rpm/greetd-pangolin.toml %{buildroot}%{_sysconfdir}/greetd/pangolin.toml
-install -Dpm 0644 packaging/rpm/greetd-pangolin.conf \
-    %{buildroot}%{_prefix}/lib/systemd/system/greetd.service.d/pangolin-greeter.conf
+install -Dpm 0644 packaging/rpm/pangolin-dm.pam %{buildroot}%{_sysconfdir}/pam.d/pangolin-dm
+install -Dpm 0644 packaging/rpm/pangolin-dm-greeter.pam %{buildroot}%{_sysconfdir}/pam.d/pangolin-dm-greeter
 install -Dpm 0644 packaging/rpm/plymouth-quit-pangolin.conf \
     %{buildroot}%{_prefix}/lib/systemd/system/plymouth-quit.service.d/pangolin-greeter.conf
 install -Dpm 0644 packaging/rpm/pangolin-greeter.sysusers \
@@ -149,7 +149,18 @@ exit 0
 
 %post greeter
 systemd-tmpfiles --create pangolin-greeter.conf >/dev/null 2>&1 || :
-# greetd runs the login screen confined (xdm_t): its state is labeled like
+# pangolin-dm runs as xdm_t, as gdm does (the sessions it starts get their
+# own contexts from pam_selinux).
+if selinuxenabled >/dev/null 2>&1; then
+    if command -v semanage >/dev/null 2>&1; then
+        semanage fcontext -a -t xdm_exec_t '%{_libexecdir}/pangolin/pangolin-dm' >/dev/null 2>&1 || \
+            semanage fcontext -m -t xdm_exec_t '%{_libexecdir}/pangolin/pangolin-dm' >/dev/null 2>&1 || :
+        restorecon %{_libexecdir}/pangolin/pangolin-dm >/dev/null 2>&1 || :
+    else
+        chcon -t xdm_exec_t %{_libexecdir}/pangolin/pangolin-dm >/dev/null 2>&1 || :
+    fi
+fi
+# The login screen runs confined (xdm_t): its state is labeled like
 # GDM's (/var/lib/gdm) so it can watch and replace its files.
 if selinuxenabled >/dev/null 2>&1; then
     if command -v semanage >/dev/null 2>&1; then
@@ -162,6 +173,13 @@ if selinuxenabled >/dev/null 2>&1; then
 fi
 restorecon -R %{_localstatedir}/lib/pangolin >/dev/null 2>&1 || :
 systemctl daemon-reload >/dev/null 2>&1 || :
+
+%preun greeter
+# Removed for good: off as display manager (not stopped, which would end
+# the session running under it).
+if [ "$1" -eq 0 ]; then
+    systemctl --no-reload disable pangolin-dm.service >/dev/null 2>&1 || :
+fi
 
 %postun greeter
 systemctl daemon-reload >/dev/null 2>&1 || :
@@ -178,6 +196,8 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %{_prefix}/lib/pangolin/
 %{_prefix}/lib/dahlia-apps/
 %{_libexecdir}/pangolin/
+%exclude %{_libexecdir}/pangolin/pangolin-dm
+%exclude %{_prefix}/lib/systemd/system/pangolin-dm.service
 %{_datadir}/applications/io.dahliaos.*.desktop
 %{_datadir}/dbus-1/services/io.dahlia.DSettings.service
 %{_datadir}/dbus-1/services/org.freedesktop.impl.portal.desktop.pangolin.service
@@ -199,8 +219,10 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %ghost %attr(0644,root,root) %{_localstatedir}/log/Pangolin.log
 
 %files greeter
-%config(noreplace) %{_sysconfdir}/greetd/pangolin.toml
-%{_prefix}/lib/systemd/system/greetd.service.d/pangolin-greeter.conf
+%{_libexecdir}/pangolin/pangolin-dm
+%{_prefix}/lib/systemd/system/pangolin-dm.service
+%config(noreplace) %{_sysconfdir}/pam.d/pangolin-dm
+%config(noreplace) %{_sysconfdir}/pam.d/pangolin-dm-greeter
 %{_prefix}/lib/systemd/system/plymouth-quit.service.d/pangolin-greeter.conf
 %{_prefix}/lib/sysusers.d/pangolin-greeter.conf
 %{_prefix}/lib/tmpfiles.d/pangolin-greeter.conf
