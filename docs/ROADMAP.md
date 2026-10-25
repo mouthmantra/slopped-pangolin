@@ -21,10 +21,11 @@ theme (6.1).
   (6.1). Built without river by mistake (zig wasn't on PATH): sessions
   didn't start. 1.1.0-18 is the same with river, and install.sh now
   refuses to stage a package without it.
-- 1.1.0-19: visual changes: the Files redesign (4.8) and the Welcome app
-  rewrite (4.9).
+- Next (moved up by the user, 2026-10-25): the Files redesign (4.8),
+  before everything below.
 - Asked for 2026-10-25, still to do: 7.3, 8.1, 8.2, 8.9, 2.5 (screen
   share picker).
+- Later: the Welcome app rewrite (4.9).
 
 ## Carried over from the previous request
 
@@ -699,11 +700,12 @@ theme (6.1).
       No video package in apps/pubspec.yaml yet; pick a libmpv-based
       player (e.g. media_kit) so codecs come from the system.
 
-- [ ] 4.8 Files redesign (user, 2026-10-24; for 1.1.0-17): today's Files
-      "looks like a sorry copy" of the prototype on dahliaOS.io and is very
-      barren. It should look almost exactly like the Figma prototype,
-      `docs/design/files-prototype.webp`, minus its duplicate information
-      icon (the toolbar has two "i" buttons; keep one). From the prototype:
+- [ ] 4.8 Files redesign (user, 2026-10-24; moved up to next on
+      2026-10-25): today's Files "looks like a sorry copy" of the prototype
+      on dahliaOS.io and is very barren. It should look almost exactly
+      like the Figma prototype, `docs/design/files-prototype.webp`, minus
+      its duplicate information icon (the toolbar has two "i" buttons;
+      keep one). From the prototype:
       - Tabs in the title bar (icon, name, close; "+" for a new tab), the
         window controls on the same row.
       - A navigation row: back, forward, up, refresh; a breadcrumb path
@@ -1108,6 +1110,22 @@ theme (6.1).
       PANGOLIN_ANIMATION_SCALE=10: before, the taskbar rows under the panel
       went from (227,198,193) to (194,77,60) while opening; after, they
       keep the taskbar's colour while opening and closing.
+- [ ] 8.15 Visual bug sweep (user, 2026-10-25): spend time testing,
+      finding and fixing visual bugs across the whole desktop: the shell
+      (taskbar, launcher, overview, Quick Settings, notifications, tray,
+      menus, lock screen, greeter), the dahliaOS apps, and GTK apps with
+      the dahliaOS style (6.1), in light and dark, at 1x and fractional
+      scales, on one and two monitors. Each bug found gets its own entry
+      here with how to reproduce it.
+- [ ] 8.16 Title bar blur missing when apps start (user, 2026-10-25, to
+      fix later): apps open with a translucent title bar but nothing
+      blurred behind it; the blur only appears once the window loses focus
+      or is resized. Where to look: the client side's blur regions
+      (session/native/river_blur.cc, sent by kit/app.dart) are likely sent
+      before river has the window's first configured buffer and aren't
+      applied until a later commit (focus and size changes redraw and
+      resend them), or river (Blur.zig) drops regions that arrive before
+      the window is mapped.
 - [x] 8.8 Overview close button hard to hit (user report 2026-10-17). It sat
       half outside its window's slot, and Flutter only hit-tests inside a
       widget's bounds: half the button ignored clicks, and moving onto it
