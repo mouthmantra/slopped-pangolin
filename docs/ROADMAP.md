@@ -189,6 +189,30 @@ theme (6.1).
       back. Permanent: pangolin-river-init try-restarts xdg-desktop-portal
       and -wlr after importing the environment (1.0.0-4); [ ] confirm on
       the machine after a re-login.
+- [x] 2.7 Settings > Displays arrangement (user, 2026-10-24, first session
+      on the 1.1.0-12 RPM): DP-8 and eDP-1 drawn overlapping, and nothing
+      could be moved (the miniature only drew river's positions; nothing
+      changed x/y). Now:
+      - display_config's `settle` (src/layout.dart): no overlaps, no gaps,
+        every display sharing an edge with another, top left at 0, 0;
+        exact copies (same position and size) stay mirrors. Logical sizes
+        truncate like wlroots (2560x1600 at 1.5 is 1706x1066).
+      - DisplayConfigurator settles every layout before applying it and
+        before comparing it with river's (otherwise an overlapping saved
+        layout would be re-applied on every change). Overlaps could come
+        from a monitors.xml in physical pixels (positions divided by each
+        monitor's own scale, so mixed scales drift) or a profile saved at
+        other scales.
+      - The miniature shows the pending layout, settled as soon as the page
+        opens (an overlap shows fixed, Apply ready). Displays can be
+        dragged; a dropped one snaps against the others and lines up with
+        an edge or centre within 10 screen pixels. Resolution, scale,
+        rotation and on/off re-settle it.
+      Self-check: packages/display_config/test/layout_check.dart. Verified
+      headless against a two-output sway with the reported overlap: fixed on
+      load, drag to the right, Apply (sway: 2275x1422+2560+0), Keep; and
+      pangolin-displays settling an overlapping saved profile once, then
+      leaving it. [ ] On the machine (MST DP-8 + eDP-1).
 - [ ] 2.5 Screen share picker (requested 2026-10-16): a dahliaOS dialog for
       choosing what to share: a screen, a window, or a selected area if
       possible. Thumbnails preferred.

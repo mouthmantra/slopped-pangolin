@@ -16,6 +16,7 @@ limitations under the License.
 
 import 'dart:async';
 
+import 'package:display_config/src/layout.dart';
 import 'package:display_config/src/monitors_xml.dart';
 import 'package:display_config/src/profiles.dart';
 import 'package:display_config/src/scales.dart';
@@ -190,11 +191,12 @@ class DisplayConfigurator {
     Map<String, OutputSettings> settings, {
     bool testOnly = false,
   }) async {
+    final Map<String, OutputSettings> settled = settledLayout(settings);
     final Completer<bool> result = Completer();
     final ZwlrOutputConfigurationV1 config =
         _manager.createConfiguration(_serial);
     for (final OutputHeadState head in heads) {
-      final OutputSettings wanted = settings[head.id] ?? head.settings;
+      final OutputSettings wanted = settled[head.id] ?? head.settings;
       if (!wanted.enabled) {
         config.disableHead(head.proxy);
         continue;
@@ -313,7 +315,36 @@ class DisplayConfigurator {
     return true;
   }
 
-  Future<bool> _applyIfDifferent(Map<String, OutputSettings> wanted) async {
+  /// [settings] (monitors left out as they are) with the enabled monitors
+  /// moved so none overlaps another and they hang together ([settle]):
+  /// saved layouts can come from other scales (a monitors.xml in physical
+  /// pixels, a profile from before a scale change).
+  Map<String, OutputSettings> settledLayout(
+    Map<String, OutputSettings> settings,
+  ) {
+    final Map<String, OutputSettings> all = {
+      for (final OutputHeadState h in heads) h.id: settings[h.id] ?? h.settings,
+    };
+    final Map<String, LayoutBox> boxes = {};
+    for (final OutputHeadState h in heads) {
+      final OutputSettings o = all[h.id]!;
+      if (!o.enabled) continue;
+      final int width = o.width > 0 ? o.width : h.currentMode?.width ?? 0;
+      final int height = o.height > 0 ? o.height : h.currentMode?.height ?? 0;
+      if (width <= 0 || height <= 0) continue;
+      final (int w, int lh) = logicalSize(width, height, o.scale, o.transform);
+      boxes[h.id] = LayoutBox(x: o.x, y: o.y, width: w, height: lh);
+    }
+    settle(boxes.values.toList());
+    return {
+      ...settings,
+      for (final MapEntry<String, LayoutBox> b in boxes.entries)
+        b.key: all[b.key]!.movedTo(b.value.x, b.value.y),
+    };
+  }
+
+  Future<bool> _applyIfDifferent(Map<String, OutputSettings> requested) async {
+    final Map<String, OutputSettings> wanted = settledLayout(requested);
     final bool same = heads.every((h) {
       final OutputSettings? w = wanted[h.id];
       if (w == null) return true;

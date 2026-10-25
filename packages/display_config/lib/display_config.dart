@@ -20,6 +20,7 @@ limitations under the License.
 library;
 
 export 'src/configurator.dart';
+export 'src/layout.dart';
 export 'src/monitors_xml.dart';
 export 'src/profiles.dart';
 export 'src/scales.dart';

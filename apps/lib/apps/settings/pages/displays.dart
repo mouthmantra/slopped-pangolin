@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:dahlia_apps/apps/settings/settings.dart';
 import 'package:dahlia_apps/apps/settings/pages/session_settings.dart';
@@ -69,6 +70,18 @@ class _HeadConfig {
   int transform;
   int x;
   int y;
+}
+
+/// Where [config] puts [head] in the layout, in logical pixels.
+LayoutBox _boxOf(_Head head, _HeadConfig config) {
+  final _Mode? mode = config.mode ?? head.currentMode;
+  final (int width, int height) = logicalSize(
+    mode?.width ?? 1920,
+    mode?.height ?? 1080,
+    config.scale,
+    config.transform,
+  );
+  return LayoutBox(x: config.x, y: config.y, width: width, height: height);
 }
 
 class DisplaysPage extends StatefulWidget {
@@ -150,6 +163,9 @@ class _DisplaysPageState extends State<DisplaysPage> {
             _pending
               ..clear()
               ..addEntries(_heads.map((h) => MapEntry(h, _HeadConfig.from(h))));
+            // A layout that overlaps (or falls apart) shows fixed, ready to
+            // apply.
+            _relayout();
           });
         };
       await connection.roundtrip();
@@ -221,6 +237,28 @@ class _DisplaysPageState extends State<DisplaysPage> {
         if (mounted) setState(() {});
       };
   }
+
+  /// Moves the enabled displays so none overlaps another and they hang
+  /// together ([settle]). [moved], just dropped in the arrangement, is
+  /// placed last and lines up with edges within [snap] logical pixels.
+  void _relayout({_Head? moved, int snap = 0}) {
+    final Map<_Head, LayoutBox> boxes = {
+      for (final MapEntry<_Head, _HeadConfig> e in _pending.entries)
+        if (e.value.enabled) e.key: _boxOf(e.key, e.value),
+    };
+    settle(boxes.values.toList(), moved: boxes[moved], snap: snap);
+    for (final MapEntry<_Head, LayoutBox> e in boxes.entries) {
+      _pending[e.key]!
+        ..x = e.value.x
+        ..y = e.value.y;
+    }
+  }
+
+  /// Changes [config] and settles the layout around the new size.
+  void _update(VoidCallback change) => setState(() {
+        change();
+        _relayout();
+      });
 
   bool get _dirty => _pending.entries.any((e) {
         final _Head h = e.key;
@@ -367,7 +405,16 @@ class _DisplaysPageState extends State<DisplaysPage> {
 
     return SettingsPageBody(
       children: [
-        _Arrangement(heads: _heads, pending: _pending),
+        _Arrangement(
+          heads: _heads,
+          pending: _pending,
+          onMoved: (head, x, y, snap) => setState(() {
+            _pending[head]!
+              ..x = x
+              ..y = y;
+            _relayout(moved: head, snap: snap);
+          }),
+        ),
         const SizedBox(height: 16),
         for (final _Head head in _heads)
           if (_pending[head] case final _HeadConfig config)
@@ -384,7 +431,7 @@ class _DisplaysPageState extends State<DisplaysPage> {
                   ].join(" · "),
                   trailing: ZenitSwitch(
                     value: config.enabled,
-                    onChanged: (v) => setState(() => config.enabled = v),
+                    onChanged: (v) => _update(() => config.enabled = v),
                   ),
                 ),
                 if (config.enabled && head.modes.isNotEmpty)
@@ -400,7 +447,7 @@ class _DisplaysPageState extends State<DisplaysPage> {
                             child: Text("${m.label}${m.preferred ? "  (recommended)" : ""}"),
                           ),
                       ],
-                      onChanged: (m) => setState(() => config.mode = m),
+                      onChanged: (m) => _update(() => config.mode = m),
                     ),
                   ),
                 if (config.enabled)
@@ -429,7 +476,7 @@ class _DisplaysPageState extends State<DisplaysPage> {
                               ),
                           ],
                           onChanged: (s) =>
-                              setState(() => config.scale = s ?? 1),
+                              _update(() => config.scale = s ?? 1),
                         ),
                       );
                     },
@@ -444,7 +491,7 @@ class _DisplaysPageState extends State<DisplaysPage> {
                         for (final MapEntry<int, String> t in _transforms.entries)
                           DropdownMenuItem(value: t.key, child: Text(t.value)),
                       ],
-                      onChanged: (t) => setState(() => config.transform = t ?? 0),
+                      onChanged: (t) => _update(() => config.transform = t ?? 0),
                     ),
                   ),
               ],
@@ -454,7 +501,7 @@ class _DisplaysPageState extends State<DisplaysPage> {
           children: [
             TextButton(
               onPressed: _dirty
-                  ? () => setState(() {
+                  ? () => _update(() {
                         for (final _Head h in _heads) {
                           _pending[h] = _HeadConfig.from(h);
                         }
@@ -481,63 +528,181 @@ class _DisplaysPageState extends State<DisplaysPage> {
   }
 }
 
-/// Miniature of the output layout.
-class _Arrangement extends StatelessWidget {
-  const _Arrangement({required this.heads, required this.pending});
+/// Miniature of the pending layout. Displays can be dragged; where one is
+/// dropped, it snaps against the others (no overlap, no gap).
+class _Arrangement extends StatefulWidget {
+  const _Arrangement({
+    required this.heads,
+    required this.pending,
+    required this.onMoved,
+  });
 
   final List<_Head> heads;
   final Map<_Head, _HeadConfig> pending;
 
+  /// [head] dropped at [x], [y] (logical pixels); edges within [snap]
+  /// logical pixels should line up.
+  final void Function(_Head head, int x, int y, int snap) onMoved;
+
+  @override
+  State<_Arrangement> createState() => _ArrangementState();
+}
+
+class _ArrangementState extends State<_Arrangement> {
+  static const double _height = 180;
+  static const double _margin = 24;
+
+  /// Pointer distance, in screen pixels, within which a dropped display
+  /// lines up with an edge.
+  static const double _snapPixels = 10;
+
+  _Head? _dragged;
+  Offset _delta = Offset.zero;
+
+  /// Placement of the miniature while a display is dragged: kept from the
+  /// start of the drag, so the others don't move or rescale under it.
+  ({Rect bounds, double scale, Offset origin})? _frozen;
+
+  ({Rect bounds, double scale, Offset origin}) _fit(
+    Iterable<LayoutBox> boxes,
+    double width,
+  ) {
+    final Rect bounds = boxes
+        .map((b) => Rect.fromLTWH(b.x.toDouble(), b.y.toDouble(), b.width.toDouble(), b.height.toDouble()))
+        .reduce((a, b) => a.expandToInclude(b));
+    final double scale = math.min(
+      (width - _margin * 2) / bounds.width,
+      (_height - _margin * 2) / bounds.height,
+    );
+    return (
+      bounds: bounds,
+      scale: scale,
+      origin: Offset(
+        (width - bounds.width * scale) / 2,
+        (_height - bounds.height * scale) / 2,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final List<(_Head, Rect)> rects = [
-      for (final _Head h in heads)
-        if (pending[h]?.enabled ?? h.enabled)
-          (
-            h,
-            Rect.fromLTWH(
-              h.x.toDouble(),
-              h.y.toDouble(),
-              (pending[h]?.mode?.width ?? h.currentMode?.width ?? 1920) / (pending[h]?.scale ?? h.scale),
-              (pending[h]?.mode?.height ?? h.currentMode?.height ?? 1080) / (pending[h]?.scale ?? h.scale),
-            ),
-          ),
-    ];
-    if (rects.isEmpty) return const SizedBox();
-    final Rect bounds = rects.map((r) => r.$2).reduce((a, b) => a.expandToInclude(b));
+    final Map<_Head, LayoutBox> boxes = {
+      for (final _Head h in widget.heads)
+        if (widget.pending[h] case final _HeadConfig c when c.enabled)
+          h: _boxOf(h, c),
+    };
+    if (boxes.isEmpty) return const SizedBox();
+    final bool movable = boxes.length > 1;
 
     return ZenitSection(
       child: SizedBox(
-        height: 180,
+        height: _height,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final double scale = ((constraints.maxWidth - 48) / bounds.width)
-                .clamp(0.0, (180 - 48) / bounds.height);
-            final double offsetX = (constraints.maxWidth - bounds.width * scale) / 2;
-            final double offsetY = (180 - bounds.height * scale) / 2;
+            final fit = _frozen ?? _fit(boxes.values, constraints.maxWidth);
+            Rect place(LayoutBox b) => Rect.fromLTWH(
+                  fit.origin.dx + (b.x - fit.bounds.left) * fit.scale,
+                  fit.origin.dy + (b.y - fit.bounds.top) * fit.scale,
+                  b.width * fit.scale,
+                  b.height * fit.scale,
+                );
+            // The dragged display on top.
+            final List<_Head> order = [
+              for (final _Head h in boxes.keys)
+                if (h != _dragged) h,
+              if (_dragged != null && boxes.containsKey(_dragged)) _dragged!,
+            ];
             return Stack(
+              clipBehavior: Clip.none,
               children: [
-                for (final (head, rect) in rects)
-                  Positioned(
-                    left: offsetX + (rect.left - bounds.left) * scale,
-                    top: offsetY + (rect.top - bounds.top) * scale,
-                    width: rect.width * scale,
-                    height: rect.height * scale,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.2),
-                        border: Border.all(color: theme.colorScheme.primary, width: 2),
-                        borderRadius: BorderRadius.circular(6),
+                for (final _Head head in order)
+                  Positioned.fromRect(
+                    rect: head == _dragged
+                        ? place(boxes[head]!).shift(_delta)
+                        : place(boxes[head]!),
+                    child: MouseRegion(
+                      cursor: !movable
+                          ? MouseCursor.defer
+                          : head == _dragged
+                              ? SystemMouseCursors.grabbing
+                              : SystemMouseCursors.grab,
+                      child: GestureDetector(
+                        onPanStart: !movable
+                            ? null
+                            : (_) => setState(() {
+                                  _dragged = head;
+                                  _delta = Offset.zero;
+                                  _frozen = fit;
+                                }),
+                        onPanUpdate: !movable
+                            ? null
+                            : (d) => setState(() => _delta += d.delta),
+                        onPanEnd: !movable ? null : (_) => _drop(boxes),
+                        onPanCancel: !movable ? null : () => _drop(boxes),
+                        child: _DisplayTile(
+                          label: head.name,
+                          dragging: head == _dragged,
+                          theme: theme,
+                        ),
                       ),
-                      alignment: Alignment.center,
-                      child: Text(head.name, style: theme.textTheme.labelLarge),
                     ),
                   ),
               ],
             );
           },
         ),
+      ),
+    );
+  }
+
+  void _drop(Map<_Head, LayoutBox> boxes) {
+    final _Head? head = _dragged;
+    final fit = _frozen;
+    setState(() {
+      _dragged = null;
+      _frozen = null;
+    });
+    if (head == null || fit == null) return;
+    final LayoutBox box = boxes[head]!;
+    widget.onMoved(
+      head,
+      box.x + (_delta.dx / fit.scale).round(),
+      box.y + (_delta.dy / fit.scale).round(),
+      (_snapPixels / fit.scale).round(),
+    );
+    _delta = Offset.zero;
+  }
+}
+
+class _DisplayTile extends StatelessWidget {
+  const _DisplayTile({
+    required this.label,
+    required this.dragging,
+    required this.theme,
+  });
+
+  final String label;
+  final bool dragging;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Color.alphaBlend(
+          theme.colorScheme.primary.withValues(alpha: dragging ? 0.35 : 0.2),
+          sectionColor(theme),
+        ),
+        border: Border.all(color: theme.colorScheme.primary, width: 2),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: theme.textTheme.labelLarge,
       ),
     );
   }

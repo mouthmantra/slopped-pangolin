@@ -76,6 +76,20 @@ class OutputSettings {
   final int y;
   final bool? adaptiveSync;
 
+  /// The same settings at [x], [y].
+  OutputSettings movedTo(int x, int y) => OutputSettings(
+        id: id,
+        enabled: enabled,
+        width: width,
+        height: height,
+        refresh: refresh,
+        scale: scale,
+        transform: transform,
+        x: x,
+        y: y,
+        adaptiveSync: adaptiveSync,
+      );
+
   Map<String, Object?> toJson() => {
         "id": id,
         "enabled": enabled,
