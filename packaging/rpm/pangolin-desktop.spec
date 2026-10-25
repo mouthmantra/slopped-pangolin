@@ -54,6 +54,7 @@ Requires:       hicolor-icon-theme
 Recommends:     xdg-desktop-portal-wlr
 Recommends:     xdg-desktop-portal-gtk
 Recommends:     polkit
+Recommends:     udisks2
 Recommends:     pipewire-utils
 Recommends:     wireplumber
 Recommends:     NetworkManager

@@ -18,6 +18,7 @@ static const DahliaAppInfo kApps[] = {
     {"gallery", "Gallery", 1040, 680},
     {"text_editor", "Text Editor", 960, 660},
     {"logs", "Logs", 1080, 680},
+    {"disks", "Disks", 1100, 720},
     // Dialogs of the desktop portal (session/portal) for other apps.
     {"file_chooser", "Choose a File", 940, 620},
     {"app_chooser", "Open With", 460, 580},

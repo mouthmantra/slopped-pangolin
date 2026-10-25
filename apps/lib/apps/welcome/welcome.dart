@@ -42,6 +42,7 @@ const List<_AppInfo> _bundledApps = [
   _AppInfo("gallery", "Gallery", "Your pictures and screenshots"),
   _AppInfo("activity_monitor", "Activity Monitor", "Processes and resources"),
   _AppInfo("logs", "Logs", "See what your system is doing"),
+  _AppInfo("disks", "Disks", "Drives, partitions and disk health"),
 ];
 
 class WelcomePage extends StatefulWidget {

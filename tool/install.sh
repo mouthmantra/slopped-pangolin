@@ -88,7 +88,7 @@ if [ ! -w "$check_dir" ]; then
     exit 1
 fi
 
-APPS="activity_monitor calculator clock files gallery logs settings store terminal text_editor welcome"
+APPS="activity_monitor calculator clock disks files gallery logs settings store terminal text_editor welcome"
 SHARE="$P/share"
 
 uninstall() {

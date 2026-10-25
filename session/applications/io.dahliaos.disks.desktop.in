@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Disks
+Comment=Manage drives and media
+Exec=@BINDIR@/dahlia_apps disks
+Icon=io.dahliaos.disks
+Categories=System;Utility;
+Keywords=disk;drive;partition;format;mount;usb;smart;benchmark;image;luks;encryption;
+StartupWMClass=io.dahliaos.disks
+StartupNotify=false
+Terminal=false

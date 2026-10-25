@@ -531,8 +531,24 @@ theme (6.1).
       play-pause/next, player switch when several). ZenitSlider gained
       onChangeEnd. Verified headless with a fake MPRIS player:
       PlayPause, Next, SetPosition calls and the card updates.
-- [ ] 4.2 Disks: a dahliaOS app over UDisks2 with GNOME Disks' feature
+- [~] 4.2 Disks: a dahliaOS app over UDisks2 with GNOME Disks' feature
       set (decided by the user 2026-10-16; GNOME Disks is not used).
+      Done 2026-10-25 (apps/lib/apps/disks: udisks.dart the object
+      manager client, disks.dart the page, dialogs.dart, imaging.dart
+      images and benchmark, smart.dart); `dahlia_apps disks`, RPM
+      Recommends udisks2. Every feature below is in. Tests: apps/test/disks
+      (33: layout, names in confirmations, SMART parsing, options, and a
+      fake UDisks2 on a private bus that checks every call against UDisks
+      2.11's signatures and polkit's interactive flag). Walked through
+      headless against that fake (no real disk touched): unlock with a
+      wrong and the right password, resize a LUKS volume (partition, then
+      Encrypted.Resize, then the filesystem), create partitions (exFAT;
+      Ext4 with password), mount options (fstab), drive settings,
+      SMART with a self-test, benchmark, create a disk image, check NTFS
+      without ntfsfix (names the missing program). Fixed on the way: the
+      benchmark couldn't find UDisks' descriptor unless it pointed at
+      the device's own name; a new partition is now selected; spacing of
+      stacked fields. [ ] On the machine, with a USB stick.
       - Drives and partition map.
       - Mount and unmount; power off and eject.
       - Format a disk (partition table) and format partitions.

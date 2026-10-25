@@ -19,6 +19,7 @@ import 'dart:io';
 import 'package:dahlia_apps/apps/activity_monitor/activity_monitor.dart';
 import 'package:dahlia_apps/apps/calculator/calculator.dart';
 import 'package:dahlia_apps/apps/clock/clock.dart';
+import 'package:dahlia_apps/apps/disks/disks.dart';
 import 'package:dahlia_apps/apps/files/files.dart';
 import 'package:dahlia_apps/apps/gallery/gallery.dart';
 import 'package:dahlia_apps/apps/logs/logs.dart';
@@ -37,6 +38,7 @@ final Map<String, DahliaAppSpec> dahliaApps = {
     activityMonitorApp,
     calculatorApp,
     clockApp,
+    disksApp,
     filesApp,
     galleryApp,
     logsApp,
