@@ -19,7 +19,7 @@
 
 Name:           pangolin-desktop
 Version:        1.1.0
-Release:        18%{?dist}
+Release:        19%{?dist}
 Summary:        The dahliaOS desktop (Pangolin) on the river Wayland compositor
 
 # Pangolin and the dahliaOS apps: Apache-2.0; river and the Papirus icons
@@ -208,6 +208,17 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %ghost %attr(0644,pangolin-greeter,pangolin-greeter) %{_localstatedir}/log/PangolinGreeter.log
 
 %changelog
+* Sun Oct 25 2026 Logan <loganctorres1@gmail.com> - 1.1.0-19
+- Files redesigned after the dahliaOS design: tabs in the title bar, a
+  navigation row with breadcrumbs and search, collapsible sidebar sections
+  (Favourites, Drives, Cloud Drives), a toolbar with New and five views
+  (Details, Tiles, Small, Medium and Large icons), resizable columns,
+  colour tags, a translucent window
+- Files: rubber-band selection, a selection mode, and dragging files onto
+  folders, tabs and sidebar places (Ctrl copies)
+- Files draws files and folders with Papirus icons, folders in beige
+  (Papirus: GPL-3.0)
+
 * Sun Oct 25 2026 Logan <loganctorres1@gmail.com> - 1.1.0-18
 - River is back in the package: 1.1.0-17 was built without it and sessions
   didn't start; building a package without river now fails
