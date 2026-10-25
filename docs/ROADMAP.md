@@ -1243,6 +1243,20 @@ theme (6.1).
       buffer age, or the single output buffer), then double-buffer blur
       outputs, keep the previous blur when an item below has no texture
       yet, and send region changes with the frame that needs them.
+- [ ] 8.18 Dragging a window to an external monitor tiles it instead
+      (user, 2026-10-25): moving a window towards the external monitor
+      snaps it to the half of the internal display on that side, instead
+      of letting it cross over. Cause: `_snapTargetFor`
+      (lib/services/wm/river.dart) only knows the primary output: it snaps
+      whenever the pointer is within 4 px of that output's left, right or
+      top edge, even where the edge leads to another output, and always
+      into the primary output's work area. To do: snap zones on every
+      output, only at edges no other output touches (the outer edges of
+      the layout), into that output's own work area, so windows cross
+      shared edges freely and can snap on the external monitor too. Check
+      with the user's layout (eDP-1 and the MST DP-8 side by side) and
+      with displays stacked vertically (the top edge shared). Goes
+      with 8.9's snap zones.
 - [x] 8.8 Overview close button hard to hit (user report 2026-10-17). It sat
       half outside its window's slot, and Flutter only hit-tests inside a
       widget's bounds: half the button ignored clicks, and moving onto it
