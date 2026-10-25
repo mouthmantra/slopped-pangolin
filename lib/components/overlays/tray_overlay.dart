@@ -1,19 +1,14 @@
 import 'dart:async';
 
 import 'package:dahlia_shared/dahlia_shared.dart';
-import 'package:dbus/dbus.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:pangolin/widgets/surface/popup_transition.dart';
-import 'package:pangolin/services/dbus/image.dart';
-import 'package:pangolin/services/dbus/status_item.dart';
 import 'package:pangolin/services/shell.dart';
 import 'package:pangolin/services/tray.dart';
 import 'package:pangolin/services/wm.dart';
-import 'package:pangolin/widgets/context_menu.dart';
-import 'package:pangolin/widgets/dbus/image.dart';
-import 'package:pangolin/widgets/dbus/menu.dart';
+import 'package:pangolin/widgets/surface/popup_transition.dart';
 import 'package:pangolin/widgets/surface/surface_layer.dart';
+import 'package:pangolin/widgets/tray/tray_icon.dart';
+import 'package:pangolin/widgets/tray/tray_item_area.dart';
 
 class TrayMenuOverlay extends ShellOverlay {
   static const String overlayId = "tray";
@@ -39,13 +34,17 @@ class _TrayMenuOverlayState extends ShellOverlayState<TrayMenuOverlay>
   Widget buildChild(BuildContext context, TrayService service) {
     if (shouldHide) return const SizedBox();
 
+    // Passive items (the item says it has nothing to show) come last.
+    final List<TrayItem> items = [
+      ...service.shownItems,
+      ...service.hiddenItems,
+    ];
     final origin = this.origin ??
         Offset(
           MediaQuery.of(context).size.width / 2,
           WindowManagerService.current.controller.wmBounds.bottom,
         );
-    final rowCount =
-        service.items.isNotEmpty ? (service.items.length / 4).ceil() : 1;
+    final rowCount = items.isNotEmpty ? (items.length / 4).ceil() : 1;
     final layoutHeight =
         _itemSize * rowCount + _itemPadding * (rowCount - 1) + _sidePadding * 2;
 
@@ -68,12 +67,12 @@ class _TrayMenuOverlayState extends ShellOverlayState<TrayMenuOverlay>
                 type: MaterialType.transparency,
                 child: Padding(
                   padding: const EdgeInsets.all(_sidePadding),
-                  child: service.items.isNotEmpty
+                  child: items.isNotEmpty
                       ? Wrap(
                           spacing: _itemPadding,
                           runSpacing: _itemPadding,
-                          children: service.items
-                              .map((e) => _TrayMenuItem(item: e))
+                          children: items
+                              .map((e) => _TrayMenuItem(key: ObjectKey(e), item: e))
                               .toList(),
                         )
                       : const SizedBox(
@@ -110,119 +109,31 @@ class _TrayMenuOverlayState extends ShellOverlayState<TrayMenuOverlay>
   }
 }
 
-class _TrayMenuItem extends StatefulWidget {
-  final StatusNotifierItem item;
+/// A tray item in the panel: clicks, the wheel and its menu go through
+/// [TrayItemArea].
+class _TrayMenuItem extends StatelessWidget {
+  final TrayItem item;
 
-  const _TrayMenuItem({required this.item});
-
-  @override
-  State<_TrayMenuItem> createState() => _TrayMenuItemState();
-}
-
-class _TrayMenuItemState extends State<_TrayMenuItem> {
-  @override
-  void initState() {
-    super.initState();
-    _startListening(widget.item);
-  }
-
-  void _startListening(StatusNotifierItem item) {
-    item.addListener(update);
-    item.startListening();
-  }
-
-  void _stopListening(StatusNotifierItem item) {
-    item.stopListening();
-    item.removeListener(update);
-  }
-
-  @override
-  void didUpdateWidget(covariant _TrayMenuItem oldWidget) {
-    if (widget.item != oldWidget.item) {
-      _stopListening(oldWidget.item);
-      _startListening(widget.item);
-    }
-    super.didUpdateWidget(oldWidget);
-  }
-
-  @override
-  void dispose() {
-    widget.item.removeListener(update);
-    super.dispose();
-  }
-
-  void update() => setState(() {});
+  const _TrayMenuItem({required this.item, super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: widget.item.tooltip?.title ?? widget.item.title,
-      waitDuration: const Duration(seconds: 1),
-      child: SizedBox.square(
+    return TrayItemArea(
+      item: item,
+      inPopup: true,
+      builder: (context, menuOpen, actions) => SizedBox.square(
         dimension: _TrayMenuOverlayState._itemSize,
         child: Material(
           shape: Constants.smallShape,
           clipBehavior: Clip.antiAlias,
-          child: ContextMenu(
-            entries: widget.item.menu != null
-                ? widget.item.menu!.children
-                    .where((e) => e.visible)
-                    .map((e) => DBusMenuEntry(e))
-                    .toList()
-                : null,
-            onOpen: () {
-              widget.item.menu!.object.callEvent(
-                widget.item.menu!.id,
-                "opened",
-                DBusArray.string([]),
-                (DateTime.now().millisecondsSinceEpoch / 1000).round(),
-              );
-            },
-            onClose: () {
-              widget.item.menu!.object.callEvent(
-                widget.item.menu!.id,
-                "closed",
-                DBusArray.string([]),
-                (DateTime.now().millisecondsSinceEpoch / 1000).round(),
-              );
-            },
-            child: InkWell(
-              onTapDown: (details) {
-                widget.item.activate(
-                  details.globalPosition.dx.round(),
-                  details.globalPosition.dy.round(),
-                );
-              },
-              child: Listener(
-                onPointerSignal: (event) {
-                  if (event is PointerScrollEvent) {
-                    if (event.scrollDelta.dx != 0) {
-                      widget.item.scroll(
-                        event.scrollDelta.dx.round(),
-                        ScrollOrientation.horizontal,
-                      );
-                    }
-
-                    if (event.scrollDelta.dy != 0) {
-                      widget.item.scroll(
-                        event.scrollDelta.dy.round(),
-                        ScrollOrientation.vertical,
-                      );
-                    }
-                  }
-                },
-                child: Center(
-                  child: SizedBox.square(
-                    dimension: 20,
-                    child: DBusImageWidget(
-                      height: 20,
-                      width: 20,
-                      themePath: widget.item.iconThemePath,
-                      image: widget.item.icon ??
-                          const IconDataDBusImage(Icons.info),
-                    ),
-                  ),
-                ),
+          child: InkWell(
+            onTapUp: (details) => actions.primary(details.globalPosition),
+            onSecondaryTapUp: (details) =>
+                actions.secondary(details.globalPosition),
+            child: Center(
+              child: ListenableBuilder(
+                listenable: item,
+                builder: (context, _) => TrayIconImage.item(item, size: 20),
               ),
             ),
           ),

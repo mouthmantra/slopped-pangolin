@@ -828,6 +828,31 @@ theme (6.1).
       with stale pixels (3 of 5 before); the idle taskbar corner matches;
       no redraw loop (shell CPU at idle 0.24 s per 10 s, 0.22 s before).
       [ ] On the machine (4K@165, the GPU path rather than pixman).
+- [x] 8.12 System tray rewritten for AppIndicator / StatusNotifierItem
+      (user, 2026-10-24; separate session, notes in tray-rewrite-findings.md):
+      lib/services/tray/ and lib/widgets/tray/ replace lib/services/dbus/
+      (menu, status_item, status_watcher). Was broken: Pangolin queued for
+      the watcher name behind another watcher and saw no items; Qt apps
+      (all at /StatusNotifierItem) replaced one another; menu-less or slow
+      items never showed, a silent one stalled registration; updates only
+      while the panel was open, leaking subscriptions; menus read once; no
+      activate for appindicator apps, no middle click, scrolling reversed,
+      no submenus; an empty icon list threw while drawing. Now: own
+      watcher only if none runs (else a host of it, taking over when it
+      quits); both registration styles; items leave with their bus name;
+      all properties and change signals, with timeouts; icons from the
+      theme (IconThemePath) or the closest pixmap; full dbusmenu client
+      (AboutToShow, Event, LayoutUpdated, ItemsPropertiesUpdated,
+      submenus, check and radio items); left click Activate (or the
+      menu), middle SecondaryActivate, wheel Scroll (direction per app
+      family); passive items last, attention icons. The chevron panel looks
+      as before. Tests: test/tray (39 unit tests; 12 bus tests against
+      Python items on a private bus:
+      `PANGOLIN_TRAY_BUS_TEST=1 dbus-run-session -- flutter test
+      test/tray/tray_bus_test.dart`); nested shell with real Ayatana and Qt
+      tray apps. `/test` removed from .gitignore so test/ is tracked.
+      Left: mark the chevron when a hidden item needs attention; Quick
+      Settings' "Tray icons" section duplicates the panel.
 - [x] 8.8 Overview close button hard to hit (user report 2026-10-17). It sat
       half outside its window's slot, and Flutter only hit-tests inside a
       widget's bounds: half the button ignored clicks, and moving onto it
