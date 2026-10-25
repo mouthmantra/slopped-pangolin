@@ -1,0 +1,191 @@
+/* Pangolin's dahliaOS theme for plain GTK 4 apps (libadwaita ones ignore
+   themes): GTK's Default theme (imported above) in dahliaOS' colors. The
+   shapes come from Pangolin's ~/.config/gtk-4.0 stylesheet, which every
+   GTK 4 app loads while the session runs (assets/gtk/libadwaita.css). */
+
+@define-color theme_fg_color @pangolin_fg;
+@define-color theme_text_color @pangolin_fg;
+@define-color theme_bg_color @pangolin_bg;
+@define-color theme_base_color @pangolin_bg;
+@define-color theme_selected_bg_color @pangolin_accent;
+@define-color theme_selected_fg_color @pangolin_on_accent;
+@define-color insensitive_fg_color @pangolin_fg_dim;
+@define-color borders @pangolin_line;
+@define-color warning_color @pangolin_warning;
+@define-color error_color @pangolin_error;
+@define-color success_color @pangolin_success;
+
+window,
+.background,
+.view,
+textview > text,
+iconview,
+list,
+listview,
+columnview,
+gridview {
+  background-color: @pangolin_bg;
+  color: @pangolin_fg;
+}
+
+selection { background-color: @pangolin_selection; }
+
+/* No lines. */
+separator { background-color: transparent; }
+
+frame,
+frame > border,
+.frame,
+scrolledwindow.frame,
+columnview,
+columnview > header > button {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* Title bars. */
+headerbar,
+.titlebar,
+headerbar:backdrop {
+  background-color: @pangolin_header;
+  background-image: none;
+  border-color: transparent;
+  box-shadow: none;
+  color: @pangolin_fg;
+  min-height: 48px;
+}
+
+window.csd { border-radius: 12px; }
+window.csd > .titlebar,
+window.csd > headerbar { border-radius: 12px 12px 0 0; }
+window.maximized > .titlebar,
+window.tiled > .titlebar { border-radius: 0; }
+
+/* Buttons. */
+button {
+  background-color: @pangolin_surface;
+  background-image: none;
+  border-color: transparent;
+  box-shadow: none;
+  text-shadow: none;
+  color: @pangolin_fg;
+}
+
+button:hover { background-color: @pangolin_surface_hover; background-image: none; }
+button:active,
+button:checked { background-color: @pangolin_surface_active; background-image: none; }
+
+button.flat,
+headerbar button:not(.suggested-action):not(.destructive-action),
+windowcontrols > button {
+  background-color: transparent;
+}
+
+button.flat:hover,
+headerbar button:not(.suggested-action):not(.destructive-action):hover {
+  background-color: @pangolin_hover;
+}
+
+button.suggested-action,
+button.default {
+  background-color: @pangolin_accent;
+  color: @pangolin_on_accent;
+}
+
+button.destructive-action {
+  background-color: @pangolin_destructive;
+  color: white;
+}
+
+/* Fields. */
+entry,
+spinbutton,
+dropdown > button {
+  background-image: none;
+  border-color: transparent;
+}
+
+entry,
+spinbutton {
+  background-color: @pangolin_field;
+  color: @pangolin_fg;
+}
+
+entry:focus-within,
+spinbutton:focus-within {
+  box-shadow: inset 0 0 0 2px alpha(@pangolin_accent, 0.6);
+  outline: none;
+}
+
+/* Check and radio buttons. */
+checkbutton > check,
+checkbutton > radio {
+  border: none;
+  background-image: none;
+  -gtk-icon-size: 14px;
+}
+
+/* Rows. */
+row:selected,
+listview > row:selected,
+columnview > listview > row:selected,
+.navigation-sidebar > row:selected {
+  background-color: @pangolin_selected;
+  color: @pangolin_fg;
+}
+
+/* Sidebars. */
+.sidebar,
+.navigation-sidebar,
+placessidebar,
+stacksidebar {
+  background-color: @pangolin_header;
+  border: none;
+}
+
+paned > separator { background-color: transparent; background-image: none; }
+
+/* Notebook tabs. */
+notebook > header {
+  background-color: @pangolin_header;
+  border: none;
+  box-shadow: none;
+}
+
+notebook > header > tabs > tab {
+  border: none;
+  border-radius: 8px;
+  box-shadow: none;
+  margin: 4px 2px;
+  color: @pangolin_fg_dim;
+}
+
+notebook > header > tabs > tab:checked {
+  background-color: @pangolin_bg;
+  color: @pangolin_fg;
+}
+
+notebook > stack:not(:only-child) { background-color: @pangolin_bg; }
+
+/* Popovers. */
+popover > contents,
+popover > arrow {
+  background-color: @pangolin_popover;
+  border-color: transparent;
+  color: @pangolin_fg;
+}
+
+/* Sliders and progress. */
+scale > trough { border: none; }
+scale > trough > slider {
+  background-color: @pangolin_on_accent;
+  background-image: none;
+  border: none;
+  box-shadow: 0 1px 3px @pangolin_shadow;
+}
+
+progressbar > trough,
+progressbar > trough > progress { border: none; }
+
+*:link,
+button.link > label { color: @pangolin_accent_text; }

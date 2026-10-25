@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Pangolin app style cleanup
+Comment=Keeps Pangolin's dahliaOS style of libadwaita apps inside Pangolin
+Exec=@PREFIX@/libexec/pangolin/pangolin-gtk-style-off
+NotShowIn=Pangolin;
+NoDisplay=true
+Terminal=false

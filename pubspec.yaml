@@ -86,6 +86,7 @@ flutter:
     - assets/images/wallpapers/
     - assets/textures/
     - assets/fonts/
+    - assets/gtk/
   fonts:
     - family: CustomIcons
       fonts:

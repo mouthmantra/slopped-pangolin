@@ -1,0 +1,706 @@
+/* Pangolin's dahliaOS theme for GTK 3: GTK's Adwaita (imported above) with
+   dahliaOS' colors, shapes and controls. The @pangolin_* colors are
+   generated above (lib/services/gtk_theme.dart). Like Zenit: fills and
+   spacing set things apart, never borders or dividers. */
+
+/* Colors apps look up by name. */
+@define-color theme_fg_color @pangolin_fg;
+@define-color theme_text_color @pangolin_fg;
+@define-color theme_bg_color @pangolin_bg;
+@define-color theme_base_color @pangolin_bg;
+@define-color theme_selected_bg_color @pangolin_accent;
+@define-color theme_selected_fg_color @pangolin_on_accent;
+@define-color insensitive_bg_color @pangolin_bg;
+@define-color insensitive_fg_color @pangolin_fg_dim;
+@define-color insensitive_base_color @pangolin_bg;
+@define-color theme_unfocused_fg_color @pangolin_fg;
+@define-color theme_unfocused_text_color @pangolin_fg;
+@define-color theme_unfocused_bg_color @pangolin_bg;
+@define-color theme_unfocused_base_color @pangolin_bg;
+@define-color theme_unfocused_selected_bg_color @pangolin_accent;
+@define-color theme_unfocused_selected_fg_color @pangolin_on_accent;
+@define-color unfocused_insensitive_color @pangolin_fg_dim;
+@define-color borders @pangolin_line;
+@define-color unfocused_borders @pangolin_line;
+@define-color warning_color @pangolin_warning;
+@define-color error_color @pangolin_error;
+@define-color success_color @pangolin_success;
+@define-color content_view_bg @pangolin_bg;
+@define-color text_view_bg @pangolin_bg;
+
+/* Adwaita draws its bevels, gradients and underlines with these properties
+   in many state-specific rules; dahliaOS has none of them. The never-present
+   id lifts this reset above any Adwaita selector, for these properties
+   only, so the fills below show in every state. */
+button:not(#pangolin-reset),
+check:not(#pangolin-reset),
+radio:not(#pangolin-reset),
+switch:not(#pangolin-reset),
+switch slider:not(#pangolin-reset),
+headerbar:not(#pangolin-reset),
+.titlebar:not(#pangolin-reset),
+notebook > header:not(#pangolin-reset),
+notebook > header > tabs > tab:not(#pangolin-reset),
+menubar > menuitem:not(#pangolin-reset),
+treeview.view header button:not(#pangolin-reset),
+scale trough:not(#pangolin-reset),
+scale highlight:not(#pangolin-reset),
+progressbar trough:not(#pangolin-reset),
+progressbar progress:not(#pangolin-reset) {
+  background-image: none;
+  box-shadow: none;
+  text-shadow: none;
+  -gtk-icon-shadow: none;
+  border-color: transparent;
+}
+
+/* Window and views. */
+window,
+.background,
+.background:backdrop {
+  background-color: @pangolin_bg;
+  color: @pangolin_fg;
+}
+
+.view,
+iconview,
+textview text,
+treeview.view,
+list,
+row {
+  background-color: @pangolin_bg;
+  color: @pangolin_fg;
+}
+
+.view:selected,
+iconview:selected,
+treeview.view:selected,
+list row:selected,
+row:selected,
+flowbox flowboxchild:selected {
+  background-color: @pangolin_selected;
+  color: @pangolin_fg;
+}
+
+.view:selected:focus,
+treeview.view:selected:focus,
+row:selected:focus {
+  background-color: alpha(@pangolin_accent, 0.3);
+  color: @pangolin_fg;
+}
+
+row:hover:not(:selected) { background-color: @pangolin_hover; }
+
+selection,
+*:selected selection,
+entry selection,
+textview text selection,
+label selection {
+  background-color: @pangolin_selection;
+  color: @pangolin_fg;
+}
+
+/* No lines. */
+separator,
+separator:backdrop {
+  background-color: transparent;
+}
+
+frame > border,
+.frame,
+scrolledwindow.frame,
+viewport.frame,
+frame.view > border {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+treeview.view header button,
+treeview.view header button:hover,
+treeview.view header button:backdrop {
+  background-color: @pangolin_bg;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+  color: @pangolin_fg_dim;
+}
+
+/* Title bars: the dahliaOS title bar color, no line below. */
+headerbar,
+.titlebar,
+headerbar:backdrop,
+.titlebar:backdrop {
+  background-color: @pangolin_header;
+  background-image: none;
+  border-color: transparent;
+  box-shadow: none;
+  color: @pangolin_fg;
+  min-height: 48px;
+}
+
+headerbar .title,
+.titlebar .title {
+  font-weight: 600;
+}
+
+headerbar .subtitle { color: @pangolin_fg_dim; }
+
+.csd decoration,
+.csd decoration:backdrop {
+  border-radius: 12px 12px 0 0;
+  box-shadow: 0 3px 12px 1px @pangolin_shadow, 0 0 0 1px @pangolin_line;
+}
+
+.csd headerbar,
+.csd .titlebar,
+window.csd > .titlebar:not(headerbar) {
+  border-radius: 12px 12px 0 0;
+}
+
+.maximized headerbar,
+.maximized .titlebar,
+.tiled headerbar,
+.tiled .titlebar,
+.maximized decoration,
+.tiled decoration {
+  border-radius: 0;
+}
+
+/* Window controls: plain glyphs, a circle on hover. */
+headerbar button.titlebutton,
+.titlebar button.titlebutton {
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+  border-radius: 999px;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 4px;
+  color: @pangolin_fg;
+}
+
+headerbar button.titlebutton:hover { background-color: @pangolin_hover; }
+headerbar button.titlebutton:active { background-color: @pangolin_active; }
+
+/* Buttons: filled pills (Zenit's tonal buttons); icons in circles. */
+button {
+  background-color: @pangolin_surface;
+  background-image: none;
+  border: none;
+  border-color: transparent;
+  box-shadow: none;
+  text-shadow: none;
+  -gtk-icon-shadow: none;
+  color: @pangolin_fg;
+  border-radius: 999px;
+  padding: 6px 16px;
+  min-height: 24px;
+}
+
+button:hover {
+  background-color: @pangolin_surface_hover;
+  background-image: none;
+  box-shadow: none;
+}
+
+button:active,
+button:checked {
+  background-color: @pangolin_surface_active;
+  background-image: none;
+  box-shadow: none;
+}
+
+button:checked:not(.flat) {
+  background-color: @pangolin_accent;
+  color: @pangolin_on_accent;
+}
+
+button:checked:disabled:not(.flat) {
+  background-color: alpha(@pangolin_accent, 0.45);
+}
+
+button:disabled {
+  background-color: alpha(@pangolin_surface, 0.6);
+  background-image: none;
+  color: @pangolin_fg_dim;
+}
+
+button:backdrop {
+  background-image: none;
+  box-shadow: none;
+  text-shadow: none;
+}
+
+button.image-button { padding: 6px; }
+
+button.flat,
+headerbar button:not(.suggested-action):not(.destructive-action),
+.titlebar button:not(.suggested-action):not(.destructive-action) {
+  background-color: transparent;
+}
+
+button.flat:hover,
+headerbar button:not(.suggested-action):not(.destructive-action):hover {
+  background-color: @pangolin_hover;
+}
+
+button.flat:active,
+button.flat:checked,
+headerbar button:not(.suggested-action):not(.destructive-action):active,
+headerbar button:not(.suggested-action):not(.destructive-action):checked {
+  background-color: @pangolin_active;
+  color: @pangolin_fg;
+}
+
+stackswitcher > button:checked,
+headerbar stackswitcher > button:checked,
+.linked > button:checked {
+  background-color: @pangolin_selected;
+  color: @pangolin_fg;
+}
+
+button.suggested-action,
+button.default {
+  background-color: @pangolin_accent;
+  color: @pangolin_on_accent;
+}
+
+button.suggested-action:hover,
+button.default:hover { background-color: @pangolin_accent_hover; }
+
+button.suggested-action:active,
+button.default:active { background-color: @pangolin_accent_active; }
+
+button.destructive-action {
+  background-color: @pangolin_destructive;
+  color: white;
+}
+
+button.destructive-action:hover { background-color: shade(@pangolin_destructive, 1.1); }
+
+button.suggested-action label,
+button.destructive-action label {
+  color: inherit;
+}
+
+/* Buttons in a row share their inner edges. */
+.linked:not(.vertical) > button:not(:first-child),
+.linked:not(.vertical) > entry:not(:first-child),
+.linked:not(.vertical) > combobox:not(:first-child) > box > button,
+.linked:not(.vertical) > menubutton:not(:first-child) > button {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.linked:not(.vertical) > button:not(:last-child),
+.linked:not(.vertical) > entry:not(:last-child),
+.linked:not(.vertical) > combobox:not(:last-child) > box > button,
+.linked:not(.vertical) > menubutton:not(:last-child) > button {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.linked.vertical > button:not(:first-child),
+.linked.vertical > entry:not(:first-child) {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.linked.vertical > button:not(:last-child),
+.linked.vertical > entry:not(:last-child) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+combobox > box > button.combo { padding: 6px 12px 6px 16px; }
+
+.linked:not(.vertical) > entry:first-child,
+combobox > box.linked > entry:first-child {
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+.linked:not(.vertical) > entry:last-child,
+.linked:not(.vertical) > entry + button:last-child,
+combobox > box.linked > button.combo:last-child {
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+/* Fields: filled, no frame; the accent marks the focused one. */
+entry,
+spinbutton:not(.vertical),
+spinbutton.vertical > entry {
+  background-color: @pangolin_field;
+  background-image: none;
+  border: none;
+  border-color: transparent;
+  box-shadow: none;
+  color: @pangolin_fg;
+  border-radius: 8px;
+  min-height: 32px;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+entry:focus,
+spinbutton:focus:not(.vertical) {
+  box-shadow: inset 0 0 0 2px alpha(@pangolin_accent, 0.6);
+}
+
+entry:disabled { color: @pangolin_fg_dim; }
+
+entry.error { color: @pangolin_error; }
+
+spinbutton:not(.vertical) > entry {
+  background-color: transparent;
+  box-shadow: none;
+  min-height: 32px;
+}
+
+spinbutton:not(.vertical) > button {
+  background-color: transparent;
+  border: none;
+  border-radius: 999px;
+  padding: 4px;
+}
+
+spinbutton:not(.vertical) > button:hover { background-color: @pangolin_hover; }
+
+/* Switches: Zenit's 44x24 track with a 16px thumb, grey when off. */
+switch {
+  background-color: @pangolin_control;
+  background-image: none;
+  border: none;
+  border-radius: 999px;
+  box-shadow: none;
+  padding: 0;
+  color: transparent;
+  font-size: 0;
+  min-height: 24px;
+}
+
+switch slider {
+  min-width: 16px;
+  min-height: 16px;
+  margin: 4px;
+  border: none;
+  border-radius: 999px;
+  background-color: @pangolin_thumb_off;
+  background-image: none;
+  box-shadow: none;
+}
+
+switch:checked {
+  background-color: @pangolin_accent;
+  color: transparent;
+}
+
+switch:checked slider { background-color: @pangolin_on_accent; }
+
+switch image,
+switch:checked image {
+  color: transparent;
+  -gtk-icon-shadow: none;
+}
+
+switch:disabled { opacity: 0.5; }
+
+/* Check and radio buttons: filled, no outline; the accent when on. */
+check,
+radio,
+treeview.view check,
+treeview.view radio {
+  background-color: @pangolin_control;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+  min-width: 18px;
+  min-height: 18px;
+  color: @pangolin_on_accent;
+}
+
+check { border-radius: 6px; }
+radio { border-radius: 999px; }
+
+check:hover,
+radio:hover { background-color: @pangolin_control_hover; }
+
+check:checked,
+check:indeterminate,
+radio:checked,
+radio:indeterminate,
+treeview.view check:checked,
+treeview.view radio:checked {
+  background-color: @pangolin_accent;
+  color: @pangolin_on_accent;
+}
+
+check:checked:hover,
+radio:checked:hover,
+check:indeterminate:hover { background-color: @pangolin_accent_hover; }
+
+check:disabled,
+radio:disabled { opacity: 0.5; }
+
+check:backdrop,
+radio:backdrop { background-color: @pangolin_control; }
+
+check:checked:backdrop,
+check:indeterminate:backdrop,
+radio:checked:backdrop,
+radio:indeterminate:backdrop { background-color: @pangolin_accent; color: @pangolin_on_accent; }
+
+/* Sliders and progress. */
+scale trough,
+scale trough:backdrop {
+  background-color: @pangolin_control;
+  border: none;
+  box-shadow: none;
+}
+
+scale highlight,
+scale highlight:backdrop {
+  background-color: @pangolin_accent;
+  border: none;
+}
+
+scale slider {
+  background-color: @pangolin_on_accent;
+  background-image: none;
+  border: none;
+  box-shadow: 0 1px 3px @pangolin_shadow;
+}
+
+progressbar trough {
+  background-color: @pangolin_track;
+  border: none;
+  box-shadow: none;
+}
+
+progressbar progress {
+  background-color: @pangolin_accent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+}
+
+levelbar block.filled { background-color: @pangolin_accent; border: none; }
+levelbar block.empty { background-color: @pangolin_control; border: none; }
+
+/* Sidebars: the title bar color, rounded selections like the rail. */
+.sidebar,
+placessidebar,
+stacksidebar,
+.sidebar list,
+placessidebar list,
+stacksidebar list {
+  background-color: @pangolin_header;
+  border: none;
+}
+
+placessidebar row,
+stacksidebar row,
+.sidebar row {
+  background-color: transparent;
+  border-radius: 16px;
+  margin: 1px 8px;
+}
+
+placessidebar row:selected,
+stacksidebar row:selected,
+.sidebar row:selected {
+  background-color: @pangolin_selected;
+  color: @pangolin_fg;
+}
+
+placessidebar row:selected label,
+placessidebar row:selected image,
+stacksidebar row:selected label {
+  color: @pangolin_fg;
+}
+
+paned > separator,
+paned.wide > separator {
+  background-color: transparent;
+  background-image: none;
+  border: none;
+}
+
+/* Notebook tabs: the selected one lifts to the page color. */
+notebook > header,
+notebook > header:backdrop {
+  background-color: @pangolin_header;
+  border: none;
+  box-shadow: none;
+}
+
+notebook > header tab,
+notebook > header.top > tabs > tab,
+notebook > header.bottom > tabs > tab,
+notebook > header.left > tabs > tab,
+notebook > header.right > tabs > tab {
+  border: none;
+  border-radius: 8px;
+  box-shadow: none;
+  margin: 4px 2px;
+  padding: 4px 12px;
+  color: @pangolin_fg_dim;
+}
+
+notebook > header tab:hover,
+notebook > header.top > tabs > tab:hover,
+notebook > header.bottom > tabs > tab:hover,
+notebook > header.left > tabs > tab:hover,
+notebook > header.right > tabs > tab:hover { background-color: @pangolin_hover; }
+
+notebook > header tab:checked,
+notebook > header.top > tabs > tab:checked,
+notebook > header.bottom > tabs > tab:checked,
+notebook > header.left > tabs > tab:checked,
+notebook > header.right > tabs > tab:checked {
+  background-color: @pangolin_bg;
+  color: @pangolin_fg;
+  box-shadow: none;
+}
+
+notebook > header tab button.flat { padding: 2px; min-width: 16px; min-height: 16px; }
+
+notebook > stack:not(:only-child) { background-color: @pangolin_bg; }
+
+/* Menus and popovers: rounded, a soft shadow, no frame. */
+menu,
+.menu,
+.context-menu,
+.csd menu,
+.csd .menu {
+  background-color: @pangolin_popover;
+  border: none;
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: none;
+}
+
+menu menuitem,
+.menu menuitem,
+.context-menu menuitem {
+  border-radius: 8px;
+  padding: 6px 12px;
+  min-height: 20px;
+  color: @pangolin_fg;
+  text-shadow: none;
+}
+
+menu menuitem:hover,
+.menu menuitem:hover,
+.context-menu menuitem:hover {
+  background-color: @pangolin_hover;
+  color: @pangolin_fg;
+}
+
+menu menuitem:disabled { color: @pangolin_fg_dim; }
+
+menu menuitem accelerator { color: @pangolin_fg_dim; }
+
+menubar,
+.menubar {
+  background-color: @pangolin_header;
+  box-shadow: none;
+  padding: 0;
+}
+
+menubar > menuitem { border-radius: 8px; padding: 4px 10px; }
+menubar > menuitem:hover {
+  background-color: @pangolin_hover;
+  box-shadow: none;
+  color: @pangolin_fg;
+}
+
+popover,
+popover.background,
+popover:backdrop {
+  background-color: @pangolin_popover;
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px @pangolin_shadow;
+  color: @pangolin_fg;
+}
+
+popover modelbutton {
+  border-radius: 8px;
+  padding: 6px 12px;
+}
+
+popover modelbutton:hover {
+  background-color: @pangolin_hover;
+  color: @pangolin_fg;
+}
+
+/* Tooltips: the inverted pill of Zenit. */
+tooltip,
+tooltip.background,
+.csd tooltip.background {
+  background-color: @pangolin_tooltip_bg;
+  border: none;
+  border-radius: 24px;
+  box-shadow: none;
+  text-shadow: none;
+  padding: 4px 8px;
+}
+
+tooltip label,
+tooltip * {
+  color: @pangolin_tooltip_fg;
+  text-shadow: none;
+}
+
+/* Dialogs. */
+messagedialog.csd decoration,
+dialog.csd decoration {
+  border-radius: 12px;
+}
+
+messagedialog .dialog-action-area button {
+  border-radius: 999px;
+  padding: 8px 16px;
+  margin: 8px 4px;
+}
+
+/* Info bars and search bars without frames. */
+infobar,
+infobar > revealer > box,
+searchbar > revealer > box {
+  border: none;
+  box-shadow: none;
+}
+
+searchbar > revealer > box { background-color: @pangolin_header; }
+
+infobar.info > revealer > box,
+infobar.question > revealer > box {
+  background-color: @pangolin_selected;
+  color: @pangolin_fg;
+}
+
+/* Scrollbars: thin, rounded, on the page's own color. */
+scrollbar,
+scrollbar:backdrop {
+  background-color: transparent;
+  border: none;
+}
+
+scrollbar slider {
+  background-color: alpha(@pangolin_fg, 0.3);
+  border: 4px solid transparent;
+  border-radius: 999px;
+  min-width: 6px;
+  min-height: 6px;
+}
+
+scrollbar slider:hover { background-color: alpha(@pangolin_fg, 0.45); }
+scrollbar slider:active { background-color: alpha(@pangolin_fg, 0.6); }
+
+/* Links in the accent color. */
+*:link,
+button.link > label { color: @pangolin_accent_text; }

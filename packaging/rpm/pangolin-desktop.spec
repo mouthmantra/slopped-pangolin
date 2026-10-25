@@ -169,6 +169,7 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %files
 %license LICENSE
 %{_datadir}/licenses/pangolin/
+%{_datadir}/fonts/pangolin-inter/
 %doc README.md docs/PLATFORMS.md docs/DISTRIBUTING.md
 %{_bindir}/pangolin
 %{_bindir}/dahlia_apps
@@ -192,6 +193,7 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %config(noreplace) %{_sysconfdir}/pam.d/pangolin
 %config(noreplace) %{_sysconfdir}/logrotate.d/pangolin
 %config(noreplace) %{_sysconfdir}/xdg/xdg-desktop-portal-wlr/Pangolin
+%{_sysconfdir}/xdg/autostart/pangolin-gtk-style-off.desktop
 %dir %{_localstatedir}/lib/pangolin
 %dir %attr(1777,root,root) %{_localstatedir}/lib/pangolin/users
 %ghost %attr(0644,root,root) %{_localstatedir}/log/Pangolin.log

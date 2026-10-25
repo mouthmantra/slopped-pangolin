@@ -18,29 +18,50 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dahlia_shared/dahlia_shared.dart';
+import 'package:flutter/painting.dart';
 import 'package:logging/logging.dart';
+import 'package:pangolin/services/gtk_theme.dart';
 import 'package:pangolin_settings/pangolin_settings.dart';
 
-/// Makes other applications follow Pangolin's light/dark setting, through
-/// the settings every toolkit reads (in Pangolin's own dconf database, see
-/// DCONF_PROFILE in pangolin-session, so GNOME sessions keep theirs):
+/// Makes other applications follow Pangolin's look, through the settings
+/// every toolkit reads (in Pangolin's own dconf database, see DCONF_PROFILE
+/// in pangolin-session, so GNOME sessions keep theirs):
 /// org.gnome.desktop.interface
 /// color-scheme (served to GTK 4/libadwaita, Firefox, Chromium, Electron and
-/// Qt 6 by the settings portal) and the GTK 3 theme (Adwaita / Adwaita-dark,
-/// or the -dark variant of another installed theme).
+/// Qt 6 by the settings portal) and the GTK theme: Pangolin's dahliaOS theme
+/// for the accent color (GtkTheme), or with the Adwaita app style Adwaita /
+/// Adwaita-dark (or the -dark variant of another installed theme).
 abstract final class SystemTheme {
   static final Logger _logger = Logger("SystemTheme");
-  static bool? _applied;
+  static _Look? _applied;
+  static Future<void> _queue = Future.value();
   static bool _available = true;
+
+  /// Zenit's accent when none is set.
+  static const Color _defaultAccent = Color(0xFF0073CF);
 
   static void follow() {
     // A nested session must not restyle the host desktop's apps.
     if (Platform.environment["PANGOLIN_NESTED"] == "1") return;
     final CustomizationService service = CustomizationService.current;
-    void apply() => unawaited(_apply(service.darkMode));
-    service.addListener(apply);
-    apply();
     final PreferencesService prefs = PreferencesService.current;
+    // One at a time: the theme files are rewritten in place.
+    void apply() => _queue = _queue.then(
+          (_) => _apply(
+            _Look(
+              dark: service.darkMode,
+              dahlia: (prefs.get<String>(SessionSetting.appStyle.key) ??
+                      SessionSetting.appStyle.defaultValue) !=
+                  "adwaita",
+              accent: service.accentColor.resolve() ?? _defaultAccent,
+              tint: prefs.get<bool>(SessionSetting.titlebarAccentTint.key) ??
+                  SessionSetting.titlebarAccentTint.defaultValue,
+            ),
+          ),
+        );
+    service.addListener(apply);
+    prefs.addListener(apply);
+    apply();
     void applyCursor() => unawaited(
           _applyCursor(
             prefs.get<String>(SessionSetting.cursorTheme.key) ??
@@ -55,24 +76,29 @@ abstract final class SystemTheme {
           _applyFonts(
             prefs.get<String>(SessionSetting.interfaceFont.key) ?? "",
             prefs.get<String>(SessionSetting.monospaceFont.key) ?? "",
+            dahlia: (prefs.get<String>(SessionSetting.appStyle.key) ??
+                    SessionSetting.appStyle.defaultValue) !=
+                "adwaita",
           ),
         );
     prefs.addListener(applyFonts);
     applyFonts();
   }
 
-  static (String, String)? _fonts;
+  static (String, String, bool)? _fonts;
 
   /// The interface and monospace fonts for GTK, libadwaita, Qt (through
   /// the settings portal), Firefox and the terminal apps too. The default
-  /// (empty) leaves the toolkits' own.
-  static Future<void> _applyFonts(String ui, String mono) async {
-    if (!_available || _fonts == (ui, mono)) return;
-    _fonts = (ui, mono);
+  /// (empty) is Inter with the dahliaOS app style, as in Pangolin's own apps
+  /// (when it's installed), and the toolkits' own otherwise.
+  static Future<void> _applyFonts(String ui, String mono, {required bool dahlia}) async {
+    if (!_available || _fonts == (ui, mono, dahlia)) return;
+    _fonts = (ui, mono, dahlia);
+    final String interface = ui.isEmpty && dahlia && await _hasFont("Inter") ? "Inter" : ui;
     try {
       for (final (String key, String family) in [
-        ("font-name", ui),
-        ("document-font-name", ui),
+        ("font-name", interface),
+        ("document-font-name", interface),
         ("monospace-font-name", mono),
       ]) {
         if (family.isEmpty) {
@@ -118,9 +144,19 @@ abstract final class SystemTheme {
     );
   }
 
-  static Future<void> _apply(bool dark) async {
-    if (!_available || _applied == dark) return;
-    _applied = dark;
+  static Future<bool> _hasFont(String family) async {
+    try {
+      final ProcessResult r = await Process.run("fc-list", [family, "family"]);
+      return r.exitCode == 0 && (r.stdout as String).trim().isNotEmpty;
+    } on ProcessException {
+      return false;
+    }
+  }
+
+  static Future<void> _apply(_Look look) async {
+    if (!_available || _applied == look) return;
+    final _Look? before = _applied;
+    _applied = look;
     try {
       // Minimize, maximize and close in apps drawing their own title bars
       // (GTK, libadwaita, Firefox), like Pangolin's own windows.
@@ -129,15 +165,33 @@ abstract final class SystemTheme {
         "button-layout",
         "appmenu:minimize,maximize,close",
       );
-      await _set("color-scheme", dark ? "prefer-dark" : "default");
-      final String? theme = await _get("gtk-theme");
-      if (theme != null) {
-        final String? wanted = _gtk3Theme(theme, dark);
-        if (wanted != null && wanted != theme) await _set("gtk-theme", wanted);
+      await _set("color-scheme", look.dark ? "prefer-dark" : "default");
+      if (look.dahlia) {
+        String name = GtkTheme.nameFor(look.accent, tint: look.tint);
+        // Only the accent or the tint change the files.
+        if (before == null ||
+            !before.dahlia ||
+            before.accent != look.accent ||
+            before.tint != look.tint) {
+          name = await GtkTheme.write(look.accent, tint: look.tint);
+        }
+        await GtkTheme.setLibadwaitaImport(true);
+        await _set("gtk-theme", look.dark ? "$name-dark" : name);
+      } else {
+        await GtkTheme.setLibadwaitaImport(false);
+        String? theme = await _get("gtk-theme");
+        // Leaving the dahliaOS style: back to Adwaita.
+        if (theme != null && theme.startsWith("${GtkTheme.family}-")) theme = "Adwaita";
+        if (theme != null) {
+          final String? wanted = _gtk3Theme(theme, look.dark);
+          if (wanted != null && wanted != theme) await _set("gtk-theme", wanted);
+        }
       }
     } on ProcessException {
       _available = false;
       _logger.info("gsettings isn't available: other apps keep their theme");
+    } on FileSystemException catch (e) {
+      _logger.warning("Couldn't write the GTK theme: $e");
     }
   }
 
@@ -185,4 +239,32 @@ abstract final class SystemTheme {
       _logger.info("Couldn't set $key: ${result.stderr}".trim());
     }
   }
+}
+
+/// What the GTK theme depends on.
+class _Look {
+  const _Look({
+    required this.dark,
+    required this.dahlia,
+    required this.accent,
+    required this.tint,
+  });
+
+  final bool dark;
+
+  /// The dahliaOS app style (Settings > Appearance > Other apps).
+  final bool dahlia;
+  final Color accent;
+  final bool tint;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _Look &&
+      other.dark == dark &&
+      other.dahlia == dahlia &&
+      other.accent == accent &&
+      other.tint == tint;
+
+  @override
+  int get hashCode => Object.hash(dark, dahlia, accent, tint);
 }

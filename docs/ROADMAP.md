@@ -708,13 +708,52 @@ theme (6.1).
 
 ## 6. GTK theme, accents, fonts
 
-- [ ] 6.1 dahliaOS GTK theme ("Adwaita edits", GTK 3/4, light/dark),
+- [~] 6.1 dahliaOS GTK theme ("Adwaita edits", GTK 3/4, light/dark),
       selectable in Appearance. Decided by the user 2026-10-16: GTK apps
       must look almost identical to a dahliaOS app (Zenit UI): colors and
       accent, radii, header bars like DahliaTitlebar, buttons, entries,
       switches, lists without borders or dividers, Inter. libadwaita apps
       ignore gtk-theme, so GTK 4 needs ~/.config/gtk-4.0/gtk.css with
       libadwaita's named colors.
+      Done 2026-10-25. Settings > Appearance > Other apps: dahliaOS
+      (default) or Adwaita (app_style). The shell's GtkTheme
+      (lib/services/gtk_theme.dart) turns Zenit's palette (window, surface,
+      cards, the rail/title bar tint, accent and its text color, Zenit's
+      on-accent rule) into GTK named colors and writes, from the CSS in
+      assets/gtk:
+      - GTK 3 and plain GTK 4: themes dahliaOS-<accent>[t] and -dark in
+        $XDG_DATA_HOME/themes, GTK's Adwaita/Default imported and edited,
+        picked through gtk-theme in Pangolin's dconf (GNOME keeps its
+        own). The accent is in the name because GTK 3 never reloads a
+        theme it loaded once; older ones are removed.
+      - libadwaita: ~/.config/gtk-4.0/pangolin-dahlia.css (named colors
+        for light and, under prefers-color-scheme, dark, plus the shapes),
+        imported from gtk.css only while a session runs, since GNOME reads
+        that file too: the shell adds the line, and pangolin-gtk-style-off
+        removes it when the session ends (pangolin-river-init) and when
+        any other desktop starts (XDG autostart, NotShowIn=Pangolin), so a
+        crashed session doesn't leave GNOME's apps styled. Only while
+        GNOME and Pangolin run at the same time do libadwaita apps opened
+        in GNOME get it. Light/dark switches live; a new accent reaches
+        libadwaita apps when they start. Uninstalling removes the line,
+        the generated themes and the autostart entry.
+      - Shapes: pill text buttons, circular icon buttons, linked groups,
+        filled fields without frames, Zenit's 44x24 switch, filled check
+        and radio boxes, cards and boxed lists without shadows or
+        dividers, rounded sidebar selections, plain window buttons with a
+        hover circle, rounded popovers with a soft shadow, inverted pill
+        tooltips, accent group titles.
+      - Inter is installed as a system font (share/fonts/pangolin-inter)
+        and is the interface font of GTK apps with the dahliaOS style
+        when none is chosen.
+      Tests: test/gtk_theme_test.dart (palette, files, old themes removed,
+      the import line added and removed around the user's own lines).
+      Looked at headless, light and dark, with the host's GTK 3.24.52 /
+      GTK 4.24.1 / libadwaita 1.10 (adwaita-1-demo, Calculator, Text
+      Editor, gtk3-widget-factory, a plain GTK 4 window). Known: GTK 3's
+      combo box entry keeps square left corners when focused.
+      [ ] In a Pangolin session on the machine (portal-served gtk-theme,
+      a live accent change for GTK 3 apps, Firefox).
 - [x] 6.2 Accent from the wallpaper; custom accent picker (2026-10-17).
       - "From wallpaper" swatch: setting accent_from_wallpaper. The shell's
         WallpaperAccent (lib/services/wallpaper_accent.dart) takes the hue

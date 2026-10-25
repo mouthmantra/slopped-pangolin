@@ -105,7 +105,8 @@ uninstall() {
     rm -f "$SHARE/xdg-desktop-portal/pangolin-portals.conf"
     rm -f "$SHARE/xdg-desktop-portal/portals/pangolin.portal"
     rm -f "$SHARE/dbus-1/services/org.freedesktop.impl.portal.desktop.pangolin.service"
-    rm -rf "$SHARE/icons/Pangolin" "$SHARE/licenses/pangolin" "$SHARE/pangolin"
+    rm -rf "$SHARE/icons/Pangolin" "$SHARE/licenses/pangolin" "$SHARE/pangolin" \
+        "$SHARE/fonts/pangolin-inter"
     if [ "$SYSTEM_SESSION" = 1 ] || [ "$(id -u)" = 0 ]; then
         rm -f /usr/share/wayland-sessions/pangolin.desktop
     fi
@@ -113,6 +114,24 @@ uninstall() {
     if [ -z "$DESTDIR" ] && [ "$(id -u)" = 0 ] &&
         grep -qs "$PREFIX/libexec/pangolin/" /usr/share/polkit-1/actions/io.dahliaos.logs.policy; then
         rm -f /usr/share/polkit-1/actions/io.dahliaos.logs.policy
+    fi
+    if [ "$UNINSTALL" = 1 ]; then
+        # The dahliaOS app style: its cleanup entry (only this
+        # installation's), and for the user running this, the libadwaita
+        # line and the generated themes.
+        for entry in "${XDG_CONFIG_HOME:-$HOME/.config}/autostart/pangolin-gtk-style-off.desktop" \
+            /etc/xdg/autostart/pangolin-gtk-style-off.desktop; do
+            grep -qs "$PREFIX/libexec/pangolin/" "$entry" && rm -f "$entry"
+        done
+        css="${XDG_CONFIG_HOME:-$HOME/.config}/gtk-4.0/gtk.css"
+        if grep -qs 'pangolin-dahlia\.css' "$css"; then
+            sed -i '/pangolin-dahlia\.css/d' "$css"
+            grep -q '[^[:space:]]' "$css" || rm -f "$css"
+        fi
+        rm -f "${XDG_CONFIG_HOME:-$HOME/.config}/gtk-4.0/pangolin-dahlia.css"
+        for theme in "${XDG_DATA_HOME:-$HOME/.local/share}"/themes/dahliaOS-*; do
+            [ -e "$theme/.pangolin-generated" ] && rm -rf "$theme"
+        done
     fi
     if [ "$UNINSTALL" = 1 ] && [ "$(id -u)" = 0 ]; then
         rm -f /etc/systemd/system/plymouth-quit.service.d/pangolin-greeter.conf
@@ -177,10 +196,12 @@ subst "$ROOT/session/libexec/pangolin-river-init.in" "$P/libexec/pangolin/pangol
 subst "$ROOT/session/bin/pangolin-greeter.in" "$P/bin/pangolin-greeter"
 subst "$ROOT/session/libexec/pangolin-greeter-init.in" "$P/libexec/pangolin/pangolin-greeter-init"
 subst "$ROOT/session/libexec/pangolin-read-logs.in" "$P/libexec/pangolin/pangolin-read-logs"
+subst "$ROOT/session/libexec/pangolin-gtk-style-off.in" "$P/libexec/pangolin/pangolin-gtk-style-off"
 chmod 755 "$P/bin/pangolin-greeter" "$P/libexec/pangolin/pangolin-greeter-init"
 chmod 755 "$P/bin/pangolin-session" "$P/libexec/pangolin/pangolin-river-init" \
     "$P/libexec/pangolin/dsettingsd" "$P/libexec/pangolin/pangolin-displays" \
-    "$P/libexec/pangolin/pangolin-portal" "$P/libexec/pangolin/pangolin-read-logs"
+    "$P/libexec/pangolin/pangolin-portal" "$P/libexec/pangolin/pangolin-read-logs" \
+    "$P/libexec/pangolin/pangolin-gtk-style-off"
 
 for app in $APPS; do
     subst "$ROOT/session/applications/io.dahliaos.$app.desktop.in" \
@@ -216,6 +237,19 @@ fi
 if [ -z "$DESTDIR" ] && command -v systemctl >/dev/null 2>&1 && [ "$(id -u)" != 0 ]; then
     systemctl --user daemon-reload 2>/dev/null || true
 fi
+# Other desktops take Pangolin's libadwaita style out when they start
+# (pangolin-gtk-style-off): autostart is only read from /etc/xdg and the
+# user's config directory.
+if [ -n "$DESTDIR" ]; then
+    AUTOSTART="$DESTDIR/etc/xdg/autostart"
+elif [ "$(id -u)" = 0 ]; then
+    AUTOSTART=/etc/xdg/autostart
+else
+    AUTOSTART="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
+fi
+mkdir -p "$AUTOSTART"
+subst "$ROOT/session/autostart/pangolin-gtk-style-off.desktop.in" "$AUTOSTART/pangolin-gtk-style-off.desktop"
+chmod 644 "$AUTOSTART/pangolin-gtk-style-off.desktop"
 # Logs' authorization for reading system logs: polkit only reads actions
 # from /usr/share, so system installs and packages (per-user installs ask
 # each time through pkexec's own action).
@@ -399,6 +433,14 @@ if [ -d "$ROOT/session/cursors/build/Pangolin" ]; then
     mkdir -p "$SHARE/icons"
     cp -R "$ROOT/session/cursors/build/Pangolin" "$SHARE/icons/Pangolin"
     chmod -R a+rX "$SHARE/icons/Pangolin"
+fi
+# Inter, Pangolin's interface font, for GTK and other apps too (the shell
+# and dahliaOS apps carry their own copy): the dahliaOS app style uses it.
+mkdir -p "$SHARE/fonts/pangolin-inter"
+cp "$ROOT"/packages/zenit_ui/lib/src/fonts/Inter-*.ttf "$SHARE/fonts/pangolin-inter/"
+chmod a+r "$SHARE"/fonts/pangolin-inter/*.ttf
+if [ -z "$DESTDIR" ] && command -v fc-cache >/dev/null 2>&1; then
+    fc-cache "$SHARE/fonts/pangolin-inter" >/dev/null 2>&1 || true
 fi
 # License texts, where distributions keep them: the binaries carry code
 # under several licenses (see docs/DISTRIBUTING.md).

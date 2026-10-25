@@ -127,6 +127,12 @@ while :; do
     sleep 1
 done
 
+# The dahliaOS style of libadwaita apps comes from a line the shell adds to
+# ~/.config/gtk-4.0/gtk.css, which GNOME reads too: out until the next
+# Pangolin session adds it back (other desktops also remove it when they
+# start, in case this never ran).
+[ -z "$PANGOLIN_NESTED" ] && "$LIBEXEC/pangolin-gtk-style-off" --session-end
+
 if [ "$systemd_session" = 1 ]; then
     systemctl --user stop pangolin-session.target 2>/dev/null
     systemctl --user unset-environment WAYLAND_DISPLAY DISPLAY \

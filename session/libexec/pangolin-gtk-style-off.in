@@ -1,0 +1,20 @@
+#!/bin/sh
+# Copyright 2026 The dahliaOS Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Takes Pangolin's dahliaOS style out of libadwaita apps: removes the line
+# the shell adds to ~/.config/gtk-4.0/gtk.css (lib/services/gtk_theme.dart),
+# which every desktop's GTK 4 apps read. Run when a Pangolin session ends
+# (pangolin-river-init) and when any other desktop starts (XDG autostart,
+# NotShowIn=Pangolin), so a session that crashed doesn't leave GNOME's apps
+# styled. Inside a running Pangolin session it does nothing.
+
+case ":${XDG_CURRENT_DESKTOP:-}:" in
+    *:Pangolin:*) [ "${1:-}" = --session-end ] || exit 0 ;;
+esac
+
+css="${XDG_CONFIG_HOME:-$HOME/.config}/gtk-4.0/gtk.css"
+[ -f "$css" ] && grep -q 'pangolin-dahlia\.css' "$css" || exit 0
+sed -i '/pangolin-dahlia\.css/d' "$css"
+# Nothing of the user's in it: the file goes, as before Pangolin added it.
+grep -q '[^[:space:]]' "$css" || rm -f "$css"

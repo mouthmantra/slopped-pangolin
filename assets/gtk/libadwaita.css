@@ -1,0 +1,399 @@
+/* Pangolin's dahliaOS style for libadwaita (and plain GTK 4) apps, loaded
+   through ~/.config/gtk-4.0/gtk.css while a Pangolin session runs. The
+   @pangolin_* colors are generated above for light and dark (see
+   lib/services/gtk_theme.dart). Like Zenit: fills and spacing set things
+   apart, never borders or dividers. */
+
+/* libadwaita's named colors. */
+@define-color accent_bg_color @pangolin_accent;
+@define-color accent_fg_color @pangolin_on_accent;
+@define-color accent_color @pangolin_accent_text;
+@define-color destructive_bg_color @pangolin_destructive;
+@define-color destructive_fg_color white;
+@define-color destructive_color @pangolin_error;
+@define-color error_bg_color @pangolin_destructive;
+@define-color error_fg_color white;
+@define-color error_color @pangolin_error;
+@define-color warning_color @pangolin_warning;
+@define-color success_color @pangolin_success;
+@define-color window_bg_color @pangolin_bg;
+@define-color window_fg_color @pangolin_fg;
+@define-color view_bg_color @pangolin_bg;
+@define-color view_fg_color @pangolin_fg;
+@define-color headerbar_bg_color @pangolin_header;
+@define-color headerbar_fg_color @pangolin_fg;
+@define-color headerbar_border_color @pangolin_fg;
+@define-color headerbar_backdrop_color @pangolin_header;
+@define-color headerbar_shade_color transparent;
+@define-color headerbar_darker_shade_color transparent;
+@define-color sidebar_bg_color @pangolin_header;
+@define-color sidebar_fg_color @pangolin_fg;
+@define-color sidebar_backdrop_color @pangolin_header;
+@define-color sidebar_shade_color transparent;
+@define-color sidebar_border_color transparent;
+@define-color secondary_sidebar_bg_color @pangolin_card;
+@define-color secondary_sidebar_fg_color @pangolin_fg;
+@define-color secondary_sidebar_backdrop_color @pangolin_card;
+@define-color secondary_sidebar_shade_color transparent;
+@define-color secondary_sidebar_border_color transparent;
+@define-color card_bg_color @pangolin_card;
+@define-color card_fg_color @pangolin_fg;
+@define-color card_shade_color transparent;
+@define-color dialog_bg_color @pangolin_bg;
+@define-color dialog_fg_color @pangolin_fg;
+@define-color popover_bg_color @pangolin_popover;
+@define-color popover_fg_color @pangolin_fg;
+@define-color popover_shade_color transparent;
+@define-color thumbnail_bg_color @pangolin_card;
+@define-color thumbnail_fg_color @pangolin_fg;
+@define-color shade_color transparent;
+
+:root {
+  --window-radius: 12px;
+  /* No lines: borders and separators drawn with the border color vanish. */
+  --border-opacity: 0%;
+  --active-toggle-bg-color: @pangolin_bg;
+  --active-toggle-fg-color: @pangolin_fg;
+  --overview-bg-color: @pangolin_header;
+}
+
+/* User priority beats any theme rule: GTK's own Default theme (plain GTK 4
+   apps) draws bevels, gradients, frames and blue accents in its controls,
+   and libadwaita outlines unchecked boxes; none of that in dahliaOS. */
+button,
+check,
+radio,
+switch,
+switch > slider,
+notebook > header > tabs > tab,
+scale > trough,
+scale > trough > highlight,
+progressbar > trough,
+progressbar > trough > progress {
+  background-image: none;
+  border-color: transparent;
+  text-shadow: none;
+  -gtk-icon-shadow: none;
+}
+
+button:not(.osd),
+check,
+radio,
+switch,
+switch > slider,
+notebook > header > tabs > tab,
+scale > trough,
+progressbar > trough > progress {
+  box-shadow: none;
+}
+
+button.suggested-action,
+button.default {
+  background-color: @pangolin_accent;
+  color: @pangolin_on_accent;
+}
+
+button.destructive-action {
+  background-color: @pangolin_destructive;
+  color: white;
+}
+
+button.toggle:checked:not(.flat),
+.linked > button:checked {
+  background-color: @pangolin_selected;
+  color: @pangolin_fg;
+}
+
+notebook > header > tabs > tab {
+  border-radius: 8px;
+  margin: 4px 2px;
+  color: @pangolin_fg_dim;
+}
+
+notebook > header > tabs > tab:hover { background-color: @pangolin_hover; }
+
+notebook > header > tabs > tab:checked {
+  background-color: @pangolin_bg;
+  color: @pangolin_fg;
+}
+
+/* Text selection and selected rows: the accent, lightly. */
+selection:focus-within { background-color: @pangolin_selection; }
+
+listview > row:selected,
+list > row:selected,
+columnview > listview > row:selected,
+gridview > child:selected,
+.navigation-sidebar > row:selected {
+  background-color: @pangolin_selected;
+  color: @pangolin_fg;
+}
+
+listview > row:selected:hover,
+list > row:selected:hover,
+.navigation-sidebar > row:selected:hover {
+  background-color: alpha(@pangolin_accent, 0.26);
+}
+
+/* Sidebars: rounded rows like the dahliaOS rail. */
+.navigation-sidebar > row { border-radius: 16px; }
+
+/* Buttons: text in pills, icons in circles (Zenit's buttons). */
+button.text-button,
+button.image-text-button,
+button.suggested-action,
+button.destructive-action,
+button.pill,
+menubutton.text-button > button,
+splitbutton > button,
+splitbutton > menubutton > button,
+dropdown > button,
+combobox > box > button {
+  border-radius: 999px;
+}
+
+button.text-button,
+button.suggested-action,
+button.destructive-action {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+/* Medium labels, as Zenit's buttons (libadwaita makes them bold). */
+button,
+button > label,
+button.text-button > label {
+  font-weight: 500;
+}
+
+button.image-button,
+menubutton.image-button > button,
+headerbar button.image-button,
+headerbar menubutton > button {
+  border-radius: 999px;
+}
+
+/* Buttons in a row share their inner edges. */
+.linked:not(.vertical) > button:not(:first-child),
+.linked:not(.vertical) > menubutton:not(:first-child) > button,
+.linked:not(.vertical) > dropdown:not(:first-child) > button,
+.linked:not(.vertical) > entry:not(:first-child),
+splitbutton > menubutton > button {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.linked:not(.vertical) > button:not(:last-child),
+.linked:not(.vertical) > menubutton:not(:last-child) > button,
+.linked:not(.vertical) > dropdown:not(:last-child) > button,
+.linked:not(.vertical) > entry:not(:last-child),
+splitbutton > button {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.linked.vertical > button:not(:first-child),
+.linked.vertical > entry:not(:first-child) {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.linked.vertical > button:not(:last-child),
+.linked.vertical > entry:not(:last-child) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+button.suggested-action:hover { background-color: @pangolin_accent_hover; }
+button.suggested-action:active { background-color: @pangolin_accent_active; }
+
+/* Window controls: plain glyphs, a circle on hover (Zenit's window
+   buttons). */
+windowcontrols > button > image {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+windowcontrols > button:hover > image { background-color: @pangolin_hover; }
+windowcontrols > button:active > image { background-color: @pangolin_active; }
+
+/* Fields: filled, no frame. */
+entry,
+spinbutton,
+.search-entry,
+searchbar entry,
+passwordentry,
+textview.card {
+  border: none;
+  border-radius: 8px;
+  background-color: @pangolin_field;
+  box-shadow: none;
+}
+
+/* Inside a row the row is the field. */
+row.spin spinbutton,
+row.entry entry,
+row spinbutton.flat {
+  background-color: transparent;
+}
+
+/* Group titles in the accent color, as SettingsGroup's. */
+preferencesgroup > box > box.header > box > label.heading,
+preferencesgroup > box > box.header > label.heading,
+preferencespage .heading {
+  color: @pangolin_accent_text;
+}
+
+/* Switches: Zenit's 44x24 track with a 16px thumb, grey when off. */
+switch {
+  border: none;
+  border-radius: 999px;
+  min-width: 0;
+  min-height: 0;
+  padding: 4px;
+  background-color: @pangolin_control;
+  box-shadow: none;
+}
+
+switch > slider {
+  min-width: 16px;
+  min-height: 16px;
+  margin: 0 2px;
+  border: none;
+  border-radius: 999px;
+  background-color: @pangolin_thumb_off;
+  box-shadow: none;
+}
+
+switch:hover > slider { background-color: shade(@pangolin_thumb_off, 0.92); }
+switch:checked { background-color: @pangolin_accent; }
+switch:checked > slider { background-color: @pangolin_on_accent; }
+switch:disabled { opacity: 0.5; }
+
+/* Check and radio buttons: filled, no outline. */
+checkbutton > check,
+checkbutton > radio,
+row check,
+row radio {
+  background-color: @pangolin_control;
+  box-shadow: none;
+}
+
+checkbutton > check:hover,
+checkbutton > radio:hover { background-color: @pangolin_control_hover; }
+
+checkbutton > check:checked,
+checkbutton > check:indeterminate,
+checkbutton > radio:checked,
+checkbutton > radio:indeterminate,
+row check:checked,
+row radio:checked {
+  background-color: @pangolin_accent;
+  color: @pangolin_on_accent;
+}
+
+checkbutton > check { border-radius: 6px; }
+checkbutton > radio { border-radius: 999px; }
+
+checkbutton > check,
+checkbutton > radio {
+  border: none;
+  min-width: 16px;
+  min-height: 16px;
+  -gtk-icon-size: 14px;
+}
+
+/* Cards and grouped lists: a fill a step off the page, no shadow or
+   dividers (SettingsGroup). */
+.card,
+.boxed-list,
+.boxed-list-separate > row,
+list.content,
+preferencesgroup > box > .boxed-list {
+  border-radius: 12px;
+  box-shadow: none;
+  border: none;
+}
+
+.boxed-list > row,
+list.content > row {
+  border-bottom: none;
+}
+
+/* Sliders and progress. */
+scale > trough {
+  background-color: @pangolin_control;
+  background-clip: border-box;
+  border: none;
+  border-radius: 999px;
+}
+
+scale.horizontal > trough { min-height: 4px; }
+scale.vertical > trough { min-width: 4px; }
+
+scale > trough > slider {
+  min-width: 18px;
+  min-height: 18px;
+  margin: -7px;
+  border-radius: 999px;
+}
+scale > trough > highlight { background-color: @pangolin_accent; border: none; }
+scale > trough > slider {
+  background-color: @pangolin_on_accent;
+  background-image: none;
+  border: none;
+  box-shadow: 0 1px 3px @pangolin_shadow;
+}
+progressbar > trough { background-color: @pangolin_track; }
+progressbar > trough > progress { background-color: @pangolin_accent; }
+
+/* Menus and popovers: rounded, a soft shadow, no frame. */
+popover > contents,
+popover.menu > contents {
+  border-radius: 12px;
+  box-shadow: 0 4px 16px @pangolin_shadow;
+}
+
+popover.menu modelbutton,
+popover.menu > contents > box > button {
+  border-radius: 8px;
+}
+
+popover.menu modelbutton:hover,
+popover.menu modelbutton:selected {
+  background-color: @pangolin_hover;
+}
+
+/* Tooltips: the inverted pill of Zenit. */
+tooltip,
+tooltip.background {
+  border-radius: 24px;
+  padding: 8px 16px;
+  background-color: @pangolin_tooltip_bg;
+  color: @pangolin_tooltip_fg;
+  box-shadow: none;
+}
+
+tooltip > box > label { color: @pangolin_tooltip_fg; }
+
+/* Dialogs: big rounded sheets. */
+dialog.alert floating sheet,
+dialog.floating sheet,
+window.dialog.message {
+  border-radius: 28px;
+}
+
+/* Toasts, like Zenit's snack bars. */
+toast {
+  border-radius: 24px;
+  background-color: @pangolin_tooltip_bg;
+  color: @pangolin_tooltip_fg;
+}
+
+/* Tabs: the selected one lifts to the page color. */
+tabbar tab:selected,
+tabbar tab:checked {
+  background-color: @pangolin_bg;
+}
+
+tabbar tab { border-radius: 8px; }

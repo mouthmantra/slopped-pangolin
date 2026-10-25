@@ -193,6 +193,10 @@ enum SessionSetting<T extends Object> {
   /// Window title bars take a tint of the accent color.
   titlebarAccentTint<bool>("titlebar_accent_tint", true),
 
+  /// How GTK and libadwaita apps look: "dahlia" (Pangolin's dahliaOS theme,
+  /// following the accent color) or "adwaita" (GTK's own).
+  appStyle<String>("app_style", "dahlia"),
+
   /// Windows that aren't focused draw their glass (title bar, panes) opaque.
   opaqueInactiveWindows<bool>("opaque_inactive_windows", true),
 

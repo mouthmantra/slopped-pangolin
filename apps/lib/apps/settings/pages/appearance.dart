@@ -112,6 +112,36 @@ class AppearancePage extends StatelessWidget {
               ],
             ),
             SettingsGroup(
+              children: [
+                ListenableBuilder(
+                  listenable: PreferencesService.current,
+                  builder: (context, _) {
+                    final String style = PreferencesService.current
+                            .get<String>(SessionSetting.appStyle.key) ??
+                        SessionSetting.appStyle.defaultValue;
+                    return SettingsRow(
+                      icon: Icons.style_outlined,
+                      title: "Other apps",
+                      subtitle: "How GTK apps look",
+                      trailing: SegmentedButton<String>(
+                        showSelectedIcon: false,
+                        segments: const [
+                          ButtonSegment(value: "dahlia", label: Text("dahliaOS")),
+                          ButtonSegment(value: "adwaita", label: Text("Adwaita")),
+                        ],
+                        selected: {style == "adwaita" ? "adwaita" : "dahlia"},
+                        onSelectionChanged: (v) =>
+                            PreferencesService.current.set<String>(
+                          SessionSetting.appStyle.key,
+                          v.first,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+            SettingsGroup(
               title: "Accent color",
               padding: const EdgeInsets.all(16),
               children: [
