@@ -160,6 +160,62 @@ theme (6.1).
       logins; `ssh-add -l` lists the keys. Autologin still leaves the
       keyring locked. The lock screen (pam.d/pangolin) doesn't need it,
       since the keyring stays unlocked.
+- [ ] 1.9 Total greeter refactor: Pangolin's own display manager (user,
+      2026-10-25). Built from the ground up with GDM's architecture, with no
+      greetd, so the hand-off from the login screen to the desktop can be
+      seamless, and performance optimized throughout. Replaces greetd and
+      everything built for it: `greetd-pangolin.toml`/`.conf`, the
+      `Requires: greetd` of the greeter RPM, `lib/services/greetd.dart`, the
+      greetd parts of `pangolin-greeter`/`pangolin-greeter-init`.
+      Architecture, mapped from GDM:
+      - Daemon (gdm → `pangolin-dm`): a root system service,
+        `pangolin-dm.service` with `Alias=display-manager.service`,
+        `Conflicts=getty@tty1.service`. It follows logind's seats (seat0
+        and seats added later), keeps one login display per seat, restarts
+        a greeter that crashes, and takes over from Plymouth (quit with
+        `--retain-splash`, as GDM does). Small and compiled, with no Dart VM
+        in the root process; Zig like river is the proposal.
+      - Greeter session (gdm-launch-environment → its own PAM service): the
+        unprivileged `pangolin-greeter` user, registered with logind as
+        `XDG_SESSION_CLASS=greeter` on the seat's VT, running river and the
+        shell in greeter mode (today's lib/components/greeter UI). It never
+        runs as root and never holds a PAM handle.
+      - Session worker (gdm-session-worker): one privileged process per
+        authentication conversation, forked by the daemon. It runs PAM
+        (a `pangolin` password service first; fingerprint and smartcard
+        conversations alongside it later, like gdm-fingerprint), then
+        opens the session (pam_open_session, logind class `user`), sets up
+        the environment (including DBUS_SESSION_BUS_ADDRESS, which GDM's
+        launch of Pangolin lacked, see 1.5) and starts pangolin-session.
+      - IPC: the greeter talks to the daemon over a private D-Bus peer
+        socket (GDM's UserVerifier/Greeter interfaces: begin verification
+        for a user and service, answer secret/info/problem queries,
+        verified, start session with the chosen session); daemon and
+        worker over a private connection of their own.
+      - Also from GDM: autologin and timed login (both PAM services),
+        remembering the last user and session (AccountsService), the
+        session list from wayland-sessions, and fast user switching
+        (Switch User from the lock screen starts a new greeter; returning
+        to a session that's open switches to it). SELinux: the daemon runs
+        as xdm_t like gdm.
+      Seamless hand-off, the reason for doing this. GDM starts the user's
+      session on another VT, so logind switches VTs, the greeter drops DRM
+      master and the session's compositor modesets: that's where the black
+      frame and the console flash come from (see 1.6). Here the daemon owns
+      the switch: the session's river starts, and its first frame is ready,
+      while the greeter is still on screen; DRM master then passes to it,
+      and with an unchanged mode it presents with an atomic commit without
+      a modeset, on the same wallpaper (1.2). No byte goes to a console
+      and no VT switch is shown at any point. Picking between starting the
+      session on the greeter's VT and handing DRM devices over through
+      logind (TakeDevice, PauseDevice) is the first design step.
+      Performance targets, measured on the 2016 dual-core and at 4K:
+      greeter first frame from the daemon's start; password accepted to the
+      desktop's first frame; no frame where the screen goes black; near
+      zero CPU while the greeter sits idle. Ideas: page river, the shell's
+      AOT snapshot and libflutter into the page cache while the password
+      is typed; read nothing from the user's home before PAM succeeds;
+      no session bus activation in the greeter.
 
 ## 2. Displays
 
@@ -798,6 +854,15 @@ theme (6.1).
 - [~] 7.2 Slider chevrons open Settings > Displays / Sound.
 - [ ] 7.3 Sound: speaker test, sound theme (Yaru default, RPM dependency,
       login chime). Equalizer cut by the user 2026-10-16.
+      Notes (2026-10-25, not started): the host has sound-theme-freedesktop
+      (audio-channel-front-left… and audio-test-signal for the speaker
+      test, service-login), alsa's Front_Left.wav…, pw-play and
+      canberra-gtk-play (libcanberra-gtk3); yaru-sound-theme isn't
+      installed (check the Fedora package name for the dependency). Plan:
+      resolve sounds by the XDG sound theme spec (index.theme Inherits,
+      freedesktop fallback), play with pw-play (--channel-map to place a
+      channel), theme in org.gnome.desktop.sound theme-name (Pangolin's
+      dconf), a login chime setting.
 - [x] 7.4 Mouse and touchpad settings separate: Settings has Mouse and
       Touchpad pages ("mouse", "touchpad"; Touchpad shows "No touchpad
       found" without one), and touchpad acceleration
