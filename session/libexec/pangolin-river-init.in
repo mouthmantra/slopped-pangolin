@@ -13,7 +13,7 @@ LIBEXEC="$PREFIX/libexec/pangolin"
 SESSION_VARS="WAYLAND_DISPLAY DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE
     XDG_SESSION_DESKTOP XDG_DATA_DIRS XDG_CONFIG_DIRS GDK_BACKEND
     QT_QPA_PLATFORM MOZ_ENABLE_WAYLAND ELECTRON_OZONE_PLATFORM_HINT
-    DCONF_PROFILE XCURSOR_THEME XCURSOR_SIZE PANGOLIN_SESSION_PID"
+    DCONF_PROFILE XCURSOR_THEME XCURSOR_SIZE PANGOLIN_SESSION_PID SSH_AUTH_SOCK"
 # systemd's user manager too, where there is one (not with OpenRC, e.g. on
 # Alpine, where --systemd would fail the whole update).
 if command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then

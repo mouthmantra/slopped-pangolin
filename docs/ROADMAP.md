@@ -132,22 +132,34 @@ theme (6.1).
       users with system-owned secrets, since there's no user keyring yet.
       Check the polkit rules for the pangolin-greeter user, and SELinux
       (xdm_t) talking to NetworkManager and BlueZ.
-- [ ] 1.5 GNOME Keyring: unlocked at login, so Wi-Fi/VPN secrets, browsers
+- [x] 1.5 GNOME Keyring: unlocked at login, so Wi-Fi/VPN secrets, browsers
       and Git don't ask for the keyring password. Fedora's greetd and
       gdm-password PAM files (/usr/lib/pam.d) already run
       pam_gnome_keyring (auth + session auto_start), and the user units
       gnome-keyring-daemon.socket and gcr-ssh-agent.socket exist.
-      Check first:
-      - In a real session, is org.freedesktop.secrets unlocked? The
-        session only starts its own bus (dbus-run-session,
-        pangolin-session.in:120) without DBUS_SESSION_BUS_ADDRESS. A private
-        bus would start a second, locked daemon.
-      - Export SSH_AUTH_SOCK (gcr-ssh-agent).
-      - Do the unlock prompts (gcr-prompter) show? D-Bus-activated services
-        need WAYLAND_DISPLAY (`systemctl --user import-environment`).
-      - Autologin leaves the keyring locked.
-      The lock screen (pam.d/pangolin) doesn't need it, since the keyring
-      stays unlocked.
+      Found (user, 2026-10-24: "having to log in each time I test"): GDM
+      starts pangolin-session without DBUS_SESSION_BUS_ADDRESS, so the
+      session ran its own bus (Pangolin.log: 231 lines from a private
+      dbus-daemon). On it, org.freedesktop.secrets activated a second
+      gnome-keyring-daemon ("discover_other_daemon: 0"), not the one PAM
+      unlocked: apps saw an empty keyring and Chromium/Electron apps fell
+      back to their plain-text store, unable to read what they saved under
+      GNOME (and the other way round). dbus-update-activation-environment
+      --systemd failed there too (systemd1 isn't on a private bus).
+      Fixed (pangolin-session): with no address given, the user's systemd
+      bus ($XDG_RUNTIME_DIR/bus) is used when it exists (not when nested);
+      SSH_AUTH_SOCK comes from gcr-ssh-agent ($XDG_RUNTIME_DIR/gcr/ssh, or
+      the older keyring/ssh) when unset, and is imported into systemd's
+      environment. Tested the logic for a login without an address, an
+      address given, a nested session and no user bus.
+      Also checked: XDG_CURRENT_DESKTOP doesn't matter for current Chromium
+      (156; Claude desktop is Electron 44 / Chromium 152), which uses the
+      GNOME Keyring whatever the desktop is when a secret service is
+      reachable (cookies v11 with "Pangolin" in a fresh test keyring).
+      [ ] On the machine: log in to Pangolin through GDM; apps keep their
+      logins; `ssh-add -l` lists the keys. Autologin still leaves the
+      keyring locked. The lock screen (pam.d/pangolin) doesn't need it,
+      since the keyring stays unlocked.
 
 ## 2. Displays
 

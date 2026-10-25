@@ -134,10 +134,30 @@ case ":$PATH:" in
     *) export PATH="$PREFIX/bin:$PATH" ;;
 esac
 
+# The user's systemd bus when there is one (logins through greetd don't pass
+# it): the GNOME Keyring that PAM unlocked at login runs there, and a
+# session bus of our own would start a second, locked one. Nested sessions
+# keep a bus of their own.
+if [ -z "$DBUS_SESSION_BUS_ADDRESS" ] && [ -z "$PANGOLIN_NESTED" ] &&
+    [ -n "$XDG_RUNTIME_DIR" ] && [ -S "$XDG_RUNTIME_DIR/bus" ]; then
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+fi
+
 # Every session component talks over the session bus. Started after the
 # environment is set up so D-Bus-activated services inherit it.
 if [ -z "$DBUS_SESSION_BUS_ADDRESS" ]; then
     exec dbus-run-session -- "$0" "$@"
+fi
+
+# SSH keys from the GNOME Keyring's agent (gcr-ssh-agent), as in GNOME
+# sessions: git over SSH then doesn't ask for the passphrase every time.
+if [ -z "$SSH_AUTH_SOCK" ] && [ -n "$XDG_RUNTIME_DIR" ]; then
+    for sock in "$XDG_RUNTIME_DIR/gcr/ssh" "$XDG_RUNTIME_DIR/keyring/ssh"; do
+        if [ -S "$sock" ]; then
+            export SSH_AUTH_SOCK="$sock"
+            break
+        fi
+    done
 fi
 
 # X11 apps run through Xwayland, which river starts itself (and sets DISPLAY
