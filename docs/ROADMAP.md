@@ -17,8 +17,14 @@ theme (6.1).
 **Release plan (user, 2026-10-24):**
 - 1.1.0-16: the tray flyout's visual artifacts (8.14) and GNOME Keyring
   unlocked in Pangolin sessions (1.5).
-- 1.1.0-17: visual changes: the Files redesign (4.8) and the Welcome app
+- 1.1.0-17 (built 2026-10-25): Disks (4.2) and the dahliaOS GTK theme
+  (6.1). Built without river by mistake (zig wasn't on PATH): sessions
+  didn't start. 1.1.0-18 is the same with river, and install.sh now
+  refuses to stage a package without it.
+- 1.1.0-19: visual changes: the Files redesign (4.8) and the Welcome app
   rewrite (4.9).
+- Asked for 2026-10-25, still to do: 7.3, 8.1, 8.2, 8.9, 2.5 (screen
+  share picker).
 
 ## Carried over from the previous request
 

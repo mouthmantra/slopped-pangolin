@@ -19,7 +19,7 @@
 
 Name:           pangolin-desktop
 Version:        1.1.0
-Release:        16%{?dist}
+Release:        18%{?dist}
 Summary:        The dahliaOS desktop (Pangolin) on the river Wayland compositor
 
 # Pangolin and the dahliaOS apps: Apache-2.0; river: GPL-3.0-only (its
@@ -208,6 +208,20 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %ghost %attr(0644,pangolin-greeter,pangolin-greeter) %{_localstatedir}/log/PangolinGreeter.log
 
 %changelog
+* Sun Oct 25 2026 Logan <loganctorres1@gmail.com> - 1.1.0-18
+- River is back in the package: 1.1.0-17 was built without it and sessions
+  didn't start; building a package without river now fails
+
+* Sun Oct 25 2026 Logan <loganctorres1@gmail.com> - 1.1.0-17
+- Disks: a dahliaOS app over UDisks2 (drives and partition map, mount,
+  eject and power off, format, create/delete/resize/edit partitions, LUKS,
+  mount and encryption options, check and repair, disk images, SMART and
+  self-tests, benchmark, drive settings); Recommends udisks2
+- dahliaOS look for GTK 3, GTK 4 and libadwaita apps, following the accent
+  color and light/dark (Settings > Appearance > Other apps); kept out of
+  other desktops
+- Inter installed as a system font
+
 * Sun Oct 25 2026 Logan <loganctorres1@gmail.com> - 1.1.0-16
 - Saved logins work in Pangolin sessions: the session joins the user's
   session bus, where the GNOME Keyring unlocked at login runs, instead of
