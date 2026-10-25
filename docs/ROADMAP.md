@@ -205,6 +205,29 @@ theme (6.1).
         (Switch User from the lock screen starts a new greeter; returning
         to a session that's open switches to it). SELinux: the daemon runs
         as xdm_t like gdm.
+      - Fully compatible with systemd-homed (user, 2026-10-25), as GDM is:
+        - Users from userdb as well as /etc/passwd (homed users through
+          nss-systemd or io.systemd.UserDatabase), with their real names
+          and avatars (homed's blob directory, AccountsService for the
+          others); only regular users listed.
+        - The PAM services include pam_systemd_home, so the login itself
+          activates (unlocks and mounts) the encrypted home, and logging
+          out deactivates it. Its conversation is shown as it comes:
+          passwords, security tokens (FIDO2, PKCS#11: PIN, touch the key),
+          recovery keys, a password that must be changed, and its refusals
+          ("Home is locked", not available here).
+        - Nothing reads a user's home before PAM succeeds (it isn't there
+          yet): wallpaper, avatar and last session come from the user
+          record, AccountsService or the greeter's own state.
+        - Suspend: homed can lock a home on suspend (its user record
+          decides); the session is frozen meanwhile, so unlocking after
+          resume happens in a greeter-side screen (as GNOME does with gdm),
+          which re-authenticates through pam_systemd_home and thaws the
+          session.
+          The lock screen (1.8) must keep working for homes that stay
+          unlocked.
+        - Tested with homectl-created users (LUKS and directory storage)
+          and with password and FIDO2 authentication.
       Seamless hand-off, the reason for doing this. GDM starts the user's
       session on another VT, so logind switches VTs, the greeter drops DRM
       master and the session's compositor modesets: that's where the black
@@ -1132,8 +1155,10 @@ theme (6.1).
       minimizing, maximizing and closing made the blur glitch and flash
       dangerously (photosensitivity). Files was the first window with a
       window-sized blur region (DahliaScaffold glass); title bars of every
-      app have had blur for long without such reports. 1.1.0-20 turns
-      Files' glass body off, so no app sends a window-sized region. Found:
+      app have had blur for long without such reports, and the user
+      confirmed that only Files flashed, never other apps' title bars.
+      1.1.0-20 turns Files' glass body off, so no app sends a window-sized
+      region. Found:
       - river renders with GLES2 on the NVIDIA GPU (RTX 4060 laptop, Intel
         iGPU secondary); the log of that session has 38 "connector DP-8:
         Atomic commit failed: Device or resource busy" and 11 "error(wm):
