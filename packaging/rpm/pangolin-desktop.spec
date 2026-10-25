@@ -19,7 +19,7 @@
 
 Name:           pangolin-desktop
 Version:        1.1.0
-Release:        12%{?dist}
+Release:        14%{?dist}
 Summary:        The dahliaOS desktop (Pangolin) on the river Wayland compositor
 
 # Pangolin and the dahliaOS apps: Apache-2.0; river: GPL-3.0-only (its
@@ -205,6 +205,27 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %ghost %attr(0644,pangolin-greeter,pangolin-greeter) %{_localstatedir}/log/PangolinGreeter.log
 
 %changelog
+* Sat Oct 24 2026 Logan <loganctorres1@gmail.com> - 1.1.0-14
+- System tray rewritten: works with AppIndicator / StatusNotifierItem apps
+  (Discord, Steam, Nextcloud, KDE Connect, Telegram, applets). Pangolin
+  runs the StatusNotifierWatcher or joins the running one, follows icon,
+  status and tooltip changes, and shows the apps' own menus (submenus,
+  checkboxes, radio items) in the shell's style. Left click activates (or
+  opens the menu), middle click is the secondary action, the wheel scrolls
+- Shell popups (app menu, tray, Quick Settings, notifications, right-click
+  menus) no longer show stale pixels or flash old frames: the Flutter
+  embedder lost the damage of frames presented while GTK was painting
+
+* Sat Oct 24 2026 Logan <loganctorres1@gmail.com> - 1.1.0-13
+- Settings > Displays: displays can be dragged to arrange them, snap
+  against each other, and never overlap; an overlapping layout (from an
+  older or GNOME configuration) is fixed when applied
+- Taskbar: closing two apps at once no longer leaves one behind (an
+  uncaught RangeError in the app list)
+- Screenshots: Print freezes the screen and the tool opens on that still,
+  so the overview, launcher, notifications, Quick Settings, the tray and
+  right-click menus can be captured
+
 * Sat Oct 24 2026 Logan <loganctorres1@gmail.com> - 1.1.0-12
 - Activity Monitor: a sidebar like Settings' (Processes, CPU, Memory,
   Network, Disk), Run Task (Ctrl+R, optionally in Terminal), aligned
