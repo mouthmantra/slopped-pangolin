@@ -19,7 +19,7 @@
 
 Name:           pangolin-desktop
 Version:        1.1.0
-Release:        14%{?dist}
+Release:        15%{?dist}
 Summary:        The dahliaOS desktop (Pangolin) on the river Wayland compositor
 
 # Pangolin and the dahliaOS apps: Apache-2.0; river: GPL-3.0-only (its
@@ -205,6 +205,11 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %ghost %attr(0644,pangolin-greeter,pangolin-greeter) %{_localstatedir}/log/PangolinGreeter.log
 
 %changelog
+* Sat Oct 24 2026 Logan <loganctorres1@gmail.com> - 1.1.0-15
+- Clicks no longer stop working for good after a window closes while its
+  title bar is held or dragged (common with Steam and other X11 apps);
+  only logging out used to help
+
 * Sat Oct 24 2026 Logan <loganctorres1@gmail.com> - 1.1.0-14
 - System tray rewritten: works with AppIndicator / StatusNotifierItem apps
   (Discord, Steam, Nextcloud, KDE Connect, Telegram, applets). Pangolin
