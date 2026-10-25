@@ -19,7 +19,7 @@
 
 Name:           pangolin-desktop
 Version:        1.1.0
-Release:        15%{?dist}
+Release:        16%{?dist}
 Summary:        The dahliaOS desktop (Pangolin) on the river Wayland compositor
 
 # Pangolin and the dahliaOS apps: Apache-2.0; river: GPL-3.0-only (its
@@ -205,6 +205,15 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %ghost %attr(0644,pangolin-greeter,pangolin-greeter) %{_localstatedir}/log/PangolinGreeter.log
 
 %changelog
+* Sun Oct 25 2026 Logan <loganctorres1@gmail.com> - 1.1.0-16
+- Saved logins work in Pangolin sessions: the session joins the user's
+  session bus, where the GNOME Keyring unlocked at login runs, instead of
+  a bus of its own with a second, locked keyring (apps asked to sign in
+  again after every switch from GNOME). SSH keys come from the keyring's
+  agent too
+- The tray flyout no longer cuts a strip out of the taskbar, or drags a
+  line along, while it opens and closes
+
 * Sat Oct 24 2026 Logan <loganctorres1@gmail.com> - 1.1.0-15
 - Clicks no longer stop working for good after a window closes while its
   title bar is held or dragged (common with Steam and other X11 apps);
