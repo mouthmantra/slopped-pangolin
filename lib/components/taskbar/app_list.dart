@@ -210,16 +210,22 @@ class _AppListElementState extends State<AppListElement> {
       onReorderItem: _onReorder,
       buildDefaultDragHandles: false,
       proxyDecorator: (child, index, animation) => child,
-      itemBuilder: (context, index) => ReorderableDragStartListener(
-        key: ValueKey(shown[index].slot.key),
-        index: index,
-        enabled: !shown[index].leaving,
-        child: TaskbarItem(
-          slot: shown[index].slot,
-          leaving: shown[index].leaving,
-          onLeft: () => _onLeft(shown[index].slot.key),
-        ),
-      ),
+      itemBuilder: (context, index) {
+        // The key now: [shown] is [_shown], which _onLeft shortens, so an
+        // index looked up when the leave animation ends can be past its end
+        // (two apps closing together).
+        final String key = shown[index].slot.key;
+        return ReorderableDragStartListener(
+          key: ValueKey(key),
+          index: index,
+          enabled: !shown[index].leaving,
+          child: TaskbarItem(
+            slot: shown[index].slot,
+            leaving: shown[index].leaving,
+            onLeft: () => _onLeft(key),
+          ),
+        );
+      },
       itemCount: shown.length,
     );
   }
