@@ -303,7 +303,11 @@ If you're interested in translating Pangolin, click [here](https://github.com/da
 
 Copyright @ 2019-2023 - The dahliaOS Authors - contact@dahliaos.io
 
-This project is licensed under the [Apache 2.0 license](/LICENSE). The river
-compositor in `river-main/river` (with Pangolin's changes) is GPL-3.0-only,
-see its own licensing notes. For forking and redistributing Pangolin, see
+This fork is licensed under the
+[GNU General Public License, version 3](/LICENSE), the license of the river
+compositor it ships (`river-main/river`, with Pangolin's changes,
+GPL-3.0-only; see its own licensing notes). It is based on dahliaOS's
+Pangolin, which is licensed under the Apache 2.0 license
+([LICENSE.old](/LICENSE.old)); the files that come from it keep their
+Apache 2.0 notices. For forking and redistributing Pangolin, see
 [docs/DISTRIBUTING.md](docs/DISTRIBUTING.md).

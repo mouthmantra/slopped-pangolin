@@ -187,7 +187,7 @@ fi
 systemctl daemon-reload >/dev/null 2>&1 || :
 
 %files
-%license LICENSE
+%license LICENSE LICENSE.old
 %{_datadir}/licenses/pangolin/
 %{_datadir}/fonts/pangolin-inter/
 %doc README.md docs/PLATFORMS.md docs/DISTRIBUTING.md

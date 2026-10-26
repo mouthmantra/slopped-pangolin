@@ -500,7 +500,9 @@ fi
 # License texts, where distributions keep them: the binaries carry code
 # under several licenses (see docs/DISTRIBUTING.md).
 mkdir -p "$SHARE/licenses/pangolin"
-cp "$ROOT/LICENSE" "$SHARE/licenses/pangolin/Apache-2.0.txt"
+# Pangolin's own code is GPL-3.0 (LICENSE, the text river's LICENSES has as
+# GPL-3.0-only.txt); what comes from dahliaOS's Pangolin keeps Apache-2.0.
+cp "$ROOT/LICENSE.old" "$SHARE/licenses/pangolin/Apache-2.0.txt"
 cp "$ROOT"/river-main/river/LICENSES/*.txt "$SHARE/licenses/pangolin/"
 cp "$ROOT/packages/zenit_ui/lib/src/fonts/OFL.txt" "$SHARE/licenses/pangolin/OFL-1.1-Inter.txt"
 cp "$ROOT/tool/cursors/adwaita/README.md" "$SHARE/licenses/pangolin/Adwaita-cursors.md"
