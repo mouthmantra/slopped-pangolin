@@ -23,43 +23,68 @@
 
 ## Pangolin as a desktop session
 
-Pangolin runs as a full Wayland desktop on top of the
-[river](https://codeberg.org) compositor (0.6, non-monolithic):
-river composites and handles input, Pangolin is its window manager and shell,
-and the dahliaOS apps run as regular Wayland clients.
+Pangolin runs as a full Wayland desktop on a patched
+[river](https://codeberg.org/river/river) (0.6 development version, the
+non-monolithic river): river composites, handles input and runs the
+animations; Pangolin is its window manager and shell, in one Flutter process;
+the dahliaOS apps are regular Wayland clients.
 
 ### What's included
 
 | Component | What it is |
 | --- | --- |
-| **Pangolin** (`pangolin`) | Shell (taskbar, launcher, search, quick settings, notifications, overview, power menu) and window manager |
-| **dahliaOS apps** (`dahlia_apps <app>`) | Settings, Files (tabbed), App Store (Flathub), Clock, Welcome, Terminal (tabbed), Calculator, Activity Monitor, Gallery, Text Editor, Logs |
-| **dsettingsd** | The `io.dahlia.DSettings` settings daemon shared by the shell and the apps |
+| **river** (`libexec/pangolin/river`) | The compositor, with Pangolin's protocol extensions (blur, window mirrors and animations, layer shell, touchpad gestures) and the wallpaper drawn from its very first frame |
+| **Pangolin** (`pangolin`) | Shell (taskbar, launcher, search, Quick Settings, notifications, system tray, overview, lock screen, polkit and Wi-Fi prompts) and window manager, title bars of server-side decorated windows included |
+| **dahliaOS apps** (`dahlia_apps <app>`) | Settings, Files, Disks, App Store (Flathub), Clock, Welcome, Terminal, Calculator, Activity Monitor, Gallery, Text Editor, Logs |
 | **pangolin-session** | Session launcher: environment, D-Bus, river, autostart, shell supervision |
+| **dsettingsd** | The `io.dahlia.DSettings` settings daemon shared by the shell and the apps |
+| **pangolin-displays** | Applies the saved monitor layout (or GNOME's `monitors.xml`) at login and when monitors come and go |
+| **pangolin-portal** | xdg-desktop-portal backend (file and app choosers); screen sharing goes through xdg-desktop-portal-wlr |
+| **pangolin-dm** | Display manager, built like GDM (a daemon, a PAM worker per login); its login screen is the shell in greeter mode, as its own user |
 
 ### How it fits together
 
-Use code with caution.
-river (compositor) ──river-window-management-v1──▶ Pangolin (WM + shell)
-│                  river-xkb-bindings / layer-shell / input-management
-│
-├── Pangolin desktop surface  (layer-shell BACKGROUND: wallpaper)
-├── Pangolin shell surface    (layer-shell TOP: taskbar, overlays; click-through
-│                              outside its widgets via an input region)
-└── app windows (xdg-shell) ─ dahlia_apps, flatpaks, any Wayland app
+```
+river (patched compositor)
+ │  river-window-management-v1 ─▶ Pangolin's window manager (lib/services/wm/river.dart):
+ │                                placement, focus, desks, snapping, title bars
+ │  river-window-effects-v1    ─▶ mirrors of windows that river animates itself:
+ │                                open/close/minimize, the overview, desk slides
+ │  river-blur-v1              ─▶ frosted glass, popups opening and closing,
+ │                                tints, how much of the shell surface is drawn
+ │  river-xkb-bindings-v1, river-touchpad-gestures-v1, river-layer-shell-v1, …
+ │
+ ├── desktop surface  layer-shell BACKGROUND, transparent (river draws the
+ │                    wallpaper): right-click menu, overview backdrop
+ ├── shell surface    layer-shell TOP: taskbar, popups, overview; river draws
+ │                    only the taskbar's strip until something opens, and clicks
+ │                    go through it everywhere else (input region)
+ ├── lock screen      ext-session-lock, one surface per monitor
+ └── app windows      xdg-shell; X11 apps through Xwayland, started by river
+```
 
-* `packages/wayland` is a pure-Dart Wayland client (protocol bindings are
-  generated from the XML in `packages/wayland/protocols`). Pangolin's river
-  window manager lives in `lib/services/wm/river.dart`.
-* The two Pangolin surfaces are two Flutter views of one engine
-  (`linux/my_application.cc`, gtk-layer-shell). Without a layer-shell
-  compositor, or with `--windowed`, Pangolin runs in a normal window using its
-  built-in Utopia window manager (handy for development).
+* `packages/wayland` is a pure-Dart Wayland client (bindings generated from
+  the XML in `packages/wayland/protocols`): the window manager talks to river
+  directly from the shell's process, and shares its state with the taskbar,
+  overview and launcher.
+* The shell's surfaces are Flutter views of one engine (`linux/my_application.cc`,
+  gtk-layer-shell, with native helpers in `session/native/` for blur, the
+  session lock and password checks). Without a layer-shell compositor, or with
+  `--windowed`, Pangolin runs in a normal window using its built-in Utopia
+  window manager (handy for development).
+* The shell and the apps run on Pangolin's own build of Flutter's Linux
+  embedder (`third_party/flutter_engine`): frames follow the display's refresh
+  rate instead of a fixed 60 Hz, and only what changed in a frame is
+  repainted and reported to river.
 * The apps are one Flutter project (`apps/`) built as a multi-call binary; each
   app gets its own Wayland app id (`io.dahliaos.<app>`) and desktop entry.
 * Settings live in the `pangolin` dsettings table (scheme extended by
   `packages/pangolin_settings`), so changes made in Settings apply live to the
   shell and every app.
+* Several monitors: windows place, snap, maximize and follow their monitor,
+  but the shell itself (taskbar, desktop menu, overview) lives on the primary
+  monitor only, and desks span all monitors. Per-monitor shell surfaces and
+  desks are on the roadmap.
 
 ### Requirements
 
@@ -67,21 +92,26 @@ river (compositor) ──river-window-management-v1──▶ Pangolin (WM + shel
 * `libgtk-layer-shell-dev`, `libxkbcommon-dev`, `libepoxy-dev`, `libwayland-dev`
 * river 0.6 (`zig` 0.16, wlroots 0.20, wayland-protocols, libevdev, pixman; see `river-main/river/README.md`):
 
-cd river-main/river && zig build -Doptimize=ReleaseSafe -Dxwayland --prefix ~/.local install
+  ```sh
+  cd river-main/river && zig build -Doptimize=ReleaseSafe -Dxwayland --prefix ~/.local install
+  ```
 * At runtime (optional, features degrade gracefully without them): PAM (lock
-screen), polkit (permission prompts), `wpctl` (volume), `brightnessctl`,
-`flatpak` and PackageKit (App Store), `wl-copy` (copying screenshots),
-xdg-desktop-portal-wlr (screen sharing and recording), NetworkManager
-(network and VPN, `nm-connection-editor` to edit VPNs), `pw-dump` from
-PipeWire's tools (screen recording and microphone indicators), BlueZ,
-UPower, power-profiles-daemon and greetd (login screen).
+  screen), polkit (permission prompts), `wpctl` (volume), `brightnessctl`,
+  `flatpak` and PackageKit (App Store), UDisks2 (Disks), `wl-copy` (copying
+  screenshots), xdg-desktop-portal-wlr (screen sharing and recording),
+  NetworkManager (network and VPN, `nm-connection-editor` to edit VPNs),
+  `pw-dump` from PipeWire's tools (screen recording and microphone
+  indicators), BlueZ, UPower, power-profiles-daemon, and greetd for the login
+  screen of source installs (the Fedora packages use pangolin-dm).
 * ARM64, Alpine Linux and other distributions: see
-[docs/PLATFORMS.md](docs/PLATFORMS.md).
+  [docs/PLATFORMS.md](docs/PLATFORMS.md).
 
 ### Build and install
 
-tool/build.sh                 # release builds of the shell, the apps and dsettingsd
+```sh
+tool/build.sh                 # release builds of river, the shell, the apps and the daemons
 tool/install.sh               # installs into ~/.local (use --prefix /usr/local as root)
+```
 
 Then start a session:
 
@@ -102,26 +132,31 @@ output on the terminal.
 
 #### Fedora packages
 
+```sh
 tool/dist.sh                  # source tarball: dist/pangolin-desktop-VERSION.tar.xz
-tool/rpm.sh                   # RPMs built from it: dist/.rpm
-sudo dnf install dist/pangolin-desktop-.x86_64.rpm dist/pangolin-desktop-greeter-*.x86_64.rpm
+tool/rpm.sh                   # RPMs built from it: dist/*.rpm
+sudo dnf install dist/pangolin-desktop-*.x86_64.rpm dist/pangolin-desktop-greeter-*.x86_64.rpm
+```
 
 `tool/rpm.sh` needs `rpmbuild` (`sudo dnf install rpm-build`, or `sudo apt
 install rpm` in a Debian toolbox) besides what `tool/build.sh` needs. The
 spec is `packaging/rpm/pangolin-desktop.spec`; `pangolin-desktop-greeter` is
-the login screen (it points greetd at it). Pangolin's river goes to
-`/usr/libexec/pangolin`, so it doesn't clash with Fedora's `river` package.
+pangolin-dm and the login screen, off until enabled with
+`sudo systemctl disable gdm && sudo systemctl enable pangolin-dm`. Pangolin's
+river goes to `/usr/libexec/pangolin`, so it doesn't clash with Fedora's
+`river` package.
 
-#### Login screen
+#### Login screen (source installs)
 
 `sudo tool/install.sh --prefix /usr/local --greeter` sets up Pangolin's login
 screen for greetd, as GDM does for GNOME:
 
 * it runs as its own user, `pangolin-greeter` (home `/var/lib/pangolin-greeter`),
   with GNOME's Adwaita pointers;
-* it shows the wallpaper of the selected user and uses the display setup of
-  the user who logged in last: sessions share both in `/var/lib/pangolin/users`
-  (falling back to `/etc/xdg/monitors.xml`, GNOME's configuration);
+* it shows the wallpaper and font of the selected user and uses the display
+  setup of the user who logged in last: sessions share them in
+  `/var/lib/pangolin/users` (falling back to `/etc/xdg/monitors.xml`, GNOME's
+  configuration);
 * it keeps the boot splash on screen until it appears and fades out to black
   when you log in, the desktop then fading in, without showing the text
   console in between;
@@ -136,12 +171,14 @@ Build as your normal user and only install as root. `pangolin-session` uses
 the river installed in its own prefix when there is one, so install river there
 too:
 
+```sh
 cd river-main/river
 DESTDIR="$PWD/stage" zig build -Doptimize=ReleaseSafe -Dxwayland --prefix /usr/local install
 sudo cp -r stage/usr/local/. /usr/local/
 cd ../..
 tool/build.sh --clean           # --clean: first build on this machine
 sudo tool/install.sh            # as root the prefix defaults to /usr/local
+```
 
 GDM and SDDM list sessions from `/usr/local/share/wayland-sessions`, so
 **Pangolin** shows up on the login screen. Remove a per-user install first
