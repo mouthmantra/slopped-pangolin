@@ -314,7 +314,8 @@ class _TerminalPageState extends State<TerminalPage> {
                         session.terminal,
                         controller: session.controller,
                         focusNode: session.focusNode,
-                        theme: _theme,
+                        theme: terminalThemeWithAccent(
+                            _theme, theme.colorScheme.primary),
                         backgroundOpacity: 0,
                         cursorType: _cursorType,
                         autofocus: true,

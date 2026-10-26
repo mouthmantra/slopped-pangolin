@@ -252,7 +252,9 @@ class _ThemePreview extends StatelessWidget {
                               text: " ok", style: TextStyle(color: theme.cyan)),
                           TextSpan(
                               text: " █",
-                              style: TextStyle(color: theme.cursor)),
+                              // Terminal draws its cursor in the accent.
+                              style: TextStyle(
+                                  color: appTheme.colorScheme.primary)),
                         ],
                       ),
                       style: mono,

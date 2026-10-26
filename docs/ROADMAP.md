@@ -849,6 +849,14 @@ theme (6.1).
       Welcome's) rewritten to the same standard as those. All apps get
       more animations: page and view changes, lists, dialogs, selection,
       in the dahliaOS style.
+- [~] 4.11 Terminal follows the accent color (user, 2026-10-25): the
+      selection highlight and the block cursor in the desktop's accent
+      color, as the rest of Pangolin.
+      Done for every terminal theme (terminalThemeWithAccent: the cursor in
+      the accent, the selection in it at 40%, one theme object per accent
+      so xterm keeps its text cache); Settings' theme previews show the
+      accent cursor. Still xterm's: a block cursor covers its character
+      (it doesn't redraw it in the background color). [ ] Not tried live.
 
 ## 5. Files, desktop icons, associations
 

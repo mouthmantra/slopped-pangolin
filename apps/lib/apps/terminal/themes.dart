@@ -87,6 +87,42 @@ final Map<String, (String, TerminalTheme)> terminalThemes = {
 TerminalTheme terminalThemeFor(String key) =>
     (terminalThemes[key] ?? terminalThemes["dahlia"]!).$2;
 
+final Map<(TerminalTheme, Color), TerminalTheme> _accented = {};
+
+/// [theme] with its cursor and selection in the desktop's [accent] color,
+/// as the rest of Pangolin. The same object for the same colors: xterm
+/// drops its text layout cache when the theme changes.
+TerminalTheme terminalThemeWithAccent(TerminalTheme theme, Color accent) {
+  final Color cursor = accent.withValues(alpha: 1);
+  // Wallpaper accents change: keep a few.
+  if (_accented.length > 32) _accented.clear();
+  return _accented[(theme, cursor)] ??= TerminalTheme(
+    cursor: cursor,
+    selection: cursor.withValues(alpha: 0.4),
+    foreground: theme.foreground,
+    background: theme.background,
+    black: theme.black,
+    red: theme.red,
+    green: theme.green,
+    yellow: theme.yellow,
+    blue: theme.blue,
+    magenta: theme.magenta,
+    cyan: theme.cyan,
+    white: theme.white,
+    brightBlack: theme.brightBlack,
+    brightRed: theme.brightRed,
+    brightGreen: theme.brightGreen,
+    brightYellow: theme.brightYellow,
+    brightBlue: theme.brightBlue,
+    brightMagenta: theme.brightMagenta,
+    brightCyan: theme.brightCyan,
+    brightWhite: theme.brightWhite,
+    searchHitBackground: theme.searchHitBackground,
+    searchHitBackgroundCurrent: theme.searchHitBackgroundCurrent,
+    searchHitForeground: theme.searchHitForeground,
+  );
+}
+
 TerminalTheme _theme({
   required int background,
   required int foreground,
