@@ -265,16 +265,33 @@ enum GestureAction {
 /// The fonts that stand in when [SessionSetting.interfaceFont] or
 /// [SessionSetting.monospaceFont] is empty.
 abstract final class SessionFonts {
-  /// Roboto Mono, which Pangolin's packages depend on, when fontconfig has
-  /// it (looked up once); null leaves the system's monospace font.
-  static final String? defaultMonospace = () {
+  /// Where Flutter on Linux finds fonts by name. Its engine reads the font
+  /// files under this directory (Skia's directory font manager), not
+  /// fontconfig's list: a family that is only elsewhere (~/.local/share/fonts,
+  /// /usr/local/share/fonts) is drawn in a fallback font instead.
+  static const String flutterFontDirectory = "/usr/share/fonts/";
+
+  /// Whether Flutter can draw [family]: fontconfig has a file of it in
+  /// [flutterFontDirectory].
+  static bool available(String family) {
+    if (family.isEmpty) return false;
+    // Fontconfig's pattern syntax: \, -, :, , and = are special in names.
+    final String escaped = family.replaceAllMapped(RegExp(r"[\\\-:,=]"), (m) => "\\${m[0]}");
     try {
-      final ProcessResult r = Process.runSync("fc-list", [":family=Roboto Mono", "family"]);
-      return r.exitCode == 0 && (r.stdout as String).trim().isNotEmpty ? "Roboto Mono" : null;
+      final ProcessResult r = Process.runSync("fc-list", [":family=$escaped", "file"]);
+      if (r.exitCode != 0) return false;
+      return (r.stdout as String)
+          .split("\n")
+          .any((line) => line.startsWith(flutterFontDirectory));
     } on ProcessException {
-      return null;
+      return false;
     }
-  }();
+  }
+
+  /// Roboto Mono, which Pangolin's packages depend on, when Flutter can draw
+  /// it (looked up once); null leaves the system's monospace font.
+  static final String? defaultMonospace =
+      available("Roboto Mono") ? "Roboto Mono" : null;
 
   /// The monospace family for the setting's value [chosen].
   static String? monospace(String? chosen) =>

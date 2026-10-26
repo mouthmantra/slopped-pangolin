@@ -139,7 +139,7 @@ index 66797b32..79b16f71 100644
      "fl_window_state_monitor.cc",
    ]
 diff --git a/engine/src/flutter/shell/platform/linux/fl_compositor_opengl.cc b/engine/src/flutter/shell/platform/linux/fl_compositor_opengl.cc
-index ebcad245..b5a9434f 100644
+index ebcad245..d71fc91e 100644
 --- a/engine/src/flutter/shell/platform/linux/fl_compositor_opengl.cc
 +++ b/engine/src/flutter/shell/platform/linux/fl_compositor_opengl.cc
 @@ -7,6 +7,10 @@
@@ -153,7 +153,7 @@ index ebcad245..b5a9434f 100644
  #include "flutter/common/constants.h"
  #include "flutter/shell/platform/embedder/embedder.h"
  #include "flutter/shell/platform/linux/fl_compositor_opengl_shader.h"
-@@ -36,8 +40,147 @@ struct _FlCompositorOpenGL {
+@@ -36,8 +40,153 @@ struct _FlCompositorOpenGL {
  
    // Ensure Flutter and GTK can access the frame data (framebuffer or pixels).
    GMutex frame_mutex;
@@ -166,6 +166,12 @@ index ebcad245..b5a9434f 100644
 +  // fl_compositor_opengl_take_damage), null for everything.
 +  cairo_region_t* damage;
 +  gboolean damage_full;
++
++  // Pangolin: the damage of the frame the last render drew, set aside with
++  // the drawing (under frame_mutex) for fl_compositor_opengl_take_damage.
++  gboolean rendered;
++  cairo_region_t* rendered_damage;
++  gboolean rendered_damage_full;
 +
 +  // Pangolin: 1x1 renderbuffer without alpha (skip_surface_upload), and
 +  // whether GDK can't blit it.
@@ -301,7 +307,7 @@ index ebcad245..b5a9434f 100644
  G_DEFINE_TYPE(FlCompositorOpenGL,
                fl_compositor_opengl,
                fl_compositor_get_type())
-@@ -106,6 +249,31 @@ static gboolean fl_compositor_opengl_present_layers(FlCompositor* compositor,
+@@ -106,6 +255,31 @@ static gboolean fl_compositor_opengl_present_layers(FlCompositor* compositor,
    // Update framebuffer to write into.
    size_t width = layers[0]->size.width;
    size_t height = layers[0]->size.height;
@@ -333,7 +339,7 @@ index ebcad245..b5a9434f 100644
    if (self->framebuffer == nullptr ||
        fl_framebuffer_get_width(self->framebuffer) != width ||
        fl_framebuffer_get_height(self->framebuffer) != height) {
-@@ -272,6 +440,7 @@ static gboolean fl_compositor_opengl_render(FlCompositor* compositor,
+@@ -272,6 +446,7 @@ static gboolean fl_compositor_opengl_render(FlCompositor* compositor,
    if (fl_framebuffer_get_shareable(self->framebuffer)) {
      g_autoptr(FlFramebuffer) sibling =
          fl_framebuffer_create_sibling(self->framebuffer);
@@ -341,16 +347,37 @@ index ebcad245..b5a9434f 100644
      gdk_cairo_draw_from_gl(cr, window, fl_framebuffer_get_texture_id(sibling),
                             GL_TEXTURE, scale_factor, 0, 0, width, height);
    } else {
-@@ -316,6 +485,8 @@ static void fl_compositor_opengl_dispose(GObject* object) {
+@@ -302,6 +477,19 @@ static gboolean fl_compositor_opengl_render(FlCompositor* compositor,
+ 
+   glFlush();
+ 
++  // Pangolin: the damage of the frame just drawn goes with it. Taken later,
++  // it would also hold that of a frame the raster thread presents once the
++  // lock is released: reported and consumed, though this paint drew the
++  // frame before, so nothing would paint that change (popups leaving parts
++  // of an earlier frame behind, which show when the shell next shows its
++  // whole surface). Such a frame's damage is now the next draw's.
++  g_clear_pointer(&self->rendered_damage, cairo_region_destroy);
++  self->rendered = TRUE;
++  self->rendered_damage = self->damage;
++  self->rendered_damage_full = self->damage_full;
++  self->damage = nullptr;
++  self->damage_full = FALSE;
++
+   g_mutex_unlock(&self->frame_mutex);
+ 
+   return TRUE;
+@@ -316,6 +504,9 @@ static void fl_compositor_opengl_dispose(GObject* object) {
    g_clear_object(&self->opengl_manager);
    g_clear_object(&self->framebuffer);
    g_clear_pointer(&self->pixels, g_free);
 +  g_clear_pointer(&self->drawn, cairo_region_destroy);
 +  g_clear_pointer(&self->damage, cairo_region_destroy);
++  g_clear_pointer(&self->rendered_damage, cairo_region_destroy);
    g_mutex_clear(&self->frame_mutex);
  
    G_OBJECT_CLASS(fl_compositor_opengl_parent_class)->dispose(object);
-@@ -348,3 +519,49 @@ FlCompositorOpenGL* fl_compositor_opengl_new(FlTaskRunner* task_runner,
+@@ -348,3 +539,57 @@ FlCompositorOpenGL* fl_compositor_opengl_new(FlTaskRunner* task_runner,
  
    return self;
  }
@@ -358,15 +385,23 @@ index ebcad245..b5a9434f 100644
 +cairo_region_t* fl_compositor_opengl_take_damage(FlCompositorOpenGL* self) {
 +  g_return_val_if_fail(FL_IS_COMPOSITOR_OPENGL(self), nullptr);
 +  g_autoptr(GMutexLocker) locker = g_mutex_locker_new(&self->frame_mutex);
-+  if (self->damage_full) {
-+    g_clear_pointer(&self->damage, cairo_region_destroy);
-+    self->damage_full = FALSE;
++  // That of the frame the last render drew, else (nothing drawn) everything
++  // so far.
++  cairo_region_t** source = &self->damage;
++  gboolean* full = &self->damage_full;
++  if (self->rendered) {
++    self->rendered = FALSE;
++    source = &self->rendered_damage;
++    full = &self->rendered_damage_full;
++  }
++  if (*full) {
++    g_clear_pointer(source, cairo_region_destroy);
++    *full = FALSE;
 +    return nullptr;
 +  }
 +  // None: GTK draws again what an earlier draw had (nothing changed).
-+  cairo_region_t* damage =
-+      self->damage != nullptr ? self->damage : cairo_region_create();
-+  self->damage = nullptr;
++  cairo_region_t* damage = *source != nullptr ? *source : cairo_region_create();
++  *source = nullptr;
 +  return damage;
 +}
 +
@@ -401,10 +436,10 @@ index ebcad245..b5a9434f 100644
 +  return cairo_region_copy(self->damage);
 +}
 diff --git a/engine/src/flutter/shell/platform/linux/fl_compositor_opengl.h b/engine/src/flutter/shell/platform/linux/fl_compositor_opengl.h
-index 77641a7a..9f598da9 100644
+index 77641a7a..14753a6c 100644
 --- a/engine/src/flutter/shell/platform/linux/fl_compositor_opengl.h
 +++ b/engine/src/flutter/shell/platform/linux/fl_compositor_opengl.h
-@@ -42,6 +42,38 @@ FlCompositorOpenGL* fl_compositor_opengl_new(FlTaskRunner* task_runner,
+@@ -42,6 +42,40 @@ FlCompositorOpenGL* fl_compositor_opengl_new(FlTaskRunner* task_runner,
                                               FlOpenGLManager* opengl_manager,
                                               gboolean shareable);
  
@@ -413,7 +448,9 @@ index 77641a7a..9f598da9 100644
 + * @compositor: an #FlCompositorOpenGL.
 + *
 + * Pangolin: what changed in the frame (frame pixels) since the last call
-+ * (empty when nothing did), or %NULL for everything (unknown, resized).
++ * (empty when nothing did), or %NULL for everything (unknown, resized):
++ * up to the frame the last fl_compositor_render() drew, if it drew one
++ * since.
 + *
 + * Returns: (transfer full) (nullable): a region.
 + */
@@ -794,7 +831,7 @@ index 43407460..aa48f56c 100644
    fl_view_signals[SIGNAL_FIRST_FRAME] =
        g_signal_new("first-frame", fl_view_get_type(), G_SIGNAL_RUN_LAST, 0,
 diff --git a/engine/src/flutter/shell/platform/linux/fl_view_renderer.cc b/engine/src/flutter/shell/platform/linux/fl_view_renderer.cc
-index dba92d94..190ea422 100644
+index dba92d94..845d34f6 100644
 --- a/engine/src/flutter/shell/platform/linux/fl_view_renderer.cc
 +++ b/engine/src/flutter/shell/platform/linux/fl_view_renderer.cc
 @@ -4,10 +4,13 @@
@@ -811,12 +848,24 @@ index dba92d94..190ea422 100644
  #include "flutter/shell/platform/linux/fl_compositor_software.h"
  #include "flutter/shell/platform/linux/fl_engine_private.h"
  #include "flutter/shell/platform/linux/fl_opengl_manager.h"
-@@ -40,6 +43,48 @@ static guint fl_view_renderer_signals[LAST_SIGNAL];
+@@ -32,6 +35,11 @@ struct _FlViewRenderer {
+ 
+   // TRUE if have got the first frame to render.
+   gboolean have_first_frame;
++
++  // Pangolin: what was queued for redrawing since the last draw (frame
++  // pixels, as GTK repaints it), or everything.
++  cairo_region_t* queued;
++  gboolean queued_all;
+ };
+ 
+ enum { SIGNAL_FIRST_FRAME, LAST_SIGNAL };
+@@ -40,6 +48,52 @@ static guint fl_view_renderer_signals[LAST_SIGNAL];
  
  G_DEFINE_TYPE(FlViewRenderer, fl_view_renderer, GTK_TYPE_DRAWING_AREA)
  
 +// Pangolin: queues a redraw of [region] (frame pixels), rounding outwards.
-+static void queue_draw_frame_region(GtkWidget* widget,
++static void queue_draw_frame_region(FlViewRenderer* self,
 +                                    const cairo_region_t* region,
 +                                    gint scale_factor) {
 +  cairo_region_t* logical = cairo_region_create();
@@ -827,8 +876,12 @@ index dba92d94..190ea422 100644
 +    l.width = (r.x + r.width + scale_factor - 1) / scale_factor - l.x;
 +    l.height = (r.y + r.height + scale_factor - 1) / scale_factor - l.y;
 +    cairo_region_union_rectangle(logical, &l);
++    cairo_rectangle_int_t queued = {l.x * scale_factor, l.y * scale_factor,
++                                    l.width * scale_factor,
++                                    l.height * scale_factor};
++    cairo_region_union_rectangle(self->queued, &queued);
 +  }
-+  gtk_widget_queue_draw_region(widget, logical);
++  gtk_widget_queue_draw_region(GTK_WIDGET(self), logical);
 +  cairo_region_destroy(logical);
 +}
 +
@@ -860,7 +913,7 @@ index dba92d94..190ea422 100644
  // Redraw the view from the GTK thread.
  static gboolean redraw_cb(gpointer user_data) {
    g_autoptr(FlViewRenderer) self = FL_VIEW_RENDERER(user_data);
-@@ -76,7 +121,19 @@ static gboolean redraw_cb(gpointer user_data) {
+@@ -76,7 +130,20 @@ static gboolean redraw_cb(gpointer user_data) {
      return G_SOURCE_REMOVE;
    }
  
@@ -873,15 +926,16 @@ index dba92d94..190ea422 100644
 +                FL_COMPOSITOR_OPENGL(self->compositor))
 +          : nullptr;
 +  if (damage != nullptr && frame_size_matches) {
-+    queue_draw_frame_region(render_widget, damage, scale_factor);
++    queue_draw_frame_region(self, damage, scale_factor);
 +  } else {
++    self->queued_all = TRUE;
 +    gtk_widget_queue_draw(render_widget);
 +  }
 +  g_clear_pointer(&damage, cairo_region_destroy);
  
    return G_SOURCE_REMOVE;
  }
-@@ -161,6 +218,84 @@ static gboolean fl_view_renderer_draw(GtkWidget* widget, cairo_t* cr) {
+@@ -161,6 +228,101 @@ static gboolean fl_view_renderer_draw(GtkWidget* widget, cairo_t* cr) {
    gboolean result = fl_compositor_render(
        self->compositor, cr, gtk_widget_get_window(widget), wait_for_frame);
  
@@ -903,6 +957,17 @@ index dba92d94..190ea422 100644
 +    // reported with the next draw. Dropped, it would never be painted in
 +    // this buffer, whose old pixels then show whenever it comes round again
 +    // (stale or flashing parts of popups that have closed).
++    //
++    // What was painted but not queued goes back too: the clip also has what
++    // this buffer missed while others were drawn (its age), but GTK counts
++    // only the region queued as changed by this draw, and older buffers
++    // repaint only the regions so counted. A change painted there alone
++    // would stay out of every other buffer (parts of a popup's last frame
++    // left behind, showing when the shell next shows its whole surface).
++    cairo_region_t* queued = self->queued;
++    gboolean queued_all = self->queued_all;
++    self->queued = cairo_region_create();
++    self->queued_all = FALSE;
 +    gboolean trimmed = FALSE;
 +    gint scale_factor = gtk_widget_get_scale_factor(widget);
 +    cairo_region_t* painted =
@@ -916,12 +981,17 @@ index dba92d94..190ea422 100644
 +      if (damage != nullptr) {
 +        cairo_region_intersect(missed, damage);
 +      }
-+      cairo_region_subtract(missed, painted);
++      cairo_region_t* done = cairo_region_copy(painted);
++      if (!queued_all) {
++        cairo_region_intersect(done, queued);
++      }
++      cairo_region_subtract(missed, done);
++      cairo_region_destroy(done);
 +      if (!cairo_region_is_empty(missed)) {
 +        // As a region even when everything was taken: "everything" again
 +        // would be taken by the next draw, whose paint is clipped too.
 +        fl_compositor_opengl_add_damage(compositor, missed);
-+        queue_draw_frame_region(widget, missed, scale_factor);
++        queue_draw_frame_region(self, missed, scale_factor);
 +        // Only what this paint changed is reported.
 +        if (damage == nullptr) {
 +          damage = cairo_region_copy(painted);
@@ -961,8 +1031,25 @@ index dba92d94..190ea422 100644
 +      fl_pangolin_damage_set(toplevel, nullptr);
 +    }
 +    g_clear_pointer(&damage, cairo_region_destroy);
++    cairo_region_destroy(queued);
 +  }
 +
    if (self->render_context) {
      gdk_gl_context_clear_current();
    }
+@@ -187,6 +349,7 @@ static void fl_view_renderer_finalize(GObject* object) {
+   // holds a strong reference on the view (and thus this renderer) while
+   // presenting.
+   g_clear_object(&self->compositor);
++  g_clear_pointer(&self->queued, cairo_region_destroy);
+ 
+   G_OBJECT_CLASS(fl_view_renderer_parent_class)->finalize(object);
+ }
+@@ -208,6 +371,7 @@ static void fl_view_renderer_init(FlViewRenderer* self) {
+   GdkRGBA default_background = {
+       .red = 0.0, .green = 0.0, .blue = 0.0, .alpha = 1.0};
+   self->background_color = gdk_rgba_copy(&default_background);
++  self->queued = cairo_region_create();
+ }
+ 
+ FlViewRenderer* fl_view_renderer_new(FlEngine* engine,

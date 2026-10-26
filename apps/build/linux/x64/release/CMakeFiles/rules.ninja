@@ -191,7 +191,7 @@ rule C_SHARED_LIBRARY_LINKER__flutter_pty_Release
 # Rule for re-running cmake.
 
 rule RERUN_CMAKE
-  command = /usr/bin/cmake --regenerate-during-build -S/home/logan/Developer/pangolin_desktop-main/apps/linux -B/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release
+  command = /usr/bin/cmake --regenerate-during-build -S/home/logan/Projects/slopped-pangolin/apps/linux -B/home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release
   description = Re-running CMake...
   generator = 1
 

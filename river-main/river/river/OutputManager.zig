@@ -27,6 +27,17 @@ const log = std.log.scoped(.output);
 /// The very first modeset is different in that if it fails we exit river.
 first_modeset: bool = true,
 
+/// Pangolin: after a failed modeset the next attempt waits (250 ms, doubling
+/// to 5 s) instead of coming with the next manage sequence. Without the DRM
+/// master (a session that isn't active, its VT still taken) every attempt
+/// fails, and retrying at once kept river and the window manager busy for
+/// good: the login screen crawled. A client's new configuration and the
+/// session becoming active try again at once.
+modeset_waiting: bool = false,
+modeset_backoff_ms: u31 = 0,
+modeset_retry_timer: ?*wl.EventSource = null,
+session_active: wl.Listener(void) = .init(handleSessionActive),
+
 new_output: wl.Listener(*wlr.Output) = .init(handleNewOutput),
 
 output_layout: *wlr.OutputLayout,
@@ -66,6 +77,9 @@ pub fn init(om: *OutputManager) !void {
 
     om.outputs.init();
 
+    om.modeset_retry_timer = try server.wl_server.getEventLoop().addTimer(*OutputManager, handleModesetRetry, om);
+    if (server.session) |session| session.events.active.add(&om.session_active);
+
     server.backend.events.new_output.add(&om.new_output);
     om.wlr_output_manager.events.apply.add(&om.manager_apply);
     om.wlr_output_manager.events.@"test".add(&om.manager_test);
@@ -73,6 +87,8 @@ pub fn init(om: *OutputManager) !void {
 }
 
 pub fn deinit(om: *OutputManager) void {
+    if (server.session != null) om.session_active.link.remove();
+    if (om.modeset_retry_timer) |timer| timer.remove();
     om.manager_apply.link.remove();
     om.manager_test.link.remove();
     om.power_manager_set_mode.link.remove();
@@ -312,6 +328,8 @@ pub fn commitOutputState(om: *OutputManager) void {
     };
 
     if (need_modeset) {
+        // Pangolin: waiting to try again after a failure (modesetFailed).
+        if (om.modeset_waiting and wm.sent.output_config == null) return;
         log.debug("committing output state requires modeset", .{});
 
         var states: std.ArrayList(wlr.Backend.OutputState) = .empty;
@@ -360,6 +378,7 @@ pub fn commitOutputState(om: *OutputManager) void {
             return;
         }
         om.first_modeset = false;
+        om.modeset_backoff_ms = 0;
 
         swapchain_manager.apply();
     }
@@ -445,6 +464,30 @@ fn modesetFailed(om: *OutputManager) void {
         }
         wm.dirtyWindowing();
     }
+
+    // Pangolin: the next attempt after a pause (modeset_waiting).
+    om.modeset_backoff_ms = if (om.modeset_backoff_ms == 0) 250 else @min(om.modeset_backoff_ms * 2, 5000);
+    om.modeset_waiting = true;
+    if (om.modeset_retry_timer) |timer| timer.timerUpdate(om.modeset_backoff_ms) catch {};
+    log.info("trying the output configuration again in {d} ms", .{om.modeset_backoff_ms});
+}
+
+fn handleModesetRetry(om: *OutputManager) c_int {
+    om.modeset_waiting = false;
+    server.wm.dirtyWindowing();
+    return 0;
+}
+
+/// The session is active again (its VT shown, the DRM master back): what
+/// failed without it can work now.
+fn handleSessionActive(listener: *wl.Listener(void)) void {
+    const om: *OutputManager = @fieldParentPtr("session_active", listener);
+    const session = server.session orelse return;
+    if (!session.active or !om.modeset_waiting) return;
+    om.modeset_waiting = false;
+    om.modeset_backoff_ms = 0;
+    if (om.modeset_retry_timer) |timer| timer.timerUpdate(0) catch {};
+    server.wm.dirtyWindowing();
 }
 
 /// Send the current output state to all wlr-output-manager clients.

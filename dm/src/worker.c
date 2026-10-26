@@ -32,6 +32,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 
 static int daemon_fd = 3;
@@ -253,6 +254,59 @@ static void close_session(pam_handle_t *pamh)
 	pam_setcred(pamh, PAM_DELETE_CRED);
 }
 
+/* Ends what the greeter left running in its session (D-Bus services, helpers
+ * of its compositor). logind keeps a session, and its VT, until every process
+ * in it is gone, and the user's session can't have the VT before (logind
+ * refuses it: VirtualTerminalAlreadyTaken). Only processes in the session's
+ * own scope, which this worker is in (pam_systemd moved it there): nothing
+ * without a logind session, as in tests. */
+static void end_leftovers(pam_handle_t *pamh)
+{
+	const char *id = pam_getenv(pamh, "XDG_SESSION_ID");
+	if (!id || !*id) return;
+	char scope[80];
+	snprintf(scope, sizeof scope, "/session-%s.scope", id);
+
+	/* cgroup v2: "0::/user.slice/user-N.slice/session-ID.scope". */
+	char line[512];
+	int found = 0;
+	FILE *f = fopen("/proc/self/cgroup", "re");
+	if (!f) return;
+	while (fgets(line, sizeof line, f)) {
+		if (strncmp(line, "0::", 3) == 0) {
+			found = 1;
+			break;
+		}
+	}
+	fclose(f);
+	if (!found) return;
+	char *path = line + 3;
+	path[strcspn(path, "\n")] = 0;
+	size_t len = strlen(path), scope_len = strlen(scope);
+	if (len < scope_len || strcmp(path + len - scope_len, scope) != 0) return;
+	char procs[600];
+	snprintf(procs, sizeof procs, "/sys/fs/cgroup%s/cgroup.procs", path);
+
+	/* SIGTERM, a second for them to go, then SIGKILL. */
+	const struct timespec step = {0, 40 * 1000 * 1000};
+	for (int round = 0; round <= 25; round++) {
+		int sig = round == 0 ? SIGTERM : round == 25 ? SIGKILL : 0;
+		int left = 0;
+		FILE *p = fopen(procs, "re");
+		if (!p) return;
+		long pid;
+		while (fscanf(p, "%ld", &pid) == 1) {
+			if ((pid_t)pid == getpid()) continue;
+			left++;
+			if (sig) kill((pid_t)pid, sig);
+		}
+		fclose(p);
+		if (!left) return;
+		if (round == 25) dm_log("worker: killed %d processes the greeter left", left);
+		nanosleep(&step, NULL);
+	}
+}
+
 /* The greeter's session: class greeter, the greeter user, no questions. */
 static int greeter_worker(const struct hello *h)
 {
@@ -283,6 +337,7 @@ static int greeter_worker(const struct hello *h)
 		return 1;
 	}
 	int code = run_session(pamh, pw, (char *const *)args, extra, n_extra, 0);
+	end_leftovers(pamh);
 	close_session(pamh);
 	pam_end(pamh, PAM_SUCCESS);
 	struct msg m;
@@ -335,6 +390,9 @@ static int user_worker(const struct hello *h)
 	const char *extra[16];
 	size_t n_extra = 0;
 	struct msg start = {0};
+	/* The VT the session goes to: the greeter's, or another one when that
+	 * stayed taken (daemon.c). */
+	char run_vt[8] = "", run_tty[16] = "";
 	for (;;) {
 		struct msg m;
 		if (msg_recv(daemon_fd, &m) < 0) {
@@ -361,6 +419,11 @@ static int user_worker(const struct hello *h)
 			continue;
 		}
 		if (strcmp(type, "run") == 0 && session.argv) {
+			const char *vt = msg_get(&m, "vt"), *tty = msg_get(&m, "tty");
+			if (vt && tty && strlen(vt) < sizeof run_vt && strlen(tty) < sizeof run_tty) {
+				strcpy(run_vt, vt);
+				strcpy(run_tty, tty);
+			}
 			msg_free(&m);
 			break;
 		}
@@ -382,8 +445,14 @@ static int user_worker(const struct hello *h)
 		if (dm_greeter_env_allowed(extra[i])) env[n_env++] = extra[i];
 	}
 
+	struct hello at = *h;
+	if (*run_vt) {
+		at.vt = run_vt;
+		at.tty = run_tty;
+		pam_set_item(pamh, PAM_TTY, run_tty);
+	}
 	struct passwd *pw = NULL;
-	if (open_session(pamh, h, "user", session.id) < 0 || !(pw = getpwnam(h->user))) {
+	if (open_session(pamh, &at, "user", session.id) < 0 || !(pw = getpwnam(h->user))) {
 		send_simple("ended", "status", "-1");
 		pam_end(pamh, PAM_ABORT);
 		msg_free(&start);

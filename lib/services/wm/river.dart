@@ -240,9 +240,10 @@ class RiverWindowManagerService extends WindowManagerService
   void _refitToWorkArea() {
     for (final RiverWindow w in _stack) {
       if (w._fullscreen || (!w._maximized && w._snap == _Snap.none)) continue;
+      final Rect area = _areaOf(w);
       final Rect rect = _contentRect(
         w,
-        w._maximized ? workArea : _snapRect(w._snap),
+        w._maximized ? area : _snapRect(w._snap, area),
       );
       _proposeSize(w, rect.size);
       w._x = rect.left.toInt();
@@ -1021,6 +1022,30 @@ class RiverWindowManagerService extends WindowManagerService
   Rect _workAreaOf(_Output output) =>
       output == _primaryOutput ? workArea : output.rect;
 
+  /// The output at a point of the layout.
+  _Output? _outputAt(double x, double y) => _outputs
+      .where((o) => !o.rect.isEmpty && o.rect.contains(Offset(x, y)))
+      .firstOrNull;
+
+  /// The output [w] is on: the one it overlaps most, else the primary.
+  _Output? _outputOf(RiverWindow w) {
+    final List<_Output> outputs = [
+      for (final _Output o in _outputs)
+        if (!o.rect.isEmpty) o,
+    ];
+    final int? home = OutputFollow.homeOf(
+      w.rect,
+      [for (final _Output o in outputs) o.rect],
+    );
+    return home == null ? _primaryOutput : outputs[home];
+  }
+
+  /// Where [w] maximizes and snaps: its output's work area.
+  Rect _areaOf(RiverWindow w) {
+    final _Output? output = _outputOf(w);
+    return output == null ? workArea : _workAreaOf(output);
+  }
+
   /// Windows follow their output when it moves, changes size (a new scale)
   /// or goes away (roadmap 2.8): to the same place relative to it, or to the
   /// nearest output left, instead of staying at their layout position, on
@@ -1245,7 +1270,7 @@ class RiverWindowManagerService extends WindowManagerService
           op.window._y = op.startRect.top.toInt() + seat.opDy;
           _position(op.window);
           _snapPreview.value =
-              op.moved ? _snapTargetFor(seat)?.$2 : null;
+              op.moved ? _snapTargetFor(seat)?.preview : null;
         }
       } else {
         final Rect r = _resizedRect(op, seat.opDx, seat.opDy);
@@ -1260,11 +1285,15 @@ class RiverWindowManagerService extends WindowManagerService
         if (op.isMove && (op.restorePending || !op.moved)) {
           // A click: nothing moved.
         } else if (op.isMove) {
-          final _Snap? snap = _snapTargetFor(seat)?.$1;
-          if (snap == _Snap.maximized) {
-            _morph(op.window, () => _maximize(op.window));
-          } else if (snap != null) {
-            _morph(op.window, () => _snap(op.window, snap));
+          final ({_Snap snap, Rect area, Rect? preview})? target =
+              _snapTargetFor(seat);
+          if (target?.snap == _Snap.maximized) {
+            _morph(op.window, () => _maximize(op.window, area: target!.area));
+          } else if (target != null) {
+            _morph(
+              op.window,
+              () => _snap(op.window, target.snap, area: target.area),
+            );
           } else {
             op.window._floatingRect = op.window.rect;
           }
@@ -1307,8 +1336,8 @@ class RiverWindowManagerService extends WindowManagerService
     // The pointer keeps holding the title bar, above the content when
     // river draws it.
     final int top = _decorationTop(w).toInt();
-    final int y =
-        math.max(workArea.top.toInt() + top, seat.pointerY - 16 + top);
+    final Rect area = _areaOf(w);
+    final int y = math.max(area.top.toInt() + top, seat.pointerY - 16 + top);
     final Rect rect = Rect.fromLTWH(
       x.toDouble(),
       y.toDouble(),
@@ -1340,21 +1369,37 @@ class RiverWindowManagerService extends WindowManagerService
     return Rect.fromLTRB(left, top, right, bottom);
   }
 
-  (_Snap, Rect)? _snapTargetFor(_Seat seat) {
-    final _Output? output = _primaryOutput;
+  /// Where a window dragged by [seat] snaps: at the top, left or right edge
+  /// of the output under the pointer, into that output's work area, but only
+  /// at edges where no other output continues the layout (roadmap 8.18):
+  /// a window crosses to the next monitor instead. [preview] is in shell
+  /// surface coordinates, null when the target isn't on the primary output
+  /// (the shell surface only covers that one).
+  ({_Snap snap, Rect area, Rect? preview})? _snapTargetFor(_Seat seat) {
+    final double x = seat.pointerX.toDouble();
+    final double y = seat.pointerY.toDouble();
+    final _Output? output = _outputAt(x, y);
     if (output == null) return null;
     const int threshold = 4;
-    final Rect area = workArea;
-    if (seat.pointerY <= output.y + threshold) {
-      return (_Snap.maximized, area);
+    final Rect o = output.rect;
+    final Rect area = _workAreaOf(output);
+    bool open(double px, double py) => _outputAt(px, py) == null;
+    final _Snap? snap;
+    if (y <= o.top + threshold && open(x, o.top - 1)) {
+      snap = _Snap.maximized;
+    } else if (x <= o.left + threshold && open(o.left - 1, y)) {
+      snap = _Snap.left;
+    } else if (x >= o.right - threshold - 1 && open(o.right, y)) {
+      snap = _Snap.right;
+    } else {
+      snap = null;
     }
-    if (seat.pointerX <= output.x + threshold) {
-      return (_Snap.left, _snapRect(_Snap.left));
-    }
-    if (seat.pointerX >= output.x + output.width - threshold - 1) {
-      return (_Snap.right, _snapRect(_Snap.right));
-    }
-    return null;
+    if (snap == null) return null;
+    return (
+      snap: snap,
+      area: area,
+      preview: output == _primaryOutput ? _local(_snapRect(snap, area)) : null,
+    );
   }
 
   void _manageVisibility() {
@@ -1650,10 +1695,11 @@ class RiverWindowManagerService extends WindowManagerService
     w._notify();
   }
 
-  void _maximize(RiverWindow w) {
+  /// Maximizes [w] into [area], by default its output's work area.
+  void _maximize(RiverWindow w, {Rect? area}) {
     if (w._fullscreen) return;
     if (!w._maximized && w._snap == _Snap.none) w._floatingRect = w.rect;
-    final Rect area = _contentRect(w, workArea);
+    final Rect rect = _contentRect(w, area ?? _areaOf(w));
     w._maximized = true;
     w._snap = _Snap.none;
     w.proxy
@@ -1664,9 +1710,9 @@ class RiverWindowManagerService extends WindowManagerService
             RiverWindowV1Edges.left |
             RiverWindowV1Edges.right,
       );
-    _proposeSize(w, area.size);
-    w._x = area.left.toInt();
-    w._y = area.top.toInt();
+    _proposeSize(w, rect.size);
+    w._x = rect.left.toInt();
+    w._y = rect.top.toInt();
     _position(w);
     _raise(w);
     w._notify();
@@ -1679,8 +1725,8 @@ class RiverWindowManagerService extends WindowManagerService
     _changed = true;
   }
 
-  Rect _snapRect(_Snap snap) {
-    final Rect area = workArea;
+  /// [snap]'s part of [area] (a work area).
+  Rect _snapRect(_Snap snap, Rect area) {
     final double half = (area.width / 2).floorToDouble();
     return switch (snap) {
       _Snap.left => Rect.fromLTWH(area.left, area.top, half, area.height),
@@ -1690,11 +1736,13 @@ class RiverWindowManagerService extends WindowManagerService
     };
   }
 
-  void _snap(RiverWindow w, _Snap snap) {
+  /// Snaps [w] to [snap]'s half of [area], by default its output's work
+  /// area.
+  void _snap(RiverWindow w, _Snap snap, {Rect? area}) {
     if (w._fullscreen) return;
     if (!w._maximized && w._snap == _Snap.none) w._floatingRect = w.rect;
     if (w._maximized) w.proxy.informUnmaximized();
-    final Rect rect = _contentRect(w, _snapRect(snap));
+    final Rect rect = _contentRect(w, _snapRect(snap, area ?? _areaOf(w)));
     w._maximized = false;
     w._snap = snap;
     w.proxy.setTiled(

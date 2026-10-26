@@ -1,8 +1,8 @@
-# Install script for directory: /home/logan/Developer/pangolin_desktop-main/apps/linux/flutter/ephemeral/.plugin_symlinks/handy_window/linux
+# Install script for directory: /home/logan/Projects/slopped-pangolin/apps/linux/flutter/ephemeral/.plugin_symlinks/handy_window/linux
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
-  set(CMAKE_INSTALL_PREFIX "/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/bundle")
+  set(CMAKE_INSTALL_PREFIX "/home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/bundle")
 endif()
 string(REGEX REPLACE "/$" "" CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 
@@ -44,13 +44,13 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for each subdirectory.
-  include("/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/plugins/handy_window/libhandy/cmake_install.cmake")
+  include("/home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/plugins/handy_window/libhandy/cmake_install.cmake")
 
 endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
 if(CMAKE_INSTALL_LOCAL_ONLY)
-  file(WRITE "/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/plugins/handy_window/install_local_manifest.txt"
+  file(WRITE "/home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/plugins/handy_window/install_local_manifest.txt"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
 endif()

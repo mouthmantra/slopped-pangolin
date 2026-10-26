@@ -118,6 +118,22 @@ Future<void> main() async {
   final String? profile = Platform.environment["PANGOLIN_PROFILE"];
   if (profile != null) {
     final Logger frames = Logger("FrameTiming");
+    // Which GPU's GL driver renders this process (NVIDIA's or Mesa's): with
+    // two GPUs, one other than the compositor's means a copy per frame.
+    Timer(const Duration(seconds: 3), () {
+      try {
+        final Set<String> drivers = {
+          for (final String line in File("/proc/self/maps").readAsLinesSync())
+            if (RegExp(r"libEGL_\w+|libnvidia-\w+|libgallium[^/ ]*|\w+_dri\.so")
+                    .firstMatch(line)
+                case final RegExpMatch m)
+              m[0]!,
+        };
+        frames.info("GL drivers: ${drivers.join(", ")}");
+      } on FileSystemException {
+        // Not Linux.
+      }
+    });
     int? previousVsync;
     SchedulerBinding.instance.addTimingsCallback((timings) {
       for (final FrameTiming t in timings) {
@@ -199,9 +215,9 @@ Future<void> _runGreeter() async {
   // The whole shell surface takes input and the keyboard.
   ShellInputRegion.instance.claim(_greeterOwner, true);
   runWidget(const _GreeterRoot());
-  // River's splash (the wallpaper) shows below the login screen until it
-  // draws: no desktop surface.
-  await PangolinSession.showSurfaces(desktop: false);
+  // The desktop surface carries the backdrop (GreeterBackdrop), transparent
+  // until it's ready: river's splash (the wallpaper) shows meanwhile.
+  await PangolinSession.showSurfaces();
 }
 
 final Object _greeterOwner = Object();
@@ -237,23 +253,42 @@ class _GreeterRootState extends State<_GreeterRoot>
           .where((v) => v.viewId == id)
           .firstOrNull;
 
+  /// Each view composited only when it changed (_LazyView): the backdrop's
+  /// isn't drawn again for the controls' frames.
+  final Map<int, _LazyView> _lazyViews = {};
+
   @override
   Widget build(BuildContext context) {
     final FlutterView? desktop = _view(PangolinSession.desktopViewId);
     final FlutterView? shell = _view(PangolinSession.shellViewId);
+    _lazyViews.removeWhere((id, lazy) => lazy.view != desktop && lazy.view != shell);
+    _LazyView lazy(FlutterView view) =>
+        _lazyViews.putIfAbsent(view.viewId, () => _LazyView(view));
     return ViewCollection(
       views: [
         if (desktop != null)
-          // Transparent: river's splash (the last user's wallpaper, which
-          // the login screen starts on) shows until the login screen draws.
+          // The blurred wallpaper: transparent until it's ready, river's
+          // splash (the last user's wallpaper, which the login screen starts
+          // on) showing meanwhile.
           View(
             view: desktop,
-            child: const SizedBox.shrink(),
+            deprecatedDoNotUseWillBeRemovedWithoutNoticePipelineOwner:
+                lazy(desktop).pipelineOwner,
+            deprecatedDoNotUseWillBeRemovedWithoutNoticeRenderView:
+                lazy(desktop).renderView,
+            child: const Directionality(
+              textDirection: TextDirection.ltr,
+              child: GreeterBackdrop(),
+            ),
           ),
         if (shell != null)
           View(
             view: shell,
-            child: const PangolinApp(child: GreeterScreen()),
+            deprecatedDoNotUseWillBeRemovedWithoutNoticePipelineOwner:
+                lazy(shell).pipelineOwner,
+            deprecatedDoNotUseWillBeRemovedWithoutNoticeRenderView:
+                lazy(shell).renderView,
+            child: const PangolinApp(transparent: true, child: GreeterScreen()),
           ),
       ],
     );
@@ -317,12 +352,14 @@ class PangolinApp extends StatelessWidget {
       listenable: Listenable.merge([
         CustomizationService.current,
         PreferencesService.current,
+        GreeterScreen.userFont,
       ]),
       builder: (context, _) {
         final CustomizationService service = CustomizationService.current;
         final PreferencesService prefs = PreferencesService.current;
         final Color? accent = service.accentColor.resolve();
-        final String? font =
+        // On the login screen, the selected user's.
+        final String? font = GreeterScreen.userFont.value ??
             prefs.get<String>(SessionSetting.interfaceFont.key);
         final String? monospace = SessionFonts.monospace(
             prefs.get<String>(SessionSetting.monospaceFont.key));

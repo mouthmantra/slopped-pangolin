@@ -632,12 +632,16 @@ class _FontPickerState extends State<_FontPicker> {
     try {
       final ProcessResult result = await Process.run("fc-list", [
         "--format",
-        "%{family[0]}\\n",
+        "%{file}\\t%{family[0]}\\n",
         if (widget.monospace) ":spacing=mono",
       ]);
       if (result.exitCode == 0) {
         for (final String line in (result.stdout as String).split("\n")) {
-          final String family = line.trim();
+          final int tab = line.indexOf("\t");
+          if (tab < 0) continue;
+          // Only fonts the apps can draw (SessionFonts.available).
+          if (!line.startsWith(SessionFonts.flutterFontDirectory)) continue;
+          final String family = line.substring(tab + 1).trim();
           if (family.isNotEmpty) families.add(family);
         }
       }

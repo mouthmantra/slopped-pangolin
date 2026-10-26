@@ -19,7 +19,7 @@
 
 Name:           pangolin-desktop
 Version:        1.1.0
-Release:        22%{?dist}
+Release:        27%{?dist}
 Summary:        The dahliaOS desktop (Pangolin) on the river Wayland compositor
 
 # Pangolin and the dahliaOS apps: Apache-2.0; river and the Papirus icons
@@ -232,6 +232,45 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %ghost %attr(0644,pangolin-greeter,pangolin-greeter) %{_localstatedir}/log/PangolinGreeter.log
 
 %changelog
+* Mon Oct 26 2026 Logan <loganctorres1@gmail.com> - 1.1.0-27
+- Closed menus and popups no longer leave pieces of themselves on the
+  desktop (dark rounded blocks that showed when a menu, Quick Settings or
+  the launcher opened): two races in the shell's partial repaint let a
+  frame's change reach only some of its buffers
+
+* Mon Oct 26 2026 Logan <loganctorres1@gmail.com> - 1.1.0-26
+- The login screen no longer draws its blurred wallpaper again for every
+  frame (a caret's blink, a hover): it's on the desktop surface below the
+  controls, composited only when it changes, a tenth of the GPU time a
+  frame
+
+* Mon Oct 26 2026 Logan <loganctorres1@gmail.com> - 1.1.0-25
+- The login screen runs on the GPU that drives the built-in screen: on
+  laptops with an NVIDIA GPU next to it, every frame crossed between them
+  and waited for the NVIDIA GPU to wake up (hovers and clicks lagged)
+- Windows dragged towards another monitor cross over instead of snapping
+  to the side of the built-in screen; snapping and maximizing use the
+  window's own monitor
+
+* Mon Oct 26 2026 Logan <loganctorres1@gmail.com> - 1.1.0-24
+- pangolin-dm holds the display devices between the login screen and the
+  desktop itself (no console flash), so nothing of the login screen keeps
+  its session and VT; the login screen's settings daemon stops with it
+- PANGOLIN_PROFILE in pangolin-dm's environment reaches the login screen:
+  frame timings in /var/log/PangolinGreeter.log
+
+* Mon Oct 26 2026 Logan <loganctorres1@gmail.com> - 1.1.0-23
+- pangolin-dm: logins work again. The session waits until logind has let
+  go of the login screen's VT (its leftovers ended), and moves to a free VT
+  when that stays taken, instead of starting without an active session
+- river no longer retries a failing modeset without pause, which made the
+  login screen crawl when its session wasn't active
+- The login screen uses the selected user's font (1.1.0-22 fell back to
+  DejaVu Sans); only fonts Flutter can draw are offered or used
+- App title bars are blurred from the start, not only after a focus or
+  size change; blur keeps its last image while what's behind it has no
+  texture yet
+
 * Sun Oct 25 2026 Logan <loganctorres1@gmail.com> - 1.1.0-22
 - The login screen lists users again, systemd-homed ones included, with
   their avatars; it shows each user's wallpaper and interface font

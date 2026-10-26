@@ -149,6 +149,13 @@ struct WindowBlur {
   // again to a new surface.
   std::vector<int32_t> regions;
   bool has_regions = false;
+  // The same in the coordinates of [widget] (the Flutter view), which GTK
+  // may still move within the window after they were set (a client side
+  // decorated window settling its shadow margins): they're sent again when
+  // it does (on_widget_allocated).
+  std::vector<RiverBlurRegion> view_regions;
+  GtkWidget* widget = nullptr;
+  gulong allocate_handler = 0;
   // The visible area last set (x, y, width, height; a zero size for all).
   int32_t area[4] = {0, 0, 0, 0};
 };
@@ -164,6 +171,11 @@ void destroy_proxy(struct wl_proxy* blur) {
 void free_state(gpointer data) {
   auto* state = static_cast<WindowBlur*>(data);
   if (state->blur != nullptr) destroy_proxy(state->blur);
+  if (state->widget != nullptr) {
+    g_signal_handler_disconnect(state->widget, state->allocate_handler);
+    g_object_remove_weak_pointer(G_OBJECT(state->widget),
+                                 reinterpret_cast<gpointer*>(&state->widget));
+  }
   delete state;
 }
 
@@ -313,28 +325,33 @@ void river_blur_set_tint(GtkWindow* window, uint32_t argb,
   wl_display_flush(wayland_display());
 }
 
-void river_blur_set_regions(GtkWindow* window, GtkWidget* widget,
-                            const std::vector<RiverBlurRegion>& regions) {
-  ensure_manager();
-  if (manager == nullptr) return;
-  GdkWindow* gdk_window = gtk_widget_get_window(GTK_WIDGET(window));
-  if (gdk_window == nullptr || !GDK_IS_WAYLAND_WINDOW(gdk_window)) return;
+namespace {
+
+// [state]'s view regions in surface coordinates, as they are now.
+std::vector<int32_t> surface_regions(GtkWindow* window, WindowBlur* state) {
   // From widget to surface coordinates (client side decorations put the
   // window's content after its shadow).
   int dx = 0, dy = 0;
-  if (widget != nullptr && widget != GTK_WIDGET(window)) {
-    gtk_widget_translate_coordinates(widget, GTK_WIDGET(window), 0, 0, &dx,
-                                     &dy);
+  if (state->widget != nullptr && state->widget != GTK_WIDGET(window)) {
+    gtk_widget_translate_coordinates(state->widget, GTK_WIDGET(window), 0, 0,
+                                     &dx, &dy);
   }
-
-  WindowBlur* state = state_for(window);
   std::vector<int32_t> values;
-  for (const RiverBlurRegion& region : regions) {
+  for (const RiverBlurRegion& region : state->view_regions) {
     values.insert(values.end(),
                   {region.x + dx, region.y + dy, region.width, region.height,
                    region.radii[0], region.radii[1], region.radii[2],
                    region.radii[3], region.alpha});
   }
+  return values;
+}
+
+// Sends [state]'s regions when they changed (or the surface did), with the
+// one-pixel repaint whose commit applies them.
+void update_regions(GtkWindow* window, WindowBlur* state) {
+  GdkWindow* gdk_window = gtk_widget_get_window(GTK_WIDGET(window));
+  if (gdk_window == nullptr || !GDK_IS_WAYLAND_WINDOW(gdk_window)) return;
+  std::vector<int32_t> values = surface_regions(window, state);
   // Unchanged (Flutter reports them after every layout): nothing to send.
   if (state->has_regions && values == state->regions &&
       state->blur != nullptr &&
@@ -350,6 +367,43 @@ void river_blur_set_regions(GtkWindow* window, GtkWidget* widget,
   // The regions apply with the next commit of the surface: a repaint of one
   // pixel makes one (of the whole window, it costs a full 4K repaint).
   gtk_widget_queue_draw_area(GTK_WIDGET(window), 0, 0, 1, 1);
+}
+
+// The view moved within its window: its regions move with it.
+void on_widget_allocated(GtkWidget* widget, GdkRectangle*, gpointer data) {
+  GtkWindow* window = GTK_WINDOW(data);
+  auto* state = static_cast<WindowBlur*>(
+      g_object_get_data(G_OBJECT(window), kStateKey));
+  if (state == nullptr || !state->has_regions || manager == nullptr) return;
+  update_regions(window, state);
+}
+
+}  // namespace
+
+void river_blur_set_regions(GtkWindow* window, GtkWidget* widget,
+                            const std::vector<RiverBlurRegion>& regions) {
+  ensure_manager();
+  if (manager == nullptr) return;
+  WindowBlur* state = state_for(window);
+  if (widget != state->widget) {
+    if (state->widget != nullptr) {
+      g_signal_handler_disconnect(state->widget, state->allocate_handler);
+      g_object_remove_weak_pointer(G_OBJECT(state->widget),
+                                   reinterpret_cast<gpointer*>(&state->widget));
+    }
+    state->widget = widget;
+    state->allocate_handler = 0;
+    if (widget != nullptr && widget != GTK_WIDGET(window)) {
+      g_object_add_weak_pointer(G_OBJECT(widget),
+                                reinterpret_cast<gpointer*>(&state->widget));
+      state->allocate_handler = g_signal_connect_after(
+          widget, "size-allocate", G_CALLBACK(on_widget_allocated), window);
+    } else {
+      state->widget = nullptr;
+    }
+  }
+  state->view_regions = regions;
+  update_regions(window, state);
 }
 
 #else

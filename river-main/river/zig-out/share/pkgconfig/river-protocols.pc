@@ -1,4 +1,4 @@
-prefix=/home/logan/Developer/pangolin_desktop-main/river-main/river/zig-out
+prefix=/home/logan/Projects/slopped-pangolin/river-main/river/zig-out
 datarootdir=${prefix}/share
 pkgdatadir=${pc_sysrootdir}${datarootdir}/river-protocols
 

@@ -1406,6 +1406,9 @@ const Node = struct {
     generation: u64 = 1,
     logical_width: i32 = 0,
     logical_height: i32 = 0,
+    /// Pangolin: frames in a row the previous blur was kept because
+    /// something behind had no texture yet (missingTexture).
+    kept_frames: u8 = 0,
 
     fn reset(node: *Node) void {
         if (node.scene_buffer) |scene_buffer| scene_buffer.setBuffer(null);
@@ -1505,6 +1508,19 @@ const Node = struct {
         }
         const signature = hasher.final() | 1;
         if (signature == node.signature) return;
+
+        // Pangolin: something behind has no texture yet (a buffer just
+        // attached, the renderer lost after a GPU reset). Drawn now, the blur
+        // would leave it out: the black it starts from would show behind a
+        // translucent window for a frame. The previous blur stays instead,
+        // for a few frames at most.
+        const reads_textures = !region.edge and region.cutout == null and region.readsBehind();
+        if (reads_textures and node.output.buffer != null and node.kept_frames < 3 and missingTexture(node, below, area)) {
+            node.kept_frames += 1;
+            scheduleFrames();
+            return;
+        }
+        node.kept_frames = 0;
 
         const rendered = if (region.edge)
             renderEdge(node, region, box, scale)
@@ -1983,6 +1999,22 @@ const TextureFields = extern struct {
 fn ownTexture(texture: *wlr.Texture) bool {
     const fields: *const TextureFields = @ptrCast(@alignCast(texture));
     return fields.renderer == server.renderer;
+}
+
+/// Whether an item behind [area] that [node]'s blur would draw has no
+/// texture yet.
+fn missingTexture(node: *const Node, below: []const Item, area: wlr.Box) bool {
+    for (below) |item| {
+        if (!intersects(item.box, area)) continue;
+        switch (item.kind) {
+            .rect => {},
+            .blur => |other| if (other.owner != node.owner and other.output.texture == null) return true,
+            .buffer => |scene_buffer| {
+                if (!scene_buffer.private.is_single_pixel_buffer and textureOf(scene_buffer) == null) return true;
+            },
+        }
+    }
+    return false;
 }
 
 fn intersects(a: wlr.Box, b: wlr.Box) bool {

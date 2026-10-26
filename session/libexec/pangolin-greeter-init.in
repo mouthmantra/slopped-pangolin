@@ -18,6 +18,7 @@ displays=$!
 
 # The settings daemon, up before the login screen asks it for its settings.
 "$LIBEXEC/dsettingsd" &
+settings=$!
 if command -v dbus-send >/dev/null 2>&1; then
     for _ in 1 2 3 4 5 6 7 8 9 10; do
         dbus-send --session --print-reply --dest=org.freedesktop.DBus \
@@ -27,16 +28,25 @@ if command -v dbus-send >/dev/null 2>&1; then
     done
 fi
 
-"$PREFIX/bin/pangolin"
+# The GL driver of the GPU river renders with (pangolin-greeter).
+if [ -n "${PANGOLIN_GREETER_EGL_VENDOR:-}" ]; then
+    __EGL_VENDOR_LIBRARY_FILENAMES="$PANGOLIN_GREETER_EGL_VENDOR" "$PREFIX/bin/pangolin"
+else
+    "$PREFIX/bin/pangolin"
+fi
 status=$?
-kill "$displays" 2>/dev/null
+# Nothing of the login screen outlives it: what is left in its logind
+# session keeps the session, and its VT, from the desktop.
+kill "$displays" "$settings" 2>/dev/null
 # Logged in: the screens' devices stay open for a few seconds past the
 # compositor, until the desktop's river has them. When the last process
 # closes a display device, the kernel puts its console's (black) framebuffer
 # on the screen, instead of the wallpaper this screen leaves up. Opened while
 # river still holds them, so the holder doesn't become their master.
 case "${WLR_BACKENDS:-drm}" in *drm*) displays_are_real=1 ;; esac
-if [ "$status" = 0 ] && [ -n "${displays_are_real:-}" ]; then
+# Under pangolin-dm the daemon holds them (dm/src/daemon.c, hold_cards): a
+# holder here would keep this login screen's session, and its VT, alive.
+if [ "$status" = 0 ] && [ -n "${displays_are_real:-}" ] && [ -z "${PANGOLIN_DM_SOCK:-}" ]; then
     hold=
     n=3
     for card in /dev/dri/card[0-9]*; do

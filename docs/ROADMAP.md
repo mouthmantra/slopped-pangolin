@@ -291,6 +291,87 @@ theme (6.1).
       the wallpaper); the login screen uses it for the selected user when
       fontconfig finds it for everyone (Manrope is in /usr/share/fonts).
       [ ] Not tried on the real login screen yet.
+      1.1.0-22 on the machine drew the login screen in DejaVu Sans: the
+      font went in with TextTheme.apply, which keeps the bundled Inter's
+      package prefix (packages/zenit_ui/Manrope: no such font). Now the
+      selected user's font goes into the app's theme as the desktop's does
+      (GreeterScreen.userFont, read by PangolinApp). Flutter on Linux only
+      finds fonts under /usr/share/fonts (its engine reads that directory
+      with Skia's directory font manager, not fontconfig's list), so the
+      check is SessionFonts.available (fc-list, files under
+      /usr/share/fonts); a font elsewhere keeps Pangolin's.
+- [~] 1.11 No login from pangolin-dm, a crawling login screen (user,
+      2026-10-25, 1.1.0-22). The journal: `pam_systemd: CreateSession
+      failed: VirtualTerminalAlreadyTaken`, then river `Timeout waiting
+      session to become active`, `BackendCreateFailed`: the session started
+      while the greeter's logind session still held VT 1 (logind keeps an
+      ended session and its VT until every process in it is gone, 8 s
+      there), so it never became active; GNOME started that way couldn't
+      open the GPU (EBUSY). The login screen after it, on a VT still held
+      by that session, logged "failed to prepare new output configuration"
+      16432 times in 34 minutes (8 a second): river retried a failing
+      modeset (no DRM master) at every manage sequence, and each failure
+      started another one (modesetFailed: dirtyWindowing), so the attempts
+      ran back to back, river's event loop busy with them, and the screen
+      answered hovers, clicks and typing late.
+      Fixed (2026-10-26): the greeter's worker ends what the greeter left
+      in its session scope (SIGTERM, SIGKILL after a second); the daemon
+      starts the session, and the greeter after a session, once no logind
+      session file has the VT, and after 5 s moves to a free VT
+      (VT_OPENQRY) as GDM's sessions do, instead of starting on a taken one
+      (docs/DISPLAY_MANAGER.md, dm/tests pass). river retries a failed
+      modeset after 250 ms, doubling to 5 s, or at once when the session
+      becomes active or a client asks for a configuration
+      (OutputManager.modesetFailed). Headless (Intel GPU, 2560x1600 at 1.5
+      and 165 Hz, the shared wallpaper and font) the lag doesn't show, the
+      session there being always active: hovering the password field and
+      the buttons, no frame over 17 ms. [ ] On the machine: login, logout
+      and login again; the VT fallback; the login screen's speed.
+      The greeter's init held the display devices open for 10 s past the
+      login screen (no console flash between it and the desktop) in a
+      `sleep` that stayed in its logind session, and left dsettingsd
+      running: both kept the session, and VT 1, alive. Under pangolin-dm
+      the daemon holds the devices instead (from `ready` to 10 s after
+      `run`) and the init stops dsettingsd.
+      Still slow on clickable things right after boot, before any failed
+      login (user, 2026-10-26): not the retry loop. The daemon passes
+      PANGOLIN_PROFILE on to the greeter for frame timings on the machine
+      (docs/DISPLAY_MANAGER.md). Profiled on the machine (1.1.0-24): the
+      shell drew quickly (no slow frame while hovering and clicking), river
+      was the bottleneck. It rendered with the NVIDIA GPU (the first DRM
+      device it opened) while the Intel GPU drives the panel, and the
+      shell had NVIDIA's EGL. On the panel's output river's GPU time per
+      frame climbed from 0.2 to 20-210 ms whenever frames were sparse
+      (hovers, clicks) and fell to ~17 ms during bursts, the other output
+      (wallpaper only) staying at ~2 ms: the dGPU going to sleep between
+      frames, each frame waking it and crossing over PCIe to the panel's
+      GPU. Fixed: pangolin-greeter puts the GPU with the connected built-in
+      panel (eDP, LVDS, DSI) first in WLR_DRM_DEVICES on machines with
+      several, and the greeter's shell uses that GPU's GL driver (Mesa's
+      EGL vendor, unless it's NVIDIA's); river keeps all drivers for
+      monitors on the other GPU. On this machine: card1 (i915, eDP-1)
+      then card0. Headless, the shell with Mesa forced loads only Mesa.
+      Still laggy with 1.1.0-25 (user): that run had only the Intel GPU and
+      river's GPU time still reached 100-200 ms. River's GPU time includes
+      waiting for the shell's frame, and the shell's frames were the heavy
+      part. Mesa's INTEL_MEASURE on the same Intel GPU, headless at
+      2560x1600 and 1.5: every frame of the login screen, the caret's blink
+      included, drew the blurred wallpaper again over the whole screen (the
+      engine repaints whole frames with its external view embedder), four
+      full-screen passes, 9-35 ms of GPU time a frame (the most at the idle
+      clock between blinks); without the backdrop, 2.7 ms and none.
+      Fixed: the backdrop is drawn in the desktop view (GreeterBackdrop,
+      the desktop surface now shown), and the login screen's views are
+      composited only when they change (_LazyView, as the desktop's): the
+      controls' frames don't draw it again. Headless: hovering, median 3.0
+      ms of GPU time a frame (max 13.4), the caret's blink 2.75 ms, no
+      full-screen pass. On the machine with 1.1.0-26 (user, 2026-10-26):
+      the login screen is smooth. [ ] An external monitor on the NVIDIA
+      GPU still lit while the login screen runs on the Intel one.
+      The lock screen (lock_screen.dart, _LockBackdrop) draws the same
+      backdrop in the view of its controls: the same cost while typing a
+      password there. [ ] One surface per output there (session lock), so
+      make the backdrop itself cheap to draw again.
 
 ## 2. Displays
 
@@ -1055,6 +1136,10 @@ theme (6.1).
       none is chosen (SessionFonts in pangolin_settings: looked up once
       with fc-list, else the system's monospace), and Settings > Appearance
       calls it "Roboto Mono (default)". [ ] Not in a built RPM yet.
+      Flutter only draws fonts under /usr/share/fonts (see 1.10): the
+      default, the login screen's font and the families Settings offers
+      are only those with files there (SessionFonts.available), so nothing
+      picked falls back to DejaVu Sans; Fedora's package installs there.
 
 ## 7. Quick Settings and Settings
 
@@ -1292,10 +1377,32 @@ theme (6.1).
       the dahliaOS style (6.1), in light and dark, at 1x and fractional
       scales, on one and two monitors. Each bug found gets its own entry
       here with how to reproduce it.
-- [ ] 8.16 Title bar blur missing when apps start (user, 2026-10-25, to
+      2026-10-26, headless at 2560x1600 x1.5 (dist/test-env, light and
+      dark): Chromium (dropdown, dragging, maximizing) and the shell's
+      popups (desktop menu, launcher, Search, Quick Settings,
+      notifications, tray), opened and closed with varied timings and
+      diffed with a clean capture (tools/stale.sh, tools/ghost.sh). Found
+      8.21 to 8.25. Other apps (VLC, Krita, SuperTuxKart) skipped for now
+      at the user's request.
+- [~] 8.16 Title bar blur missing when apps start (user, 2026-10-25, to
       fix later): apps open with a translucent title bar but nothing
       blurred behind it; the blur only appears once the window loses focus
-      or is resized. Where to look: the client side's blur regions
+      or is resized.
+      Found (2026-10-26, headless over a checkerboard wallpaper with river
+      logging the regions it gets): the app sends its title bar region
+      while GTK still has the Flutter view 94 px down the window, before
+      it settles at 47 px (the shadow margin); the region itself doesn't
+      change afterwards, so nothing sent it again, and river blurred 47 px
+      below the bar, behind the window's opaque body. Focus and size
+      changes resend the regions, hence the blur then. Fixed: the native
+      side (session/native/river_blur.cc) keeps the regions in view
+      coordinates and sends them again when the view moves in its window
+      (size-allocate); ZenitBlur also flushes when blur turns on or off
+      without a frame. Measured on an empty strip of the bar: luminance
+      spread 4.2 before (the squares show through), 1.5 after, on every
+      launch; Settings' bar and rail too. Focus switches between two
+      windows through the taskbar, 11 of them captured at ~27 fps: no
+      frame between opaque and blurred. Where to look: the client side's blur regions
       (session/native/river_blur.cc, sent by kit/app.dart) are likely sent
       before river has the window's first configured buffer and aren't
       applied until a later commit (focus and size changes redraw and
@@ -1331,7 +1438,7 @@ theme (6.1).
       buffer age, or the single output buffer), then double-buffer blur
       outputs, keep the previous blur when an item below has no texture
       yet, and send region changes with the frame that needs them.
-- [ ] 8.18 Dragging a window to an external monitor tiles it instead
+- [~] 8.18 Dragging a window to an external monitor tiles it instead
       (user, 2026-10-25): moving a window towards the external monitor
       snaps it to the half of the internal display on that side, instead
       of letting it cross over. Cause: `_snapTargetFor`
@@ -1345,6 +1452,21 @@ theme (6.1).
       with the user's layout (eDP-1 and the MST DP-8 side by side) and
       with displays stacked vertically (the top edge shared). Goes
       with 8.9's snap zones.
+      Done (2026-10-26): the right edge test had no upper bound
+      (pointerX >= right - 5), so anywhere on a monitor to the right of the
+      primary counted as its right edge; the top edge alike. Now
+      _snapTargetFor takes the output under the pointer and snaps only at
+      its edges where no other output continues the layout, into that
+      output's work area; maximizing and snapping (drag, Super+arrows,
+      refits) use the window's own output (the one it overlaps most). The
+      shell's preview shows for the primary output only (its surface covers
+      that one), in shell surface coordinates. Headless, two outputs side
+      by side, a virtual pointer dragging Calculator: across the shared
+      edge it lands floating on the other output; at that output's outer
+      right edge it snaps to its right half (full height, no taskbar
+      there); dragged back to the primary's outer left edge it snaps to
+      the left half above the taskbar. [ ] With the user's eDP-1 and MST
+      DP-8, and with outputs stacked.
 - [ ] 8.19 Flashing screens, most noticeable in Settings (user,
       2026-10-25): parts of the screen flash while using the apps,
       Settings most of all. Find whether it's the blur (6.7), the
@@ -1368,6 +1490,84 @@ theme (6.1).
       same clip (17 places, e.g. the overview's and screenshot tool's
       pills): part of the sweep (8.15). [ ] Not tried on the real
       displays yet.
+- [ ] 8.21 Jagged rounded corners wherever content is clipped (8.15
+      sweep, 2026-10-26): at 1x, rounded clips are stair-stepped, e.g. the
+      Welcome dialog's corners (Material with clipBehavior antiAlias over
+      its artwork). Same cause as 8.20: Impeller on desktop OpenGL ("OpenGLES
+      SDF" in the log) antialiases shapes it draws as signed distance
+      fields but not path or stencil clips. To reproduce: a session at 1x,
+      the Welcome dialog (show_welcome_screen), zoom into its corners. To
+      look at: whether Impeller can render the shell's and apps' frames
+      with MSAA here (GLES 3.2, MAX_SAMPLES >= 4 qualifies it for offscreen
+      MSAA in capabilities_gles.cc, yet clips are aliased), else avoid
+      clips where a decoration can round instead (8.20's way).
+- [~] 8.22 Leftovers of closed popups on the desktop (user, 2026-10-26,
+      with screenshots; "at total random"): dark rounded blocks, often with
+      a faint shadow line under them, where a right-click menu (or another
+      popup) was earlier, seen whenever a menu, Quick Settings, the
+      launcher or notifications are open. They are pieces of an earlier
+      frame still in the shell surface's buffers. River draws only the
+      strip along the bottom of the shell surface while nothing is open
+      (ShellSurfaceArea, set_visible_area), so they show only once
+      something makes the whole surface visible again. 8.11 left two holes
+      in the patched embedder's partial repaint, both races between the
+      raster thread and GTK:
+      - fl_view_renderer_draw took the damage after the paint, under a
+        second lock: a frame presented in between had its damage consumed
+        and reported though GTK had painted the frame before it.
+        fl_compositor_opengl_render now sets aside the damage of the frame
+        it draws, under the same lock (take_damage returns that); a later
+        frame's damage is the next draw's.
+      - Damage painted outside the queued region (inside the clip only
+        because that buffer was older) was never queued, and GTK repaints
+        older buffers only where earlier draws were queued: that change
+        stayed out of every other buffer. Seen in a damage log of the
+        leftover: the menu's closing frame painted x 632..743 in one
+        buffer while the next draw's clip stopped at x 640, the leftover's
+        square edge. The renderer now keeps what was queued since the last
+        draw, and damage painted but not queued goes back and is queued
+        again (no redraw loop: 4 re-queues in 1510 draws, 1 draw per
+        second at idle).
+      To reproduce: dist/test-env/tools/ghost.sh (desktop menus opened at
+      random places and dismissed by click, a second right click or
+      Escape, 0 to 120 ms after opening; every 5 rounds a menu at a fixed
+      place is diffed with the first one), on a headless session with a
+      test-only 3 ms sleep between the paint and taking its damage, and
+      WLR_SCENE_DEBUG_DAMAGE=rerender (river ignores damage, so the
+      buffers' contents show). Leftovers within 60 rounds: unfixed 2 of 3
+      runs; first fix only 3 of 10; both fixes 0 of 12. Without the sleep
+      the window is microseconds, which is why it was rare. Engine rebuilt
+      incrementally in ~/Projects/Developer/flutter-engine (ENGINE_DIR for
+      tool/build_engine.sh). [ ] On the machine.
+- [ ] 8.23 Menus of apps stay open when the wallpaper is clicked (8.15
+      sweep, 2026-10-26): Chromium's <select> dropdown (an xdg_popup
+      without a grab, which Chromium closes when its window stops being
+      active) stays open after a click on the desktop, and the window keeps
+      its active title bar. The wallpaper is river's BACKGROUND layer
+      surface with keyboard_interactivity none, so the click changes no
+      focus (Seat.interact: layer surface, not on_demand) and the shell
+      hears nothing of it. Opening a shell popup does close it (the
+      keyboard moves to the shell). To reproduce: Chromium on a page with a
+      <select>, open it, click the wallpaper. To decide: whether a click on
+      the wallpaper deactivates the focused window (GNOME, KDE, Windows) or
+      not (ChromeOS); if so, the desktop view tells the WM on pointer down
+      (WindowManager clears focus, as minimizeEverything does).
+- [ ] 8.24 Maximize animation shows the old window inside the new one (8.15
+      sweep, 2026-10-26): maximizing Chromium (title bar double click or
+      button), the snapshot of the window at its old size, tab strip
+      included, floats inside the window already drawn at full size,
+      growing and fading for about four frames, so two tab strips show at
+      once. To reproduce: a headless session at 2560x1600 x1.5, Chromium
+      on a page, maximize it, capture frames every 25 ms (shot -n 30 -i
+      25). Expected: the window itself scales from the old rectangle to
+      the new one, or the snapshot covers the new window until it fades.
+- [ ] 8.25 Shell popups' first frame has no blur (8.15 sweep, 2026-10-26):
+      opening the launcher over Chromium, the first frame shows the panel
+      translucent with the window's edge sharp through it; the blur arrives
+      the next frame. One refresh at 165 Hz, easy to miss. Likely the blur
+      region committed a frame after the content (blur_region.dart flushes
+      after layout). To reproduce: launcher button, shot -n 30 -i 25, look
+      at the panel over a window edge in the first frame it shows.
 - [x] 8.8 Overview close button hard to hit (user report 2026-10-17). It sat
       half outside its window's slot, and Flutter only hit-tests inside a
       widget's bounds: half the button ignored clicks, and moving onto it

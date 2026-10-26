@@ -28,6 +28,7 @@ import 'package:pangolin/services/session.dart';
 import 'package:pangolin/services/splash_cache.dart';
 import 'package:pangolin/services/wallpaper_share.dart';
 import 'package:pangolin/widgets/wallpaper_blur.dart';
+import 'package:pangolin_settings/pangolin_settings.dart' show SessionFonts;
 
 /// Pangolin's login screen, run by pangolin-dm (or greetd), as ChromeOS's:
 /// the user's wallpaper blurred, the user with one password field, the other
@@ -39,6 +40,19 @@ import 'package:pangolin/widgets/wallpaper_blur.dart';
 /// on (its own splash, the same image).
 class GreeterScreen extends StatefulWidget {
   const GreeterScreen({super.key});
+
+  /// The selected user's interface font (FontShare), for the login screen's
+  /// theme (PangolinApp builds it as the desktop's); null: the default.
+  static final ValueNotifier<String?> userFont = ValueNotifier(null);
+
+  /// What the backdrop shows, drawn in the desktop view (GreeterBackdrop)
+  /// rather than behind the controls: a view is composited only when
+  /// something in it changes, and in the shell's view every frame of the
+  /// login screen, a caret's blink included, drew the whole blurred
+  /// wallpaper again, four full-screen GPU passes at 2560x1600 (roadmap
+  /// 1.11).
+  static final ValueNotifier<GreeterBackdropState?> backdrop =
+      ValueNotifier(null);
 
   @override
   State<GreeterScreen> createState() => _GreeterScreenState();
@@ -127,6 +141,7 @@ class _GreeterScreenState extends State<GreeterScreen>
     FocusManager.instance.addListener(_keepFocus);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focus.requestFocus();
+      _applyFont();
       // The others', blurred ahead: picking another user shows theirs at
       // once.
       for (final LoginUser user in _users) {
@@ -202,6 +217,16 @@ class _GreeterScreenState extends State<GreeterScreen>
     setState(() {
       _wallpaperKey = key;
       _wallpaper = provider;
+    });
+    // Not while building (initState): the backdrop is another view's.
+    scheduleMicrotask(() {
+      if (!mounted) return;
+      GreeterScreen.backdrop.value = GreeterBackdropState(
+        wallpaperKey: _wallpaperKey,
+        wallpaper: _wallpaper,
+        opacity: _backdropOpacity,
+        opaque: !_riverDrawsWallpaper,
+      );
     });
     if (provider != null) {
       unawaited(SplashCache.writeForScreens(provider, key.toString()));
@@ -373,51 +398,32 @@ class _GreeterScreenState extends State<GreeterScreen>
       _secret = true;
     });
     _showWallpaper();
+    _applyFont();
     _focus.requestFocus();
   }
 
-  /// Each user's interface font (FontShare), when it's installed for
-  /// everyone; read once.
+  /// Each user's interface font (FontShare), when it's installed where
+  /// Flutter finds it for everyone (SessionFonts.available); read once.
   late final Map<String, String> _fonts = () {
     final Map<String, String> fonts = {};
     final Map<String, bool> installed = {};
     for (final LoginUser user in _users) {
       final String? font = FontShare.of(user.name);
       if (font == null || font.isEmpty) continue;
-      final bool available = installed[font] ??= () {
-        try {
-          final ProcessResult r = Process.runSync("fc-list", [font, "family"]);
-          return r.exitCode == 0 && (r.stdout as String).trim().isNotEmpty;
-        } on ProcessException {
-          return false;
-        }
-      }();
-      if (available) fonts[user.name] = font;
+      if (installed[font] ??= SessionFonts.available(font)) {
+        fonts[user.name] = font;
+      }
     }
     return fonts;
   }();
 
+  /// The selected user's interface font, as their desktop has it, in the
+  /// whole theme: a text theme only changed with apply() would keep the
+  /// bundled Inter's package prefix and find no such font.
+  void _applyFont() => GreeterScreen.userFont.value = _fonts[_selected?.name];
+
   @override
   Widget build(BuildContext context) {
-    // The selected user's interface font, as their desktop has it. The same
-    // tree with or without one, so the password field keeps its state.
-    final String? font = _fonts[_selected?.name];
-    final ThemeData theme = Theme.of(context);
-    return Theme(
-      data: theme.copyWith(
-        textTheme: theme.textTheme.apply(fontFamily: font),
-        primaryTextTheme: theme.primaryTextTheme.apply(fontFamily: font),
-      ),
-      child: Builder(
-        builder: (context) => DefaultTextStyle.merge(
-          style: TextStyle(fontFamily: font),
-          child: _buildScreen(context),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildScreen(BuildContext context) {
     final LoginUser? user = _selected;
 
     final Widget content = Column(
@@ -489,12 +495,7 @@ class _GreeterScreenState extends State<GreeterScreen>
         child: Stack(
           fit: StackFit.expand,
           children: [
-            LoginBackdrop(
-              wallpaperKey: _wallpaperKey,
-              wallpaper: _wallpaper,
-              opacity: _backdropOpacity,
-              opaque: !_riverDrawsWallpaper,
-            ),
+            // The backdrop is in the desktop view, below (GreeterBackdrop).
             AnimatedBuilder(
               animation: _contentOpacity,
               builder: (context, child) => Opacity(
@@ -563,6 +564,42 @@ void _power(String action) {
 }
 
 /// [a] times [b].
+/// The login screen's backdrop: its wallpaper and how much of it shows.
+@immutable
+class GreeterBackdropState {
+  const GreeterBackdropState({
+    required this.wallpaperKey,
+    required this.wallpaper,
+    required this.opacity,
+    required this.opaque,
+  });
+
+  final Object wallpaperKey;
+  final ImageProvider? wallpaper;
+  final Animation<double> opacity;
+  final bool opaque;
+}
+
+/// The login screen's blurred wallpaper, in the desktop view under the
+/// controls (GreeterScreen.backdrop).
+class GreeterBackdrop extends StatelessWidget {
+  const GreeterBackdrop({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      ValueListenableBuilder<GreeterBackdropState?>(
+        valueListenable: GreeterScreen.backdrop,
+        builder: (context, state, _) => state == null
+            ? const SizedBox.shrink()
+            : LoginBackdrop(
+                wallpaperKey: state.wallpaperKey,
+                wallpaper: state.wallpaper,
+                opacity: state.opacity,
+                opaque: state.opaque,
+              ),
+      );
+}
+
 class _AnimationProduct extends CompoundAnimation<double> {
   _AnimationProduct(Animation<double> a, Animation<double> b)
       : super(first: a, next: b);

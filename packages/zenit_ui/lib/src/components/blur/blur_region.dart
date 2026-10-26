@@ -76,6 +76,10 @@ abstract final class ZenitBlur {
     _regions.add(region);
     if (!_frameCallback) {
       _frameCallback = true;
+      // Blur turning on or off changes what is sent even when nothing has
+      // to be drawn again, which would leave the regions stale until the
+      // next frame.
+      state.addListener(() => _scheduleFlush(visualUpdate: true));
       // Ancestors animate opacity and transforms without repainting their
       // children: measure the regions again after every frame.
       SchedulerBinding.instance.addPersistentFrameCallback((_) {

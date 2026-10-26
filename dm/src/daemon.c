@@ -19,6 +19,7 @@
 #include "dm.h"
 #include "proto.h"
 
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/vt.h>
@@ -72,6 +73,9 @@ static struct {
 	struct reader conn_rd;
 	uid_t greeter_uid;
 	int vt_fd;
+	/* The VT the greeter and sessions run on: --vt, or another free one
+	 * when that stayed taken. */
+	int cur_vt;
 	char tty[16];
 	char vt[8];
 
@@ -91,6 +95,16 @@ static struct {
 	/* The user's session ended: the greeter comes back once its worker is
 	 * done (it closes the PAM session last). */
 	int session_over;
+	/* Waiting for the VT before the session (or the greeter) starts on
+	 * it, until then at most (milliseconds, 0: not waiting). */
+	long long session_after_vt;
+	long long greeter_after_vt;
+	/* The DRM cards, held open from the greeter's leaving until the session
+	 * has the screen (cards_until, milliseconds): with no file of a card
+	 * open, the kernel shows its console. */
+	int cards[8];
+	int n_cards;
+	long long cards_until;
 	int quit;
 } dm;
 
@@ -99,6 +113,111 @@ static time_t now(void)
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	return ts.tv_sec;
+}
+
+static long long now_ms(void)
+{
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+/* Opens the DRM cards while the greeter's compositor still has them: when it
+ * exits, the kernel would otherwise find them closed and show its console
+ * until the session's compositor opens them (a flash between the login
+ * screen and the desktop). Opened by root after the compositor is gone,
+ * one could become the display's master, so only now. */
+static void hold_cards(void)
+{
+	if (dm.o.test || dm.n_cards > 0) return;
+	for (int i = 0; i < 8 && dm.n_cards < 8; i++) {
+		char path[32];
+		snprintf(path, sizeof path, "/dev/dri/card%d", i);
+		int fd = open(path, O_RDWR | O_NOCTTY | O_CLOEXEC);
+		if (fd >= 0) dm.cards[dm.n_cards++] = fd;
+	}
+}
+
+static void release_cards(void)
+{
+	for (int i = 0; i < dm.n_cards; i++) close(dm.cards[i]);
+	dm.n_cards = 0;
+	dm.cards_until = 0;
+}
+
+/* How long a session that has left waits for the last one on its VT. */
+#define VT_WAIT_MS 5000
+
+/* Whether a logind session still has [vt]: logind keeps a session that has
+ * ended, and its VT, until all its processes are gone, and refuses a new
+ * session on that VT meanwhile (VirtualTerminalAlreadyTaken), which then
+ * can't take the screen. Read from logind's session files. */
+static int vt_taken(int vt_wanted)
+{
+	if (dm.o.test || vt_wanted <= 0) return 0;
+	DIR *dir = opendir("/run/systemd/sessions");
+	if (!dir) return 0;
+	int taken = 0;
+	struct dirent *e;
+	while (!taken && (e = readdir(dir))) {
+		/* Session files are named by id; skip ".", "..", "*.ref". */
+		if (e->d_name[0] == '.' || strchr(e->d_name, '.')) continue;
+		char path[300];
+		snprintf(path, sizeof path, "/run/systemd/sessions/%s", e->d_name);
+		FILE *f = fopen(path, "re");
+		if (!f) continue;
+		char line[256];
+		int vt = 0, same_seat = 0;
+		while (fgets(line, sizeof line, f)) {
+			line[strcspn(line, "\n")] = 0;
+			if (strncmp(line, "VTNR=", 5) == 0) vt = atoi(line + 5);
+			else if (strncmp(line, "SEAT=", 5) == 0) same_seat = strcmp(line + 5, dm.o.seat) == 0;
+		}
+		fclose(f);
+		taken = vt == vt_wanted && same_seat;
+	}
+	closedir(dir);
+	return taken;
+}
+
+/* Makes [vt] the one the greeter and sessions run on, and shows it. */
+static void use_vt(int vt)
+{
+	snprintf(dm.tty, sizeof dm.tty, "tty%d", vt);
+	snprintf(dm.vt, sizeof dm.vt, "%d", vt);
+	dm.cur_vt = vt;
+	char path[32];
+	snprintf(path, sizeof path, "/dev/tty%d", vt);
+	int fd = open(path, O_RDWR | O_NOCTTY | O_CLOEXEC);
+	if (fd < 0) {
+		dm_log("%s: %s", path, strerror(errno));
+		return;
+	}
+	if (dm.vt_fd >= 0) close(dm.vt_fd);
+	dm.vt_fd = fd;
+	if (ioctl(dm.vt_fd, VT_ACTIVATE, vt) < 0 || ioctl(dm.vt_fd, VT_WAITACTIVE, vt) < 0) {
+		dm_log("VT %d: %s", vt, strerror(errno));
+	}
+}
+
+static void setup_vt(void)
+{
+	if (dm.o.test || dm.o.vt <= 0) return;
+	use_vt(dm.o.vt);
+}
+
+/* The VT stayed taken (a session that ended but left processes behind keeps
+ * it until they're gone, which may be never): what starts next goes to a free
+ * VT, as GDM's sessions do. */
+static void move_to_free_vt(void)
+{
+	int free_vt = -1;
+	if (dm.vt_fd < 0 || ioctl(dm.vt_fd, VT_OPENQRY, &free_vt) < 0 || free_vt <= 0) {
+		dm_log("VT %d still taken and no free VT, starting anyway", dm.cur_vt);
+		return;
+	}
+	dm_log("VT %d still taken, moving to VT %d", dm.cur_vt, free_vt);
+	use_vt(free_vt);
 }
 
 static void reply(const struct msg *m)
@@ -195,6 +314,14 @@ static void start_greeter(void)
 	char sock[160];
 	snprintf(sock, sizeof sock, "PANGOLIN_DM_SOCK=%s", dm.socket_path);
 	msg_add(&hello, "env", sock);
+	/* Frame timings in the greeter's log (river's and the shell's), from a
+	 * drop-in: Environment=PANGOLIN_PROFILE=1. */
+	const char *profile = getenv("PANGOLIN_PROFILE");
+	char profile_env[64];
+	if (profile && *profile && strlen(profile) < 32) {
+		snprintf(profile_env, sizeof profile_env, "PANGOLIN_PROFILE=%s", profile);
+		msg_add(&hello, "env", profile_env);
+	}
 	if (spawn_worker(&dm.greeter, &hello) < 0) dm.greeter_restart = t + 5;
 	msg_free(&hello);
 	dm_log("greeter: started");
@@ -202,6 +329,7 @@ static void start_greeter(void)
 
 static void cancel_login(void)
 {
+	if (dm.state != RUNNING) release_cards();
 	if (dm.login.fd >= 0 && dm.state != RUNNING) drop_worker(&dm.login, 1);
 	if (dm.state != RUNNING) dm.state = IDLE;
 	dm.pending = 0;
@@ -305,12 +433,8 @@ static void greeter_gone(void)
 	}
 	dm.greeter_deadline = 0;
 	if (dm.state == READY) {
-		struct msg m;
-		msg_init(&m, "run");
-		msg_send(dm.login.fd, &m);
-		msg_free(&m);
-		dm.state = RUNNING;
-		dm_log("session: starting");
+		/* Once logind has let go of the greeter's session and its VT. */
+		dm.session_after_vt = now_ms() + VT_WAIT_MS;
 		return;
 	}
 	/* Gone without a login (crashed, or quit): back it comes. */
@@ -321,6 +445,40 @@ static void greeter_gone(void)
 		return;
 	}
 	dm.greeter_restart = now() + 1;
+}
+
+/* The session starts once nothing else has the VT, or after VT_WAIT_MS
+ * anyway; the greeter comes back the same way. Called from the main loop. */
+static void start_after_vt(void)
+{
+	long long t = now_ms();
+	if (dm.session_after_vt) {
+		if (dm.state != READY) {
+			dm.session_after_vt = 0;
+		} else if (!vt_taken(dm.cur_vt) || t >= dm.session_after_vt) {
+			if (vt_taken(dm.cur_vt)) move_to_free_vt();
+			dm.session_after_vt = 0;
+			struct msg m;
+			msg_init(&m, "run");
+			msg_add(&m, "vt", dm.vt);
+			msg_add(&m, "tty", dm.tty);
+			msg_send(dm.login.fd, &m);
+			msg_free(&m);
+			dm.state = RUNNING;
+			dm_log("session: starting");
+			/* Its compositor has had the cards by then. */
+			if (dm.n_cards > 0) dm.cards_until = now_ms() + 10000;
+		}
+	}
+	if (dm.greeter_after_vt) {
+		/* Back on --vt when that's free again. */
+		if (!dm.o.test && dm.o.vt > 0 && dm.cur_vt != dm.o.vt && !vt_taken(dm.o.vt)) use_vt(dm.o.vt);
+		if (!vt_taken(dm.cur_vt) || t >= dm.greeter_after_vt) {
+			if (vt_taken(dm.cur_vt)) move_to_free_vt();
+			dm.greeter_after_vt = 0;
+			if (dm.greeter.fd < 0) start_greeter();
+		}
+	}
 }
 
 static void handle_login_event(const struct msg *ev)
@@ -345,6 +503,7 @@ static void handle_login_event(const struct msg *ev)
 	} else if (strcmp(type, "ready") == 0) {
 		dm.pending = 0;
 		dm.state = READY;
+		hold_cards();
 		reply_simple("started", NULL, NULL);
 		/* The greeter fades out and exits; past the deadline it's made
 		 * to. */
@@ -392,7 +551,8 @@ static void login_worker_closed(void)
 			dm.quit = 1;
 			return;
 		}
-		if (dm.greeter.fd < 0) start_greeter();
+		/* Once logind has let go of the session's VT. */
+		if (dm.greeter.fd < 0) dm.greeter_after_vt = now_ms() + VT_WAIT_MS;
 	}
 }
 
@@ -444,23 +604,6 @@ static int setup_socket(void)
 }
 
 /* The VT the greeter and sessions use, made the active one. */
-static void setup_vt(void)
-{
-	if (dm.o.test || dm.o.vt <= 0) return;
-	snprintf(dm.tty, sizeof dm.tty, "tty%d", dm.o.vt);
-	snprintf(dm.vt, sizeof dm.vt, "%d", dm.o.vt);
-	char path[32];
-	snprintf(path, sizeof path, "/dev/tty%d", dm.o.vt);
-	dm.vt_fd = open(path, O_RDWR | O_NOCTTY | O_CLOEXEC);
-	if (dm.vt_fd < 0) {
-		dm_log("%s: %s", path, strerror(errno));
-		return;
-	}
-	if (ioctl(dm.vt_fd, VT_ACTIVATE, dm.o.vt) < 0 || ioctl(dm.vt_fd, VT_WAITACTIVE, dm.o.vt) < 0) {
-		dm_log("VT %d: %s", dm.o.vt, strerror(errno));
-	}
-}
-
 static void usage(void)
 {
 	fputs("usage: pangolin-dm [--vt N] [--seat NAME] [--greeter CMD] [--greeter-user USER]\n"
@@ -554,6 +697,13 @@ int daemon_main(int argc, char **argv)
 			int r = dm.greeter_restart > t ? (int)(dm.greeter_restart - t) * 1000 : 0;
 			if (timeout < 0 || r < timeout) timeout = r;
 		}
+		/* Looking at the VT again every 20 ms meanwhile. */
+		if ((dm.session_after_vt || dm.greeter_after_vt) && (timeout < 0 || timeout > 20)) timeout = 20;
+		if (dm.cards_until) {
+			long long left = dm.cards_until - now_ms();
+			int c = left > 0 ? (int)left : 0;
+			if (timeout < 0 || c < timeout) timeout = c;
+		}
 		if (poll(fds, (nfds_t)n, timeout) < 0 && errno != EINTR) break;
 
 		t = now();
@@ -563,6 +713,8 @@ int daemon_main(int argc, char **argv)
 			dm.greeter_deadline = 0;
 		}
 		if (dm.greeter_restart && t >= dm.greeter_restart && dm.greeter.fd < 0 && dm.state != RUNNING) start_greeter();
+		if (dm.session_after_vt || dm.greeter_after_vt) start_after_vt();
+		if (dm.cards_until && now_ms() >= dm.cards_until) release_cards();
 
 		if (fds[0].revents & POLLIN) {
 			struct signalfd_siginfo si;

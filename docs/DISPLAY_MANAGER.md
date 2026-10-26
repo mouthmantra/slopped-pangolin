@@ -43,8 +43,20 @@ screen's own session (as `gdm-launch-environment`). `packaging/rpm/*.pam`;
    that session's command from `wayland-sessions/<id>.desktop` itself (the
    greeter never gives a command line) and replies `ready`; the greeter
    gets `started`, fades out and exits (made to after 10 seconds).
-5. Once the greeter's session is closed, the daemon tells the worker
-   `run`: it sets `XDG_SESSION_TYPE`, `XDG_SESSION_CLASS`,
+5. Once the greeter's session is closed and logind has let go of the VT,
+   the daemon tells the worker `run`. logind keeps a session that has
+   ended, and its VT, until every process in it is gone, and refuses a
+   new session on that VT meanwhile (`VirtualTerminalAlreadyTaken`: river
+   then times out waiting for its session to become active). So the
+   greeter's worker ends what the greeter left in its session scope
+   (SIGTERM, then SIGKILL after a second), and the daemon waits until no
+   session file in `/run/systemd/sessions` has the VT; after 5 seconds it
+   moves to a free VT (`VT_OPENQRY`), as GDM's sessions run on their own.
+   The greeter comes back after a session the same way. So that the
+   kernel doesn't show its console once the greeter's river has closed
+   the display devices, the daemon opens them at `ready` (while that river
+   still has them, so it doesn't become their master) and closes them 10
+   seconds after `run`. The worker sets `XDG_SESSION_TYPE`, `XDG_SESSION_CLASS`,
    `XDG_SESSION_DESKTOP`, `XDG_SEAT` and `XDG_VTNR` for `pam_systemd`,
    `pam_setcred` and `pam_open_session` (logind registers the session, a
    systemd-homed home is unlocked), then starts the session as the user
@@ -103,6 +115,11 @@ console (Ctrl+Alt+F3) so there is a way back:
 
 Back to GDM: `sudo systemctl disable pangolin-dm && sudo systemctl enable gdm`.
 The daemon logs to the journal: `journalctl -b -u pangolin-dm`.
+Frame timings of the login screen (river's frames, the shell's slow frames
+and manage sequences) go to `/var/log/PangolinGreeter.log` with
+`PANGOLIN_PROFILE=1` in the daemon's environment, which it passes on to the
+greeter (`sudo systemctl edit pangolin-dm`, then under `[Service]`:
+`Environment=PANGOLIN_PROFILE=1`).
 
 ## Next
 

@@ -64,6 +64,7 @@ int pam_close_session(pam_handle_t *pamh, int flags);
 int pam_set_item(pam_handle_t *pamh, int item_type, const void *item);
 int pam_get_item(const pam_handle_t *pamh, int item_type, const void **item);
 int pam_putenv(pam_handle_t *pamh, const char *name_value);
+const char *pam_getenv(pam_handle_t *pamh, const char *name);
 char **pam_getenvlist(pam_handle_t *pamh);
 const char *pam_strerror(pam_handle_t *pamh, int errnum);
 

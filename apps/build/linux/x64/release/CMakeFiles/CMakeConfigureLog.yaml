@@ -20,9 +20,10 @@ events:
     names:
       - "uname"
     candidate_directories:
+      - "/home/logan/.local/zig/"
+      - "/home/logan/.local/flutter/bin/"
       - "/home/logan/.local/bin/"
       - "/home/logan/bin/"
-      - "/home/logan/.local/flutter/bin/"
       - "/usr/local/bin/"
       - "/usr/bin/"
       - "/bin/"
@@ -32,16 +33,18 @@ events:
       - "/usr/sbin/"
       - "/sbin/"
     searched_directories:
+      - "/home/logan/.local/zig/uname"
+      - "/home/logan/.local/flutter/bin/uname"
       - "/home/logan/.local/bin/uname"
       - "/home/logan/bin/uname"
-      - "/home/logan/.local/flutter/bin/uname"
       - "/usr/local/bin/uname"
     found: "/usr/bin/uname"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -56,7 +59,7 @@ events:
       - "/usr/share/cmake-4.3/Modules/CMakeDetermineSystem.cmake:212 (message)"
       - "CMakeLists.txt:3 (project)"
     message: |
-      The system is: Linux - 7.2.10-300.fc45.x86_64 - x86_64
+      The system is: Linux - 7.2.11-300.fc45.x86_64 - x86_64
   -
     kind: "find-v1"
     backtrace:
@@ -78,9 +81,10 @@ events:
       - "ninja"
       - "samu"
     candidate_directories:
+      - "/home/logan/.local/zig/"
+      - "/home/logan/.local/flutter/bin/"
       - "/home/logan/.local/bin/"
       - "/home/logan/bin/"
-      - "/home/logan/.local/flutter/bin/"
       - "/usr/local/bin/"
       - "/usr/bin/"
       - "/bin/"
@@ -90,15 +94,18 @@ events:
       - "/usr/sbin/"
       - "/sbin/"
     searched_directories:
+      - "/home/logan/.local/zig/ninja-build"
+      - "/home/logan/.local/zig/ninja"
+      - "/home/logan/.local/zig/samu"
+      - "/home/logan/.local/flutter/bin/ninja-build"
+      - "/home/logan/.local/flutter/bin/ninja"
+      - "/home/logan/.local/flutter/bin/samu"
       - "/home/logan/.local/bin/ninja-build"
       - "/home/logan/.local/bin/ninja"
       - "/home/logan/.local/bin/samu"
       - "/home/logan/bin/ninja-build"
       - "/home/logan/bin/ninja"
       - "/home/logan/bin/samu"
-      - "/home/logan/.local/flutter/bin/ninja-build"
-      - "/home/logan/.local/flutter/bin/ninja"
-      - "/home/logan/.local/flutter/bin/samu"
       - "/usr/local/bin/ninja-build"
       - "/usr/local/bin/ninja"
       - "/usr/local/bin/samu"
@@ -106,9 +113,10 @@ events:
     found: "/usr/bin/ninja"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -137,9 +145,10 @@ events:
     names:
       - "/usr/bin/clang++"
     candidate_directories:
+      - "/home/logan/.local/zig/"
+      - "/home/logan/.local/flutter/bin/"
       - "/home/logan/.local/bin/"
       - "/home/logan/bin/"
-      - "/home/logan/.local/flutter/bin/"
       - "/usr/local/bin/"
       - "/usr/bin/"
       - "/bin/"
@@ -151,9 +160,10 @@ events:
     found: "/usr/bin/clang++"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -189,9 +199,10 @@ events:
     found: "/usr/share/cmake-4.3/Modules/CMakeCXXCompilerId.cpp.in"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -220,7 +231,7 @@ events:
       Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "a.out"
       
       The CXX compiler identification is Clang, found in:
-        /home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/CMakeFiles/4.3.4/CompilerIdCXX/a.out
+        /home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/CMakeFiles/4.3.4/CompilerIdCXX/a.out
       
   -
     kind: "find-v1"
@@ -244,9 +255,10 @@ events:
       - "ar"
     candidate_directories:
       - "/usr/bin/"
+      - "/home/logan/.local/zig/"
+      - "/home/logan/.local/flutter/bin/"
       - "/home/logan/.local/bin/"
       - "/home/logan/bin/"
-      - "/home/logan/.local/flutter/bin/"
       - "/usr/local/bin/"
       - "/bin/"
       - "/usr/local/games/"
@@ -256,9 +268,10 @@ events:
       - "/sbin/"
     searched_directories:
       - "/usr/bin/llvm-ar"
+      - "/home/logan/.local/zig/llvm-ar"
+      - "/home/logan/.local/flutter/bin/llvm-ar"
       - "/home/logan/.local/bin/llvm-ar"
       - "/home/logan/bin/llvm-ar"
-      - "/home/logan/.local/flutter/bin/llvm-ar"
       - "/usr/local/bin/llvm-ar"
       - "/bin/llvm-ar"
       - "/usr/local/games/llvm-ar"
@@ -269,9 +282,10 @@ events:
     found: "/usr/bin/ar"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -302,9 +316,10 @@ events:
       - "ranlib"
     candidate_directories:
       - "/usr/bin/"
+      - "/home/logan/.local/zig/"
+      - "/home/logan/.local/flutter/bin/"
       - "/home/logan/.local/bin/"
       - "/home/logan/bin/"
-      - "/home/logan/.local/flutter/bin/"
       - "/usr/local/bin/"
       - "/bin/"
       - "/usr/local/games/"
@@ -314,9 +329,10 @@ events:
       - "/sbin/"
     searched_directories:
       - "/usr/bin/llvm-ranlib"
+      - "/home/logan/.local/zig/llvm-ranlib"
+      - "/home/logan/.local/flutter/bin/llvm-ranlib"
       - "/home/logan/.local/bin/llvm-ranlib"
       - "/home/logan/bin/llvm-ranlib"
-      - "/home/logan/.local/flutter/bin/llvm-ranlib"
       - "/usr/local/bin/llvm-ranlib"
       - "/bin/llvm-ranlib"
       - "/usr/local/games/llvm-ranlib"
@@ -327,9 +343,10 @@ events:
     found: "/usr/bin/ranlib"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -360,9 +377,10 @@ events:
       - "strip"
     candidate_directories:
       - "/usr/bin/"
+      - "/home/logan/.local/zig/"
+      - "/home/logan/.local/flutter/bin/"
       - "/home/logan/.local/bin/"
       - "/home/logan/bin/"
-      - "/home/logan/.local/flutter/bin/"
       - "/usr/local/bin/"
       - "/bin/"
       - "/usr/local/games/"
@@ -372,9 +390,10 @@ events:
       - "/sbin/"
     searched_directories:
       - "/usr/bin/llvm-strip"
+      - "/home/logan/.local/zig/llvm-strip"
+      - "/home/logan/.local/flutter/bin/llvm-strip"
       - "/home/logan/.local/bin/llvm-strip"
       - "/home/logan/bin/llvm-strip"
-      - "/home/logan/.local/flutter/bin/llvm-strip"
       - "/usr/local/bin/llvm-strip"
       - "/bin/llvm-strip"
       - "/usr/local/games/llvm-strip"
@@ -385,9 +404,10 @@ events:
     found: "/usr/bin/strip"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -418,9 +438,10 @@ events:
       - "ld"
     candidate_directories:
       - "/usr/bin/"
+      - "/home/logan/.local/zig/"
+      - "/home/logan/.local/flutter/bin/"
       - "/home/logan/.local/bin/"
       - "/home/logan/bin/"
-      - "/home/logan/.local/flutter/bin/"
       - "/usr/local/bin/"
       - "/bin/"
       - "/usr/local/games/"
@@ -430,9 +451,10 @@ events:
       - "/sbin/"
     searched_directories:
       - "/usr/bin/ld.lld"
+      - "/home/logan/.local/zig/ld.lld"
+      - "/home/logan/.local/flutter/bin/ld.lld"
       - "/home/logan/.local/bin/ld.lld"
       - "/home/logan/bin/ld.lld"
-      - "/home/logan/.local/flutter/bin/ld.lld"
       - "/usr/local/bin/ld.lld"
       - "/bin/ld.lld"
       - "/usr/local/games/ld.lld"
@@ -443,9 +465,10 @@ events:
     found: "/usr/bin/ld"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -476,9 +499,10 @@ events:
       - "nm"
     candidate_directories:
       - "/usr/bin/"
+      - "/home/logan/.local/zig/"
+      - "/home/logan/.local/flutter/bin/"
       - "/home/logan/.local/bin/"
       - "/home/logan/bin/"
-      - "/home/logan/.local/flutter/bin/"
       - "/usr/local/bin/"
       - "/bin/"
       - "/usr/local/games/"
@@ -488,9 +512,10 @@ events:
       - "/sbin/"
     searched_directories:
       - "/usr/bin/llvm-nm"
+      - "/home/logan/.local/zig/llvm-nm"
+      - "/home/logan/.local/flutter/bin/llvm-nm"
       - "/home/logan/.local/bin/llvm-nm"
       - "/home/logan/bin/llvm-nm"
-      - "/home/logan/.local/flutter/bin/llvm-nm"
       - "/usr/local/bin/llvm-nm"
       - "/bin/llvm-nm"
       - "/usr/local/games/llvm-nm"
@@ -501,9 +526,10 @@ events:
     found: "/usr/bin/nm"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -534,9 +560,10 @@ events:
       - "objdump"
     candidate_directories:
       - "/usr/bin/"
+      - "/home/logan/.local/zig/"
+      - "/home/logan/.local/flutter/bin/"
       - "/home/logan/.local/bin/"
       - "/home/logan/bin/"
-      - "/home/logan/.local/flutter/bin/"
       - "/usr/local/bin/"
       - "/bin/"
       - "/usr/local/games/"
@@ -546,9 +573,10 @@ events:
       - "/sbin/"
     searched_directories:
       - "/usr/bin/llvm-objdump"
+      - "/home/logan/.local/zig/llvm-objdump"
+      - "/home/logan/.local/flutter/bin/llvm-objdump"
       - "/home/logan/.local/bin/llvm-objdump"
       - "/home/logan/bin/llvm-objdump"
-      - "/home/logan/.local/flutter/bin/llvm-objdump"
       - "/usr/local/bin/llvm-objdump"
       - "/bin/llvm-objdump"
       - "/usr/local/games/llvm-objdump"
@@ -559,9 +587,10 @@ events:
     found: "/usr/bin/objdump"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -592,9 +621,10 @@ events:
       - "objcopy"
     candidate_directories:
       - "/usr/bin/"
+      - "/home/logan/.local/zig/"
+      - "/home/logan/.local/flutter/bin/"
       - "/home/logan/.local/bin/"
       - "/home/logan/bin/"
-      - "/home/logan/.local/flutter/bin/"
       - "/usr/local/bin/"
       - "/bin/"
       - "/usr/local/games/"
@@ -604,9 +634,10 @@ events:
       - "/sbin/"
     searched_directories:
       - "/usr/bin/llvm-objcopy"
+      - "/home/logan/.local/zig/llvm-objcopy"
+      - "/home/logan/.local/flutter/bin/llvm-objcopy"
       - "/home/logan/.local/bin/llvm-objcopy"
       - "/home/logan/bin/llvm-objcopy"
-      - "/home/logan/.local/flutter/bin/llvm-objcopy"
       - "/usr/local/bin/llvm-objcopy"
       - "/bin/llvm-objcopy"
       - "/usr/local/games/llvm-objcopy"
@@ -617,9 +648,10 @@ events:
     found: "/usr/bin/objcopy"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -650,9 +682,10 @@ events:
       - "readelf"
     candidate_directories:
       - "/usr/bin/"
+      - "/home/logan/.local/zig/"
+      - "/home/logan/.local/flutter/bin/"
       - "/home/logan/.local/bin/"
       - "/home/logan/bin/"
-      - "/home/logan/.local/flutter/bin/"
       - "/usr/local/bin/"
       - "/bin/"
       - "/usr/local/games/"
@@ -662,9 +695,10 @@ events:
       - "/sbin/"
     searched_directories:
       - "/usr/bin/llvm-readelf"
+      - "/home/logan/.local/zig/llvm-readelf"
+      - "/home/logan/.local/flutter/bin/llvm-readelf"
       - "/home/logan/.local/bin/llvm-readelf"
       - "/home/logan/bin/llvm-readelf"
-      - "/home/logan/.local/flutter/bin/llvm-readelf"
       - "/usr/local/bin/llvm-readelf"
       - "/bin/llvm-readelf"
       - "/usr/local/games/llvm-readelf"
@@ -675,9 +709,10 @@ events:
     found: "/usr/bin/readelf"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -708,9 +743,10 @@ events:
       - "dlltool"
     candidate_directories:
       - "/usr/bin/"
+      - "/home/logan/.local/zig/"
+      - "/home/logan/.local/flutter/bin/"
       - "/home/logan/.local/bin/"
       - "/home/logan/bin/"
-      - "/home/logan/.local/flutter/bin/"
       - "/usr/local/bin/"
       - "/bin/"
       - "/usr/local/games/"
@@ -720,9 +756,10 @@ events:
       - "/sbin/"
     searched_directories:
       - "/usr/bin/llvm-dlltool"
+      - "/home/logan/.local/zig/llvm-dlltool"
+      - "/home/logan/.local/flutter/bin/llvm-dlltool"
       - "/home/logan/.local/bin/llvm-dlltool"
       - "/home/logan/bin/llvm-dlltool"
-      - "/home/logan/.local/flutter/bin/llvm-dlltool"
       - "/usr/local/bin/llvm-dlltool"
       - "/bin/llvm-dlltool"
       - "/usr/local/games/llvm-dlltool"
@@ -731,9 +768,10 @@ events:
       - "/usr/sbin/llvm-dlltool"
       - "/sbin/llvm-dlltool"
       - "/usr/bin/dlltool"
+      - "/home/logan/.local/zig/dlltool"
+      - "/home/logan/.local/flutter/bin/dlltool"
       - "/home/logan/.local/bin/dlltool"
       - "/home/logan/bin/dlltool"
-      - "/home/logan/.local/flutter/bin/dlltool"
       - "/usr/local/bin/dlltool"
       - "/bin/dlltool"
       - "/usr/local/games/dlltool"
@@ -744,9 +782,10 @@ events:
     found: false
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -777,9 +816,10 @@ events:
       - "addr2line"
     candidate_directories:
       - "/usr/bin/"
+      - "/home/logan/.local/zig/"
+      - "/home/logan/.local/flutter/bin/"
       - "/home/logan/.local/bin/"
       - "/home/logan/bin/"
-      - "/home/logan/.local/flutter/bin/"
       - "/usr/local/bin/"
       - "/bin/"
       - "/usr/local/games/"
@@ -789,9 +829,10 @@ events:
       - "/sbin/"
     searched_directories:
       - "/usr/bin/llvm-addr2line"
+      - "/home/logan/.local/zig/llvm-addr2line"
+      - "/home/logan/.local/flutter/bin/llvm-addr2line"
       - "/home/logan/.local/bin/llvm-addr2line"
       - "/home/logan/bin/llvm-addr2line"
-      - "/home/logan/.local/flutter/bin/llvm-addr2line"
       - "/usr/local/bin/llvm-addr2line"
       - "/bin/llvm-addr2line"
       - "/usr/local/games/llvm-addr2line"
@@ -802,9 +843,10 @@ events:
     found: "/usr/bin/addr2line"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -834,9 +876,10 @@ events:
       - "tapi"
     candidate_directories:
       - "/usr/bin/"
+      - "/home/logan/.local/zig/"
+      - "/home/logan/.local/flutter/bin/"
       - "/home/logan/.local/bin/"
       - "/home/logan/bin/"
-      - "/home/logan/.local/flutter/bin/"
       - "/usr/local/bin/"
       - "/bin/"
       - "/usr/local/games/"
@@ -846,9 +889,10 @@ events:
       - "/sbin/"
     searched_directories:
       - "/usr/bin/tapi"
+      - "/home/logan/.local/zig/tapi"
+      - "/home/logan/.local/flutter/bin/tapi"
       - "/home/logan/.local/bin/tapi"
       - "/home/logan/bin/tapi"
-      - "/home/logan/.local/flutter/bin/tapi"
       - "/usr/local/bin/tapi"
       - "/bin/tapi"
       - "/usr/local/games/tapi"
@@ -859,9 +903,10 @@ events:
     found: false
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -895,9 +940,10 @@ events:
     candidate_directories:
       - "/usr/lib/llvm-21/bin/"
       - "/usr/bin/"
+      - "/home/logan/.local/zig/"
+      - "/home/logan/.local/flutter/bin/"
       - "/home/logan/.local/bin/"
       - "/home/logan/bin/"
-      - "/home/logan/.local/flutter/bin/"
       - "/usr/local/bin/"
       - "/bin/"
       - "/usr/local/games/"
@@ -908,9 +954,10 @@ events:
     searched_directories:
       - "/usr/lib/llvm-21/bin/llvm-ar-21.1"
       - "/usr/bin/llvm-ar-21.1"
+      - "/home/logan/.local/zig/llvm-ar-21.1"
+      - "/home/logan/.local/flutter/bin/llvm-ar-21.1"
       - "/home/logan/.local/bin/llvm-ar-21.1"
       - "/home/logan/bin/llvm-ar-21.1"
-      - "/home/logan/.local/flutter/bin/llvm-ar-21.1"
       - "/usr/local/bin/llvm-ar-21.1"
       - "/bin/llvm-ar-21.1"
       - "/usr/local/games/llvm-ar-21.1"
@@ -919,12 +966,51 @@ events:
       - "/usr/sbin/llvm-ar-21.1"
       - "/sbin/llvm-ar-21.1"
       - "/usr/lib/llvm-21/bin/llvm-ar-21"
-    found: "/usr/bin/llvm-ar-21"
+      - "/usr/bin/llvm-ar-21"
+      - "/home/logan/.local/zig/llvm-ar-21"
+      - "/home/logan/.local/flutter/bin/llvm-ar-21"
+      - "/home/logan/.local/bin/llvm-ar-21"
+      - "/home/logan/bin/llvm-ar-21"
+      - "/usr/local/bin/llvm-ar-21"
+      - "/bin/llvm-ar-21"
+      - "/usr/local/games/llvm-ar-21"
+      - "/usr/games/llvm-ar-21"
+      - "/usr/local/sbin/llvm-ar-21"
+      - "/usr/sbin/llvm-ar-21"
+      - "/sbin/llvm-ar-21"
+      - "/usr/lib/llvm-21/bin/llvm-ar21"
+      - "/usr/bin/llvm-ar21"
+      - "/home/logan/.local/zig/llvm-ar21"
+      - "/home/logan/.local/flutter/bin/llvm-ar21"
+      - "/home/logan/.local/bin/llvm-ar21"
+      - "/home/logan/bin/llvm-ar21"
+      - "/usr/local/bin/llvm-ar21"
+      - "/bin/llvm-ar21"
+      - "/usr/local/games/llvm-ar21"
+      - "/usr/games/llvm-ar21"
+      - "/usr/local/sbin/llvm-ar21"
+      - "/usr/sbin/llvm-ar21"
+      - "/sbin/llvm-ar21"
+      - "/usr/lib/llvm-21/bin/llvm-ar"
+      - "/usr/bin/llvm-ar"
+      - "/home/logan/.local/zig/llvm-ar"
+      - "/home/logan/.local/flutter/bin/llvm-ar"
+      - "/home/logan/.local/bin/llvm-ar"
+      - "/home/logan/bin/llvm-ar"
+      - "/usr/local/bin/llvm-ar"
+      - "/bin/llvm-ar"
+      - "/usr/local/games/llvm-ar"
+      - "/usr/games/llvm-ar"
+      - "/usr/local/sbin/llvm-ar"
+      - "/usr/sbin/llvm-ar"
+      - "/sbin/llvm-ar"
+    found: false
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -958,9 +1044,10 @@ events:
     candidate_directories:
       - "/usr/lib/llvm-21/bin/"
       - "/usr/bin/"
+      - "/home/logan/.local/zig/"
+      - "/home/logan/.local/flutter/bin/"
       - "/home/logan/.local/bin/"
       - "/home/logan/bin/"
-      - "/home/logan/.local/flutter/bin/"
       - "/usr/local/bin/"
       - "/bin/"
       - "/usr/local/games/"
@@ -971,9 +1058,10 @@ events:
     searched_directories:
       - "/usr/lib/llvm-21/bin/llvm-ranlib-21.1"
       - "/usr/bin/llvm-ranlib-21.1"
+      - "/home/logan/.local/zig/llvm-ranlib-21.1"
+      - "/home/logan/.local/flutter/bin/llvm-ranlib-21.1"
       - "/home/logan/.local/bin/llvm-ranlib-21.1"
       - "/home/logan/bin/llvm-ranlib-21.1"
-      - "/home/logan/.local/flutter/bin/llvm-ranlib-21.1"
       - "/usr/local/bin/llvm-ranlib-21.1"
       - "/bin/llvm-ranlib-21.1"
       - "/usr/local/games/llvm-ranlib-21.1"
@@ -982,12 +1070,51 @@ events:
       - "/usr/sbin/llvm-ranlib-21.1"
       - "/sbin/llvm-ranlib-21.1"
       - "/usr/lib/llvm-21/bin/llvm-ranlib-21"
-    found: "/usr/bin/llvm-ranlib-21"
+      - "/usr/bin/llvm-ranlib-21"
+      - "/home/logan/.local/zig/llvm-ranlib-21"
+      - "/home/logan/.local/flutter/bin/llvm-ranlib-21"
+      - "/home/logan/.local/bin/llvm-ranlib-21"
+      - "/home/logan/bin/llvm-ranlib-21"
+      - "/usr/local/bin/llvm-ranlib-21"
+      - "/bin/llvm-ranlib-21"
+      - "/usr/local/games/llvm-ranlib-21"
+      - "/usr/games/llvm-ranlib-21"
+      - "/usr/local/sbin/llvm-ranlib-21"
+      - "/usr/sbin/llvm-ranlib-21"
+      - "/sbin/llvm-ranlib-21"
+      - "/usr/lib/llvm-21/bin/llvm-ranlib21"
+      - "/usr/bin/llvm-ranlib21"
+      - "/home/logan/.local/zig/llvm-ranlib21"
+      - "/home/logan/.local/flutter/bin/llvm-ranlib21"
+      - "/home/logan/.local/bin/llvm-ranlib21"
+      - "/home/logan/bin/llvm-ranlib21"
+      - "/usr/local/bin/llvm-ranlib21"
+      - "/bin/llvm-ranlib21"
+      - "/usr/local/games/llvm-ranlib21"
+      - "/usr/games/llvm-ranlib21"
+      - "/usr/local/sbin/llvm-ranlib21"
+      - "/usr/sbin/llvm-ranlib21"
+      - "/sbin/llvm-ranlib21"
+      - "/usr/lib/llvm-21/bin/llvm-ranlib"
+      - "/usr/bin/llvm-ranlib"
+      - "/home/logan/.local/zig/llvm-ranlib"
+      - "/home/logan/.local/flutter/bin/llvm-ranlib"
+      - "/home/logan/.local/bin/llvm-ranlib"
+      - "/home/logan/bin/llvm-ranlib"
+      - "/usr/local/bin/llvm-ranlib"
+      - "/bin/llvm-ranlib"
+      - "/usr/local/games/llvm-ranlib"
+      - "/usr/games/llvm-ranlib"
+      - "/usr/local/sbin/llvm-ranlib"
+      - "/usr/sbin/llvm-ranlib"
+      - "/sbin/llvm-ranlib"
+    found: false
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -1021,9 +1148,10 @@ events:
     candidate_directories:
       - "/usr/lib/llvm-21/bin/"
       - "/usr/bin/"
+      - "/home/logan/.local/zig/"
+      - "/home/logan/.local/flutter/bin/"
       - "/home/logan/.local/bin/"
       - "/home/logan/bin/"
-      - "/home/logan/.local/flutter/bin/"
       - "/usr/local/bin/"
       - "/bin/"
       - "/usr/local/games/"
@@ -1034,9 +1162,10 @@ events:
     searched_directories:
       - "/usr/lib/llvm-21/bin/clang-scan-deps-21.1"
       - "/usr/bin/clang-scan-deps-21.1"
+      - "/home/logan/.local/zig/clang-scan-deps-21.1"
+      - "/home/logan/.local/flutter/bin/clang-scan-deps-21.1"
       - "/home/logan/.local/bin/clang-scan-deps-21.1"
       - "/home/logan/bin/clang-scan-deps-21.1"
-      - "/home/logan/.local/flutter/bin/clang-scan-deps-21.1"
       - "/usr/local/bin/clang-scan-deps-21.1"
       - "/bin/clang-scan-deps-21.1"
       - "/usr/local/games/clang-scan-deps-21.1"
@@ -1048,9 +1177,10 @@ events:
     found: "/usr/bin/clang-scan-deps-21"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -1068,8 +1198,8 @@ events:
     checks:
       - "Detecting CXX compiler ABI info"
     directories:
-      source: "/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-t8odnl"
-      binary: "/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-t8odnl"
+      source: "/home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-DgVcxl"
+      binary: "/home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-DgVcxl"
     cmakeVariables:
       CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/usr/bin/clang-scan-deps-21"
       CMAKE_CXX_FLAGS: ""
@@ -1081,21 +1211,21 @@ events:
       variable: "CMAKE_CXX_ABI_COMPILED"
       cached: true
       stdout: |
-        Change Dir: '/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-t8odnl'
+        Change Dir: '/home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-DgVcxl'
         
-        Run Build Command(s): /usr/bin/ninja -v cmTC_4336a
-        [1/2] /usr/bin/clang++   -v -MD -MT CMakeFiles/cmTC_4336a.dir/CMakeCXXCompilerABI.cpp.o -MF CMakeFiles/cmTC_4336a.dir/CMakeCXXCompilerABI.cpp.o.d -o CMakeFiles/cmTC_4336a.dir/CMakeCXXCompilerABI.cpp.o -c /usr/share/cmake-4.3/Modules/CMakeCXXCompilerABI.cpp
-        Debian clang version 21.1.8 (13)
+        Run Build Command(s): /usr/bin/ninja -v cmTC_63475
+        [1/2] /usr/bin/clang++   -v -MD -MT CMakeFiles/cmTC_63475.dir/CMakeCXXCompilerABI.cpp.o -MF CMakeFiles/cmTC_63475.dir/CMakeCXXCompilerABI.cpp.o.d -o CMakeFiles/cmTC_63475.dir/CMakeCXXCompilerABI.cpp.o -c /usr/share/cmake-4.3/Modules/CMakeCXXCompilerABI.cpp
+        Debian clang version 21.1.8 (14)
         Target: x86_64-pc-linux-gnu
         Thread model: posix
         InstalledDir: /usr/lib/llvm-21/bin
-        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/12
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/14
         Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/16
         Selected GCC installation: /usr/lib/gcc/x86_64-linux-gnu/16
         Candidate multilib: .;@m64
         Selected multilib: .;@m64
          (in-process)
-         "/usr/lib/llvm-21/bin/clang" -cc1 -triple x86_64-pc-linux-gnu -emit-obj -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCXXCompilerABI.cpp -mrelocation-model pic -pic-level 2 -pic-is-pie -mframe-pointer=all -fmath-errno -ffp-contract=on -fno-rounding-math -mconstructor-aliases -funwind-tables=2 -target-cpu x86-64 -tune-cpu generic -debugger-tuning=gdb -fdebug-compilation-dir=/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-t8odnl -v -fcoverage-compilation-dir=/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-t8odnl -resource-dir /usr/lib/llvm-21/lib/clang/21 -dependency-file CMakeFiles/cmTC_4336a.dir/CMakeCXXCompilerABI.cpp.o.d -MT CMakeFiles/cmTC_4336a.dir/CMakeCXXCompilerABI.cpp.o -sys-header-deps -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/16/../../../../include/c++/16 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/16/../../../../include/x86_64-linux-gnu/c++/16 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/16/../../../../include/c++/16/backward -internal-isystem /usr/lib/llvm-21/lib/clang/21/include -internal-isystem /usr/local/include -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/16/../../../../x86_64-linux-gnu/include -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include -internal-externc-isystem /usr/include -fdeprecated-macro -ferror-limit 19 -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -fcxx-exceptions -fexceptions -faddrsig -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_4336a.dir/CMakeCXXCompilerABI.cpp.o -x c++ /usr/share/cmake-4.3/Modules/CMakeCXXCompilerABI.cpp
+         "/usr/lib/llvm-21/bin/clang" -cc1 -triple x86_64-pc-linux-gnu -emit-obj -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCXXCompilerABI.cpp -mrelocation-model pic -pic-level 2 -pic-is-pie -mframe-pointer=all -fmath-errno -ffp-contract=on -fno-rounding-math -mconstructor-aliases -funwind-tables=2 -target-cpu x86-64 -tune-cpu generic -debugger-tuning=gdb -fdebug-compilation-dir=/home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-DgVcxl -v -fcoverage-compilation-dir=/home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-DgVcxl -resource-dir /usr/lib/llvm-21/lib/clang/21 -dependency-file CMakeFiles/cmTC_63475.dir/CMakeCXXCompilerABI.cpp.o.d -MT CMakeFiles/cmTC_63475.dir/CMakeCXXCompilerABI.cpp.o -sys-header-deps -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/16/../../../../include/c++/16 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/16/../../../../include/x86_64-linux-gnu/c++/16 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/16/../../../../include/c++/16/backward -internal-isystem /usr/lib/llvm-21/lib/clang/21/include -internal-isystem /usr/local/include -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/16/../../../../x86_64-linux-gnu/include -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include -internal-externc-isystem /usr/include -fdeprecated-macro -ferror-limit 19 -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -fcxx-exceptions -fexceptions -faddrsig -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_63475.dir/CMakeCXXCompilerABI.cpp.o -x c++ /usr/share/cmake-4.3/Modules/CMakeCXXCompilerABI.cpp
         clang -cc1 version 21.1.8 based upon LLVM 21.1.8 default target x86_64-pc-linux-gnu
         ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/16/../../../../x86_64-linux-gnu/include"
         ignoring nonexistent directory "/include"
@@ -1109,18 +1239,18 @@ events:
          /usr/include/x86_64-linux-gnu
          /usr/include
         End of search list.
-        [2/2] : && /usr/bin/clang++  -v -Wl,-v CMakeFiles/cmTC_4336a.dir/CMakeCXXCompilerABI.cpp.o -o cmTC_4336a   && :
-        Debian clang version 21.1.8 (13)
+        [2/2] : && /usr/bin/clang++  -v -Wl,-v CMakeFiles/cmTC_63475.dir/CMakeCXXCompilerABI.cpp.o -o cmTC_63475   && :
+        Debian clang version 21.1.8 (14)
         Target: x86_64-pc-linux-gnu
         Thread model: posix
         InstalledDir: /usr/lib/llvm-21/bin
-        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/12
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/14
         Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/16
         Selected GCC installation: /usr/lib/gcc/x86_64-linux-gnu/16
         Candidate multilib: .;@m64
         Selected multilib: .;@m64
-         "/usr/bin/ld" --hash-style=gnu --build-id --eh-frame-hdr -m elf_x86_64 -pie -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_4336a /lib/x86_64-linux-gnu/Scrt1.o /lib/x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/16/crtbeginS.o -L/usr/lib/gcc/x86_64-linux-gnu/16 -L/usr/lib/gcc/x86_64-linux-gnu/16/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib64 -L/lib -L/usr/lib -v CMakeFiles/cmTC_4336a.dir/CMakeCXXCompilerABI.cpp.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-linux-gnu/16/crtendS.o /lib/x86_64-linux-gnu/crtn.o
-        GNU ld (GNU Binutils for Debian) 2.47
+         "/usr/bin/ld" --hash-style=gnu --build-id --eh-frame-hdr -m elf_x86_64 -pie -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_63475 /lib/x86_64-linux-gnu/Scrt1.o /lib/x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/16/crtbeginS.o -L/usr/lib/gcc/x86_64-linux-gnu/16 -L/usr/lib/gcc/x86_64-linux-gnu/16/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib64 -L/lib -L/usr/lib -v CMakeFiles/cmTC_63475.dir/CMakeCXXCompilerABI.cpp.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-linux-gnu/16/crtendS.o /lib/x86_64-linux-gnu/crtn.o
+        GNU ld (GNU Binutils for Debian) 2.47.50.20261021
         
       exitCode: 0
   -
@@ -1161,15 +1291,15 @@ events:
       Parsed CXX implicit link information:
         link line regex: [^( *|.*[/\\])(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\\]+-)?ld|collect2)[^/\\]*( |$)]
         linker tool regex: [^[ 	]*(->|"|[0-9]+>[ 	-]*Build:[ 	0-9]+ ms[ 	]*)?[ 	]*(([^"]*[/\\])?(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)))("|,| |$)]
-        ignore line: [Change Dir: '/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-t8odnl']
+        ignore line: [Change Dir: '/home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-DgVcxl']
         ignore line: []
-        ignore line: [Run Build Command(s): /usr/bin/ninja -v cmTC_4336a]
-        ignore line: [[1/2] /usr/bin/clang++   -v -MD -MT CMakeFiles/cmTC_4336a.dir/CMakeCXXCompilerABI.cpp.o -MF CMakeFiles/cmTC_4336a.dir/CMakeCXXCompilerABI.cpp.o.d -o CMakeFiles/cmTC_4336a.dir/CMakeCXXCompilerABI.cpp.o -c /usr/share/cmake-4.3/Modules/CMakeCXXCompilerABI.cpp]
-        ignore line: [Debian clang version 21.1.8 (13)]
+        ignore line: [Run Build Command(s): /usr/bin/ninja -v cmTC_63475]
+        ignore line: [[1/2] /usr/bin/clang++   -v -MD -MT CMakeFiles/cmTC_63475.dir/CMakeCXXCompilerABI.cpp.o -MF CMakeFiles/cmTC_63475.dir/CMakeCXXCompilerABI.cpp.o.d -o CMakeFiles/cmTC_63475.dir/CMakeCXXCompilerABI.cpp.o -c /usr/share/cmake-4.3/Modules/CMakeCXXCompilerABI.cpp]
+        ignore line: [Debian clang version 21.1.8 (14)]
         ignore line: [Target: x86_64-pc-linux-gnu]
         ignore line: [Thread model: posix]
         ignore line: [InstalledDir: /usr/lib/llvm-21/bin]
-        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/12]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/14]
         ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/16]
         ignore line: [Selected GCC installation: /usr/lib/gcc/x86_64-linux-gnu/16]
         ignore line: [Candidate multilib: .]
@@ -1177,7 +1307,7 @@ events:
         ignore line: [Selected multilib: .]
         ignore line: [@m64]
         ignore line: [ (in-process)]
-        ignore line: [ "/usr/lib/llvm-21/bin/clang" -cc1 -triple x86_64-pc-linux-gnu -emit-obj -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCXXCompilerABI.cpp -mrelocation-model pic -pic-level 2 -pic-is-pie -mframe-pointer=all -fmath-errno -ffp-contract=on -fno-rounding-math -mconstructor-aliases -funwind-tables=2 -target-cpu x86-64 -tune-cpu generic -debugger-tuning=gdb -fdebug-compilation-dir=/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-t8odnl -v -fcoverage-compilation-dir=/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-t8odnl -resource-dir /usr/lib/llvm-21/lib/clang/21 -dependency-file CMakeFiles/cmTC_4336a.dir/CMakeCXXCompilerABI.cpp.o.d -MT CMakeFiles/cmTC_4336a.dir/CMakeCXXCompilerABI.cpp.o -sys-header-deps -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/16/../../../../include/c++/16 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/16/../../../../include/x86_64-linux-gnu/c++/16 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/16/../../../../include/c++/16/backward -internal-isystem /usr/lib/llvm-21/lib/clang/21/include -internal-isystem /usr/local/include -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/16/../../../../x86_64-linux-gnu/include -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include -internal-externc-isystem /usr/include -fdeprecated-macro -ferror-limit 19 -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -fcxx-exceptions -fexceptions -faddrsig -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_4336a.dir/CMakeCXXCompilerABI.cpp.o -x c++ /usr/share/cmake-4.3/Modules/CMakeCXXCompilerABI.cpp]
+        ignore line: [ "/usr/lib/llvm-21/bin/clang" -cc1 -triple x86_64-pc-linux-gnu -emit-obj -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCXXCompilerABI.cpp -mrelocation-model pic -pic-level 2 -pic-is-pie -mframe-pointer=all -fmath-errno -ffp-contract=on -fno-rounding-math -mconstructor-aliases -funwind-tables=2 -target-cpu x86-64 -tune-cpu generic -debugger-tuning=gdb -fdebug-compilation-dir=/home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-DgVcxl -v -fcoverage-compilation-dir=/home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-DgVcxl -resource-dir /usr/lib/llvm-21/lib/clang/21 -dependency-file CMakeFiles/cmTC_63475.dir/CMakeCXXCompilerABI.cpp.o.d -MT CMakeFiles/cmTC_63475.dir/CMakeCXXCompilerABI.cpp.o -sys-header-deps -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/16/../../../../include/c++/16 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/16/../../../../include/x86_64-linux-gnu/c++/16 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/16/../../../../include/c++/16/backward -internal-isystem /usr/lib/llvm-21/lib/clang/21/include -internal-isystem /usr/local/include -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/16/../../../../x86_64-linux-gnu/include -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include -internal-externc-isystem /usr/include -fdeprecated-macro -ferror-limit 19 -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -fcxx-exceptions -fexceptions -faddrsig -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_63475.dir/CMakeCXXCompilerABI.cpp.o -x c++ /usr/share/cmake-4.3/Modules/CMakeCXXCompilerABI.cpp]
         ignore line: [clang -cc1 version 21.1.8 based upon LLVM 21.1.8 default target x86_64-pc-linux-gnu]
         ignore line: [ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/16/../../../../x86_64-linux-gnu/include"]
         ignore line: [ignoring nonexistent directory "/include"]
@@ -1191,19 +1321,19 @@ events:
         ignore line: [ /usr/include/x86_64-linux-gnu]
         ignore line: [ /usr/include]
         ignore line: [End of search list.]
-        ignore line: [[2/2] : && /usr/bin/clang++  -v -Wl -v CMakeFiles/cmTC_4336a.dir/CMakeCXXCompilerABI.cpp.o -o cmTC_4336a   && :]
-        ignore line: [Debian clang version 21.1.8 (13)]
+        ignore line: [[2/2] : && /usr/bin/clang++  -v -Wl -v CMakeFiles/cmTC_63475.dir/CMakeCXXCompilerABI.cpp.o -o cmTC_63475   && :]
+        ignore line: [Debian clang version 21.1.8 (14)]
         ignore line: [Target: x86_64-pc-linux-gnu]
         ignore line: [Thread model: posix]
         ignore line: [InstalledDir: /usr/lib/llvm-21/bin]
-        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/12]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/14]
         ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/16]
         ignore line: [Selected GCC installation: /usr/lib/gcc/x86_64-linux-gnu/16]
         ignore line: [Candidate multilib: .]
         ignore line: [@m64]
         ignore line: [Selected multilib: .]
         ignore line: [@m64]
-        link line: [ "/usr/bin/ld" --hash-style=gnu --build-id --eh-frame-hdr -m elf_x86_64 -pie -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_4336a /lib/x86_64-linux-gnu/Scrt1.o /lib/x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/16/crtbeginS.o -L/usr/lib/gcc/x86_64-linux-gnu/16 -L/usr/lib/gcc/x86_64-linux-gnu/16/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib64 -L/lib -L/usr/lib -v CMakeFiles/cmTC_4336a.dir/CMakeCXXCompilerABI.cpp.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-linux-gnu/16/crtendS.o /lib/x86_64-linux-gnu/crtn.o]
+        link line: [ "/usr/bin/ld" --hash-style=gnu --build-id --eh-frame-hdr -m elf_x86_64 -pie -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_63475 /lib/x86_64-linux-gnu/Scrt1.o /lib/x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/16/crtbeginS.o -L/usr/lib/gcc/x86_64-linux-gnu/16 -L/usr/lib/gcc/x86_64-linux-gnu/16/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib64 -L/lib -L/usr/lib -v CMakeFiles/cmTC_63475.dir/CMakeCXXCompilerABI.cpp.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-linux-gnu/16/crtendS.o /lib/x86_64-linux-gnu/crtn.o]
           arg [/usr/bin/ld] ==> ignore
           arg [--hash-style=gnu] ==> ignore
           arg [--build-id] ==> ignore
@@ -1214,7 +1344,7 @@ events:
           arg [-dynamic-linker] ==> ignore
           arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
           arg [-o] ==> ignore
-          arg [cmTC_4336a] ==> ignore
+          arg [cmTC_63475] ==> ignore
           arg [/lib/x86_64-linux-gnu/Scrt1.o] ==> obj [/lib/x86_64-linux-gnu/Scrt1.o]
           arg [/lib/x86_64-linux-gnu/crti.o] ==> obj [/lib/x86_64-linux-gnu/crti.o]
           arg [/usr/lib/gcc/x86_64-linux-gnu/16/crtbeginS.o] ==> obj [/usr/lib/gcc/x86_64-linux-gnu/16/crtbeginS.o]
@@ -1227,7 +1357,7 @@ events:
           arg [-L/lib] ==> dir [/lib]
           arg [-L/usr/lib] ==> dir [/usr/lib]
           arg [-v] ==> ignore
-          arg [CMakeFiles/cmTC_4336a.dir/CMakeCXXCompilerABI.cpp.o] ==> ignore
+          arg [CMakeFiles/cmTC_63475.dir/CMakeCXXCompilerABI.cpp.o] ==> ignore
           arg [-lstdc++] ==> lib [stdc++]
           arg [-lm] ==> lib [m]
           arg [-lgcc_s] ==> lib [gcc_s]
@@ -1261,7 +1391,7 @@ events:
       - "CMakeLists.txt:3 (project)"
     message: |
       Running the CXX compiler's linker: "/usr/bin/ld" "-v"
-      GNU ld (GNU Binutils for Debian) 2.47
+      GNU ld (GNU Binutils for Debian) 2.47.50.20261021
   -
     kind: "find-v1"
     backtrace:
@@ -1282,9 +1412,10 @@ events:
       - "pkg-config"
       - "pkgconf"
     candidate_directories:
+      - "/home/logan/.local/zig/"
+      - "/home/logan/.local/flutter/bin/"
       - "/home/logan/.local/bin/"
       - "/home/logan/bin/"
-      - "/home/logan/.local/flutter/bin/"
       - "/usr/local/bin/"
       - "/usr/bin/"
       - "/bin/"
@@ -1311,20 +1442,23 @@ events:
       - "/opt/sbin/"
       - "/opt/"
     searched_directories:
+      - "/home/logan/.local/zig/pkg-config"
+      - "/home/logan/.local/zig/pkgconf"
+      - "/home/logan/.local/flutter/bin/pkg-config"
+      - "/home/logan/.local/flutter/bin/pkgconf"
       - "/home/logan/.local/bin/pkg-config"
       - "/home/logan/.local/bin/pkgconf"
       - "/home/logan/bin/pkg-config"
       - "/home/logan/bin/pkgconf"
-      - "/home/logan/.local/flutter/bin/pkg-config"
-      - "/home/logan/.local/flutter/bin/pkgconf"
       - "/usr/local/bin/pkg-config"
       - "/usr/local/bin/pkgconf"
     found: "/usr/bin/pkg-config"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -1369,9 +1503,10 @@ events:
     found: "/usr/lib/x86_64-linux-gnu/libgtk-3.so"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -1418,9 +1553,10 @@ events:
     found: "/usr/lib/x86_64-linux-gnu/libgdk-3.so"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -1467,9 +1603,10 @@ events:
     found: "/usr/lib/x86_64-linux-gnu/libpangocairo-1.0.so"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -1516,9 +1653,10 @@ events:
     found: "/usr/lib/x86_64-linux-gnu/libcairo-gobject.so"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -1565,9 +1703,10 @@ events:
     found: "/usr/lib/x86_64-linux-gnu/libgdk_pixbuf-2.0.so"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -1614,9 +1753,10 @@ events:
     found: "/usr/lib/x86_64-linux-gnu/libatk-1.0.so"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -1663,9 +1803,10 @@ events:
     found: "/usr/lib/x86_64-linux-gnu/libpango-1.0.so"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -1712,9 +1853,10 @@ events:
     found: "/usr/lib/x86_64-linux-gnu/libcairo.so"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -1761,9 +1903,10 @@ events:
     found: "/usr/lib/x86_64-linux-gnu/libharfbuzz.so"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -1810,9 +1953,10 @@ events:
     found: "/usr/lib/x86_64-linux-gnu/libgio-2.0.so"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -1859,9 +2003,10 @@ events:
     found: "/usr/lib/x86_64-linux-gnu/libgobject-2.0.so"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -1908,9 +2053,10 @@ events:
     found: "/usr/lib/x86_64-linux-gnu/libglib-2.0.so"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -1957,9 +2103,10 @@ events:
     found: "/usr/lib/x86_64-linux-gnu/libz.so"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -2006,9 +2153,10 @@ events:
     found: "/usr/lib/x86_64-linux-gnu/libglib-2.0.so"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -2055,9 +2203,10 @@ events:
     found: "/usr/lib/x86_64-linux-gnu/libgio-2.0.so"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -2104,9 +2253,10 @@ events:
     found: "/usr/lib/x86_64-linux-gnu/libgobject-2.0.so"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -2153,9 +2303,10 @@ events:
     found: "/usr/lib/x86_64-linux-gnu/libglib-2.0.so"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -2202,9 +2353,10 @@ events:
     found: "/usr/lib/x86_64-linux-gnu/libwayland-client.so"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -2251,9 +2403,10 @@ events:
     found: "/usr/lib/x86_64-linux-gnu/libm.so"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -2300,9 +2453,10 @@ events:
     found: "/usr/lib/x86_64-linux-gnu/libepoxy.so"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -2347,9 +2501,10 @@ events:
     found: "/usr/bin/clang"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -2395,9 +2550,10 @@ events:
     found: "/usr/share/cmake-4.3/Modules/CMakeCCompilerId.c.in"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -2438,7 +2594,7 @@ events:
       Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "a.out"
       
       The C compiler identification is Clang, found in:
-        /home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/CMakeFiles/4.3.4/CompilerIdC/a.out
+        /home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/CMakeFiles/4.3.4/CompilerIdC/a.out
       
   -
     kind: "find-v1"
@@ -2465,9 +2621,10 @@ events:
     candidate_directories:
       - "/usr/lib/llvm-21/bin/"
       - "/usr/bin/"
+      - "/home/logan/.local/zig/"
+      - "/home/logan/.local/flutter/bin/"
       - "/home/logan/.local/bin/"
       - "/home/logan/bin/"
-      - "/home/logan/.local/flutter/bin/"
       - "/usr/local/bin/"
       - "/bin/"
       - "/usr/local/games/"
@@ -2495,9 +2652,10 @@ events:
     searched_directories:
       - "/usr/lib/llvm-21/bin/llvm-ar-21.1"
       - "/usr/bin/llvm-ar-21.1"
+      - "/home/logan/.local/zig/llvm-ar-21.1"
+      - "/home/logan/.local/flutter/bin/llvm-ar-21.1"
       - "/home/logan/.local/bin/llvm-ar-21.1"
       - "/home/logan/bin/llvm-ar-21.1"
-      - "/home/logan/.local/flutter/bin/llvm-ar-21.1"
       - "/usr/local/bin/llvm-ar-21.1"
       - "/bin/llvm-ar-21.1"
       - "/usr/local/games/llvm-ar-21.1"
@@ -2523,12 +2681,102 @@ events:
       - "/opt/sbin/llvm-ar-21.1"
       - "/opt/llvm-ar-21.1"
       - "/usr/lib/llvm-21/bin/llvm-ar-21"
-    found: "/usr/bin/llvm-ar-21"
+      - "/usr/bin/llvm-ar-21"
+      - "/home/logan/.local/zig/llvm-ar-21"
+      - "/home/logan/.local/flutter/bin/llvm-ar-21"
+      - "/home/logan/.local/bin/llvm-ar-21"
+      - "/home/logan/bin/llvm-ar-21"
+      - "/usr/local/bin/llvm-ar-21"
+      - "/bin/llvm-ar-21"
+      - "/usr/local/games/llvm-ar-21"
+      - "/usr/games/llvm-ar-21"
+      - "/usr/local/sbin/llvm-ar-21"
+      - "/usr/sbin/llvm-ar-21"
+      - "/sbin/llvm-ar-21"
+      - "/usr/local/bin/llvm-ar-21"
+      - "/usr/local/sbin/llvm-ar-21"
+      - "/usr/local/llvm-ar-21"
+      - "/usr/bin/llvm-ar-21"
+      - "/usr/sbin/llvm-ar-21"
+      - "/usr/llvm-ar-21"
+      - "/bin/llvm-ar-21"
+      - "/sbin/llvm-ar-21"
+      - "/usr/X11R6/bin/llvm-ar-21"
+      - "/usr/X11R6/sbin/llvm-ar-21"
+      - "/usr/X11R6/llvm-ar-21"
+      - "/usr/pkg/bin/llvm-ar-21"
+      - "/usr/pkg/sbin/llvm-ar-21"
+      - "/usr/pkg/llvm-ar-21"
+      - "/opt/bin/llvm-ar-21"
+      - "/opt/sbin/llvm-ar-21"
+      - "/opt/llvm-ar-21"
+      - "/usr/lib/llvm-21/bin/llvm-ar21"
+      - "/usr/bin/llvm-ar21"
+      - "/home/logan/.local/zig/llvm-ar21"
+      - "/home/logan/.local/flutter/bin/llvm-ar21"
+      - "/home/logan/.local/bin/llvm-ar21"
+      - "/home/logan/bin/llvm-ar21"
+      - "/usr/local/bin/llvm-ar21"
+      - "/bin/llvm-ar21"
+      - "/usr/local/games/llvm-ar21"
+      - "/usr/games/llvm-ar21"
+      - "/usr/local/sbin/llvm-ar21"
+      - "/usr/sbin/llvm-ar21"
+      - "/sbin/llvm-ar21"
+      - "/usr/local/bin/llvm-ar21"
+      - "/usr/local/sbin/llvm-ar21"
+      - "/usr/local/llvm-ar21"
+      - "/usr/bin/llvm-ar21"
+      - "/usr/sbin/llvm-ar21"
+      - "/usr/llvm-ar21"
+      - "/bin/llvm-ar21"
+      - "/sbin/llvm-ar21"
+      - "/usr/X11R6/bin/llvm-ar21"
+      - "/usr/X11R6/sbin/llvm-ar21"
+      - "/usr/X11R6/llvm-ar21"
+      - "/usr/pkg/bin/llvm-ar21"
+      - "/usr/pkg/sbin/llvm-ar21"
+      - "/usr/pkg/llvm-ar21"
+      - "/opt/bin/llvm-ar21"
+      - "/opt/sbin/llvm-ar21"
+      - "/opt/llvm-ar21"
+      - "/usr/lib/llvm-21/bin/llvm-ar"
+      - "/usr/bin/llvm-ar"
+      - "/home/logan/.local/zig/llvm-ar"
+      - "/home/logan/.local/flutter/bin/llvm-ar"
+      - "/home/logan/.local/bin/llvm-ar"
+      - "/home/logan/bin/llvm-ar"
+      - "/usr/local/bin/llvm-ar"
+      - "/bin/llvm-ar"
+      - "/usr/local/games/llvm-ar"
+      - "/usr/games/llvm-ar"
+      - "/usr/local/sbin/llvm-ar"
+      - "/usr/sbin/llvm-ar"
+      - "/sbin/llvm-ar"
+      - "/usr/local/bin/llvm-ar"
+      - "/usr/local/sbin/llvm-ar"
+      - "/usr/local/llvm-ar"
+      - "/usr/bin/llvm-ar"
+      - "/usr/sbin/llvm-ar"
+      - "/usr/llvm-ar"
+      - "/bin/llvm-ar"
+      - "/sbin/llvm-ar"
+      - "/usr/X11R6/bin/llvm-ar"
+      - "/usr/X11R6/sbin/llvm-ar"
+      - "/usr/X11R6/llvm-ar"
+      - "/usr/pkg/bin/llvm-ar"
+      - "/usr/pkg/sbin/llvm-ar"
+      - "/usr/pkg/llvm-ar"
+      - "/opt/bin/llvm-ar"
+      - "/opt/sbin/llvm-ar"
+      - "/opt/llvm-ar"
+    found: false
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -2572,9 +2820,10 @@ events:
     candidate_directories:
       - "/usr/lib/llvm-21/bin/"
       - "/usr/bin/"
+      - "/home/logan/.local/zig/"
+      - "/home/logan/.local/flutter/bin/"
       - "/home/logan/.local/bin/"
       - "/home/logan/bin/"
-      - "/home/logan/.local/flutter/bin/"
       - "/usr/local/bin/"
       - "/bin/"
       - "/usr/local/games/"
@@ -2602,9 +2851,10 @@ events:
     searched_directories:
       - "/usr/lib/llvm-21/bin/llvm-ranlib-21.1"
       - "/usr/bin/llvm-ranlib-21.1"
+      - "/home/logan/.local/zig/llvm-ranlib-21.1"
+      - "/home/logan/.local/flutter/bin/llvm-ranlib-21.1"
       - "/home/logan/.local/bin/llvm-ranlib-21.1"
       - "/home/logan/bin/llvm-ranlib-21.1"
-      - "/home/logan/.local/flutter/bin/llvm-ranlib-21.1"
       - "/usr/local/bin/llvm-ranlib-21.1"
       - "/bin/llvm-ranlib-21.1"
       - "/usr/local/games/llvm-ranlib-21.1"
@@ -2630,12 +2880,102 @@ events:
       - "/opt/sbin/llvm-ranlib-21.1"
       - "/opt/llvm-ranlib-21.1"
       - "/usr/lib/llvm-21/bin/llvm-ranlib-21"
-    found: "/usr/bin/llvm-ranlib-21"
+      - "/usr/bin/llvm-ranlib-21"
+      - "/home/logan/.local/zig/llvm-ranlib-21"
+      - "/home/logan/.local/flutter/bin/llvm-ranlib-21"
+      - "/home/logan/.local/bin/llvm-ranlib-21"
+      - "/home/logan/bin/llvm-ranlib-21"
+      - "/usr/local/bin/llvm-ranlib-21"
+      - "/bin/llvm-ranlib-21"
+      - "/usr/local/games/llvm-ranlib-21"
+      - "/usr/games/llvm-ranlib-21"
+      - "/usr/local/sbin/llvm-ranlib-21"
+      - "/usr/sbin/llvm-ranlib-21"
+      - "/sbin/llvm-ranlib-21"
+      - "/usr/local/bin/llvm-ranlib-21"
+      - "/usr/local/sbin/llvm-ranlib-21"
+      - "/usr/local/llvm-ranlib-21"
+      - "/usr/bin/llvm-ranlib-21"
+      - "/usr/sbin/llvm-ranlib-21"
+      - "/usr/llvm-ranlib-21"
+      - "/bin/llvm-ranlib-21"
+      - "/sbin/llvm-ranlib-21"
+      - "/usr/X11R6/bin/llvm-ranlib-21"
+      - "/usr/X11R6/sbin/llvm-ranlib-21"
+      - "/usr/X11R6/llvm-ranlib-21"
+      - "/usr/pkg/bin/llvm-ranlib-21"
+      - "/usr/pkg/sbin/llvm-ranlib-21"
+      - "/usr/pkg/llvm-ranlib-21"
+      - "/opt/bin/llvm-ranlib-21"
+      - "/opt/sbin/llvm-ranlib-21"
+      - "/opt/llvm-ranlib-21"
+      - "/usr/lib/llvm-21/bin/llvm-ranlib21"
+      - "/usr/bin/llvm-ranlib21"
+      - "/home/logan/.local/zig/llvm-ranlib21"
+      - "/home/logan/.local/flutter/bin/llvm-ranlib21"
+      - "/home/logan/.local/bin/llvm-ranlib21"
+      - "/home/logan/bin/llvm-ranlib21"
+      - "/usr/local/bin/llvm-ranlib21"
+      - "/bin/llvm-ranlib21"
+      - "/usr/local/games/llvm-ranlib21"
+      - "/usr/games/llvm-ranlib21"
+      - "/usr/local/sbin/llvm-ranlib21"
+      - "/usr/sbin/llvm-ranlib21"
+      - "/sbin/llvm-ranlib21"
+      - "/usr/local/bin/llvm-ranlib21"
+      - "/usr/local/sbin/llvm-ranlib21"
+      - "/usr/local/llvm-ranlib21"
+      - "/usr/bin/llvm-ranlib21"
+      - "/usr/sbin/llvm-ranlib21"
+      - "/usr/llvm-ranlib21"
+      - "/bin/llvm-ranlib21"
+      - "/sbin/llvm-ranlib21"
+      - "/usr/X11R6/bin/llvm-ranlib21"
+      - "/usr/X11R6/sbin/llvm-ranlib21"
+      - "/usr/X11R6/llvm-ranlib21"
+      - "/usr/pkg/bin/llvm-ranlib21"
+      - "/usr/pkg/sbin/llvm-ranlib21"
+      - "/usr/pkg/llvm-ranlib21"
+      - "/opt/bin/llvm-ranlib21"
+      - "/opt/sbin/llvm-ranlib21"
+      - "/opt/llvm-ranlib21"
+      - "/usr/lib/llvm-21/bin/llvm-ranlib"
+      - "/usr/bin/llvm-ranlib"
+      - "/home/logan/.local/zig/llvm-ranlib"
+      - "/home/logan/.local/flutter/bin/llvm-ranlib"
+      - "/home/logan/.local/bin/llvm-ranlib"
+      - "/home/logan/bin/llvm-ranlib"
+      - "/usr/local/bin/llvm-ranlib"
+      - "/bin/llvm-ranlib"
+      - "/usr/local/games/llvm-ranlib"
+      - "/usr/games/llvm-ranlib"
+      - "/usr/local/sbin/llvm-ranlib"
+      - "/usr/sbin/llvm-ranlib"
+      - "/sbin/llvm-ranlib"
+      - "/usr/local/bin/llvm-ranlib"
+      - "/usr/local/sbin/llvm-ranlib"
+      - "/usr/local/llvm-ranlib"
+      - "/usr/bin/llvm-ranlib"
+      - "/usr/sbin/llvm-ranlib"
+      - "/usr/llvm-ranlib"
+      - "/bin/llvm-ranlib"
+      - "/sbin/llvm-ranlib"
+      - "/usr/X11R6/bin/llvm-ranlib"
+      - "/usr/X11R6/sbin/llvm-ranlib"
+      - "/usr/X11R6/llvm-ranlib"
+      - "/usr/pkg/bin/llvm-ranlib"
+      - "/usr/pkg/sbin/llvm-ranlib"
+      - "/usr/pkg/llvm-ranlib"
+      - "/opt/bin/llvm-ranlib"
+      - "/opt/sbin/llvm-ranlib"
+      - "/opt/llvm-ranlib"
+    found: false
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -2679,9 +3019,10 @@ events:
     candidate_directories:
       - "/usr/lib/llvm-21/bin/"
       - "/usr/bin/"
+      - "/home/logan/.local/zig/"
+      - "/home/logan/.local/flutter/bin/"
       - "/home/logan/.local/bin/"
       - "/home/logan/bin/"
-      - "/home/logan/.local/flutter/bin/"
       - "/usr/local/bin/"
       - "/bin/"
       - "/usr/local/games/"
@@ -2709,9 +3050,10 @@ events:
     searched_directories:
       - "/usr/lib/llvm-21/bin/clang-scan-deps-21.1"
       - "/usr/bin/clang-scan-deps-21.1"
+      - "/home/logan/.local/zig/clang-scan-deps-21.1"
+      - "/home/logan/.local/flutter/bin/clang-scan-deps-21.1"
       - "/home/logan/.local/bin/clang-scan-deps-21.1"
       - "/home/logan/bin/clang-scan-deps-21.1"
-      - "/home/logan/.local/flutter/bin/clang-scan-deps-21.1"
       - "/usr/local/bin/clang-scan-deps-21.1"
       - "/bin/clang-scan-deps-21.1"
       - "/usr/local/games/clang-scan-deps-21.1"
@@ -2740,9 +3082,10 @@ events:
     found: "/usr/bin/clang-scan-deps-21"
     search_context:
       ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
         - "/home/logan/.local/bin"
         - "/home/logan/bin"
-        - "/home/logan/.local/flutter/bin"
         - "/usr/local/bin"
         - "/usr/bin"
         - "/bin"
@@ -2770,8 +3113,8 @@ events:
     checks:
       - "Detecting C compiler ABI info"
     directories:
-      source: "/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-NXdOPA"
-      binary: "/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-NXdOPA"
+      source: "/home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-DkOr22"
+      binary: "/home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-DkOr22"
     cmakeVariables:
       CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/usr/bin/clang-scan-deps-21"
       CMAKE_CXX_STDLIB_MODULES_JSON: ""
@@ -2782,21 +3125,21 @@ events:
       variable: "CMAKE_C_ABI_COMPILED"
       cached: true
       stdout: |
-        Change Dir: '/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-NXdOPA'
+        Change Dir: '/home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-DkOr22'
         
-        Run Build Command(s): /usr/bin/ninja -v cmTC_e6693
-        [1/2] /usr/bin/clang   -v -MD -MT CMakeFiles/cmTC_e6693.dir/CMakeCCompilerABI.c.o -MF CMakeFiles/cmTC_e6693.dir/CMakeCCompilerABI.c.o.d -o CMakeFiles/cmTC_e6693.dir/CMakeCCompilerABI.c.o -c /usr/share/cmake-4.3/Modules/CMakeCCompilerABI.c
-        Debian clang version 21.1.8 (13)
+        Run Build Command(s): /usr/bin/ninja -v cmTC_7de5e
+        [1/2] /usr/bin/clang   -v -MD -MT CMakeFiles/cmTC_7de5e.dir/CMakeCCompilerABI.c.o -MF CMakeFiles/cmTC_7de5e.dir/CMakeCCompilerABI.c.o.d -o CMakeFiles/cmTC_7de5e.dir/CMakeCCompilerABI.c.o -c /usr/share/cmake-4.3/Modules/CMakeCCompilerABI.c
+        Debian clang version 21.1.8 (14)
         Target: x86_64-pc-linux-gnu
         Thread model: posix
         InstalledDir: /usr/lib/llvm-21/bin
-        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/12
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/14
         Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/16
         Selected GCC installation: /usr/lib/gcc/x86_64-linux-gnu/16
         Candidate multilib: .;@m64
         Selected multilib: .;@m64
          (in-process)
-         "/usr/lib/llvm-21/bin/clang" -cc1 -triple x86_64-pc-linux-gnu -emit-obj -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCCompilerABI.c -mrelocation-model pic -pic-level 2 -pic-is-pie -mframe-pointer=all -fmath-errno -ffp-contract=on -fno-rounding-math -mconstructor-aliases -funwind-tables=2 -target-cpu x86-64 -tune-cpu generic -debugger-tuning=gdb -fdebug-compilation-dir=/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-NXdOPA -v -fcoverage-compilation-dir=/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-NXdOPA -resource-dir /usr/lib/llvm-21/lib/clang/21 -dependency-file CMakeFiles/cmTC_e6693.dir/CMakeCCompilerABI.c.o.d -MT CMakeFiles/cmTC_e6693.dir/CMakeCCompilerABI.c.o -sys-header-deps -internal-isystem /usr/lib/llvm-21/lib/clang/21/include -internal-isystem /usr/local/include -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/16/../../../../x86_64-linux-gnu/include -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include -internal-externc-isystem /usr/include -ferror-limit 19 -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -faddrsig -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_e6693.dir/CMakeCCompilerABI.c.o -x c /usr/share/cmake-4.3/Modules/CMakeCCompilerABI.c
+         "/usr/lib/llvm-21/bin/clang" -cc1 -triple x86_64-pc-linux-gnu -emit-obj -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCCompilerABI.c -mrelocation-model pic -pic-level 2 -pic-is-pie -mframe-pointer=all -fmath-errno -ffp-contract=on -fno-rounding-math -mconstructor-aliases -funwind-tables=2 -target-cpu x86-64 -tune-cpu generic -debugger-tuning=gdb -fdebug-compilation-dir=/home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-DkOr22 -v -fcoverage-compilation-dir=/home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-DkOr22 -resource-dir /usr/lib/llvm-21/lib/clang/21 -dependency-file CMakeFiles/cmTC_7de5e.dir/CMakeCCompilerABI.c.o.d -MT CMakeFiles/cmTC_7de5e.dir/CMakeCCompilerABI.c.o -sys-header-deps -internal-isystem /usr/lib/llvm-21/lib/clang/21/include -internal-isystem /usr/local/include -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/16/../../../../x86_64-linux-gnu/include -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include -internal-externc-isystem /usr/include -ferror-limit 19 -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -faddrsig -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_7de5e.dir/CMakeCCompilerABI.c.o -x c /usr/share/cmake-4.3/Modules/CMakeCCompilerABI.c
         clang -cc1 version 21.1.8 based upon LLVM 21.1.8 default target x86_64-pc-linux-gnu
         ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/16/../../../../x86_64-linux-gnu/include"
         ignoring nonexistent directory "/include"
@@ -2807,18 +3150,18 @@ events:
          /usr/include/x86_64-linux-gnu
          /usr/include
         End of search list.
-        [2/2] : && /usr/bin/clang  -v -Wl,-v CMakeFiles/cmTC_e6693.dir/CMakeCCompilerABI.c.o -o cmTC_e6693   && :
-        Debian clang version 21.1.8 (13)
+        [2/2] : && /usr/bin/clang  -v -Wl,-v CMakeFiles/cmTC_7de5e.dir/CMakeCCompilerABI.c.o -o cmTC_7de5e   && :
+        Debian clang version 21.1.8 (14)
         Target: x86_64-pc-linux-gnu
         Thread model: posix
         InstalledDir: /usr/lib/llvm-21/bin
-        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/12
+        Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/14
         Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/16
         Selected GCC installation: /usr/lib/gcc/x86_64-linux-gnu/16
         Candidate multilib: .;@m64
         Selected multilib: .;@m64
-         "/usr/bin/ld" --hash-style=gnu --build-id --eh-frame-hdr -m elf_x86_64 -pie -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_e6693 /lib/x86_64-linux-gnu/Scrt1.o /lib/x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/16/crtbeginS.o -L/usr/lib/gcc/x86_64-linux-gnu/16 -L/usr/lib/gcc/x86_64-linux-gnu/16/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib64 -L/lib -L/usr/lib -v CMakeFiles/cmTC_e6693.dir/CMakeCCompilerABI.c.o -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/lib/gcc/x86_64-linux-gnu/16/crtendS.o /lib/x86_64-linux-gnu/crtn.o
-        GNU ld (GNU Binutils for Debian) 2.47
+         "/usr/bin/ld" --hash-style=gnu --build-id --eh-frame-hdr -m elf_x86_64 -pie -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_7de5e /lib/x86_64-linux-gnu/Scrt1.o /lib/x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/16/crtbeginS.o -L/usr/lib/gcc/x86_64-linux-gnu/16 -L/usr/lib/gcc/x86_64-linux-gnu/16/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib64 -L/lib -L/usr/lib -v CMakeFiles/cmTC_7de5e.dir/CMakeCCompilerABI.c.o -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/lib/gcc/x86_64-linux-gnu/16/crtendS.o /lib/x86_64-linux-gnu/crtn.o
+        GNU ld (GNU Binutils for Debian) 2.47.50.20261021
         
       exitCode: 0
   -
@@ -2853,15 +3196,15 @@ events:
       Parsed C implicit link information:
         link line regex: [^( *|.*[/\\])(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\\]+-)?ld|collect2)[^/\\]*( |$)]
         linker tool regex: [^[ 	]*(->|"|[0-9]+>[ 	-]*Build:[ 	0-9]+ ms[ 	]*)?[ 	]*(([^"]*[/\\])?(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)))("|,| |$)]
-        ignore line: [Change Dir: '/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-NXdOPA']
+        ignore line: [Change Dir: '/home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-DkOr22']
         ignore line: []
-        ignore line: [Run Build Command(s): /usr/bin/ninja -v cmTC_e6693]
-        ignore line: [[1/2] /usr/bin/clang   -v -MD -MT CMakeFiles/cmTC_e6693.dir/CMakeCCompilerABI.c.o -MF CMakeFiles/cmTC_e6693.dir/CMakeCCompilerABI.c.o.d -o CMakeFiles/cmTC_e6693.dir/CMakeCCompilerABI.c.o -c /usr/share/cmake-4.3/Modules/CMakeCCompilerABI.c]
-        ignore line: [Debian clang version 21.1.8 (13)]
+        ignore line: [Run Build Command(s): /usr/bin/ninja -v cmTC_7de5e]
+        ignore line: [[1/2] /usr/bin/clang   -v -MD -MT CMakeFiles/cmTC_7de5e.dir/CMakeCCompilerABI.c.o -MF CMakeFiles/cmTC_7de5e.dir/CMakeCCompilerABI.c.o.d -o CMakeFiles/cmTC_7de5e.dir/CMakeCCompilerABI.c.o -c /usr/share/cmake-4.3/Modules/CMakeCCompilerABI.c]
+        ignore line: [Debian clang version 21.1.8 (14)]
         ignore line: [Target: x86_64-pc-linux-gnu]
         ignore line: [Thread model: posix]
         ignore line: [InstalledDir: /usr/lib/llvm-21/bin]
-        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/12]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/14]
         ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/16]
         ignore line: [Selected GCC installation: /usr/lib/gcc/x86_64-linux-gnu/16]
         ignore line: [Candidate multilib: .]
@@ -2869,7 +3212,7 @@ events:
         ignore line: [Selected multilib: .]
         ignore line: [@m64]
         ignore line: [ (in-process)]
-        ignore line: [ "/usr/lib/llvm-21/bin/clang" -cc1 -triple x86_64-pc-linux-gnu -emit-obj -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCCompilerABI.c -mrelocation-model pic -pic-level 2 -pic-is-pie -mframe-pointer=all -fmath-errno -ffp-contract=on -fno-rounding-math -mconstructor-aliases -funwind-tables=2 -target-cpu x86-64 -tune-cpu generic -debugger-tuning=gdb -fdebug-compilation-dir=/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-NXdOPA -v -fcoverage-compilation-dir=/home/logan/Developer/pangolin_desktop-main/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-NXdOPA -resource-dir /usr/lib/llvm-21/lib/clang/21 -dependency-file CMakeFiles/cmTC_e6693.dir/CMakeCCompilerABI.c.o.d -MT CMakeFiles/cmTC_e6693.dir/CMakeCCompilerABI.c.o -sys-header-deps -internal-isystem /usr/lib/llvm-21/lib/clang/21/include -internal-isystem /usr/local/include -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/16/../../../../x86_64-linux-gnu/include -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include -internal-externc-isystem /usr/include -ferror-limit 19 -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -faddrsig -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_e6693.dir/CMakeCCompilerABI.c.o -x c /usr/share/cmake-4.3/Modules/CMakeCCompilerABI.c]
+        ignore line: [ "/usr/lib/llvm-21/bin/clang" -cc1 -triple x86_64-pc-linux-gnu -emit-obj -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCCompilerABI.c -mrelocation-model pic -pic-level 2 -pic-is-pie -mframe-pointer=all -fmath-errno -ffp-contract=on -fno-rounding-math -mconstructor-aliases -funwind-tables=2 -target-cpu x86-64 -tune-cpu generic -debugger-tuning=gdb -fdebug-compilation-dir=/home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-DkOr22 -v -fcoverage-compilation-dir=/home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-DkOr22 -resource-dir /usr/lib/llvm-21/lib/clang/21 -dependency-file CMakeFiles/cmTC_7de5e.dir/CMakeCCompilerABI.c.o.d -MT CMakeFiles/cmTC_7de5e.dir/CMakeCCompilerABI.c.o -sys-header-deps -internal-isystem /usr/lib/llvm-21/lib/clang/21/include -internal-isystem /usr/local/include -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/16/../../../../x86_64-linux-gnu/include -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include -internal-externc-isystem /usr/include -ferror-limit 19 -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -faddrsig -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_7de5e.dir/CMakeCCompilerABI.c.o -x c /usr/share/cmake-4.3/Modules/CMakeCCompilerABI.c]
         ignore line: [clang -cc1 version 21.1.8 based upon LLVM 21.1.8 default target x86_64-pc-linux-gnu]
         ignore line: [ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/16/../../../../x86_64-linux-gnu/include"]
         ignore line: [ignoring nonexistent directory "/include"]
@@ -2880,19 +3223,19 @@ events:
         ignore line: [ /usr/include/x86_64-linux-gnu]
         ignore line: [ /usr/include]
         ignore line: [End of search list.]
-        ignore line: [[2/2] : && /usr/bin/clang  -v -Wl -v CMakeFiles/cmTC_e6693.dir/CMakeCCompilerABI.c.o -o cmTC_e6693   && :]
-        ignore line: [Debian clang version 21.1.8 (13)]
+        ignore line: [[2/2] : && /usr/bin/clang  -v -Wl -v CMakeFiles/cmTC_7de5e.dir/CMakeCCompilerABI.c.o -o cmTC_7de5e   && :]
+        ignore line: [Debian clang version 21.1.8 (14)]
         ignore line: [Target: x86_64-pc-linux-gnu]
         ignore line: [Thread model: posix]
         ignore line: [InstalledDir: /usr/lib/llvm-21/bin]
-        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/12]
+        ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/14]
         ignore line: [Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/16]
         ignore line: [Selected GCC installation: /usr/lib/gcc/x86_64-linux-gnu/16]
         ignore line: [Candidate multilib: .]
         ignore line: [@m64]
         ignore line: [Selected multilib: .]
         ignore line: [@m64]
-        link line: [ "/usr/bin/ld" --hash-style=gnu --build-id --eh-frame-hdr -m elf_x86_64 -pie -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_e6693 /lib/x86_64-linux-gnu/Scrt1.o /lib/x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/16/crtbeginS.o -L/usr/lib/gcc/x86_64-linux-gnu/16 -L/usr/lib/gcc/x86_64-linux-gnu/16/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib64 -L/lib -L/usr/lib -v CMakeFiles/cmTC_e6693.dir/CMakeCCompilerABI.c.o -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/lib/gcc/x86_64-linux-gnu/16/crtendS.o /lib/x86_64-linux-gnu/crtn.o]
+        link line: [ "/usr/bin/ld" --hash-style=gnu --build-id --eh-frame-hdr -m elf_x86_64 -pie -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_7de5e /lib/x86_64-linux-gnu/Scrt1.o /lib/x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/16/crtbeginS.o -L/usr/lib/gcc/x86_64-linux-gnu/16 -L/usr/lib/gcc/x86_64-linux-gnu/16/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib64 -L/lib -L/usr/lib -v CMakeFiles/cmTC_7de5e.dir/CMakeCCompilerABI.c.o -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/lib/gcc/x86_64-linux-gnu/16/crtendS.o /lib/x86_64-linux-gnu/crtn.o]
           arg [/usr/bin/ld] ==> ignore
           arg [--hash-style=gnu] ==> ignore
           arg [--build-id] ==> ignore
@@ -2903,7 +3246,7 @@ events:
           arg [-dynamic-linker] ==> ignore
           arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
           arg [-o] ==> ignore
-          arg [cmTC_e6693] ==> ignore
+          arg [cmTC_7de5e] ==> ignore
           arg [/lib/x86_64-linux-gnu/Scrt1.o] ==> obj [/lib/x86_64-linux-gnu/Scrt1.o]
           arg [/lib/x86_64-linux-gnu/crti.o] ==> obj [/lib/x86_64-linux-gnu/crti.o]
           arg [/usr/lib/gcc/x86_64-linux-gnu/16/crtbeginS.o] ==> obj [/usr/lib/gcc/x86_64-linux-gnu/16/crtbeginS.o]
@@ -2916,7 +3259,7 @@ events:
           arg [-L/lib] ==> dir [/lib]
           arg [-L/usr/lib] ==> dir [/usr/lib]
           arg [-v] ==> ignore
-          arg [CMakeFiles/cmTC_e6693.dir/CMakeCCompilerABI.c.o] ==> ignore
+          arg [CMakeFiles/cmTC_7de5e.dir/CMakeCCompilerABI.c.o] ==> ignore
           arg [-lgcc] ==> lib [gcc]
           arg [--as-needed] ==> ignore
           arg [-lgcc_s] ==> lib [gcc_s]
@@ -2952,5 +3295,139 @@ events:
       - "flutter/ephemeral/.plugin_symlinks/handy_window/linux/libhandy/CMakeLists.txt:2 (project)"
     message: |
       Running the C compiler's linker: "/usr/bin/ld" "-v"
-      GNU ld (GNU Binutils for Debian) 2.47
+      GNU ld (GNU Binutils for Debian) 2.47.50.20261021
+  -
+    kind: "find-v1"
+    backtrace:
+      - "/usr/share/cmake-4.3/Modules/FindJNI.cmake:538 (find_library)"
+      - "flutter/ephemeral/.plugin_symlinks/jni/src/CMakeLists.txt:24 (find_package)"
+    mode: "library"
+    variable: "JAVA_JVM_LIBRARY"
+    description: "Java Virtual Machine library"
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "jvm"
+    candidate_directories:
+      - "/home/logan/.local/zig/"
+      - "/home/logan/.local/flutter/bin/"
+      - "/home/logan/.local/bin/"
+      - "/home/logan/bin/"
+      - "/usr/local/bin/"
+      - "/usr/bin/"
+      - "/bin/"
+      - "/usr/local/games/"
+      - "/usr/games/"
+      - "/usr/local/sbin/"
+      - "/usr/sbin/"
+      - "/sbin/"
+      - "/usr/local/lib/x86_64-linux-gnu/"
+      - "/usr/local/lib/"
+      - "/usr/local/"
+      - "/usr/lib/x86_64-linux-gnu/"
+      - "/usr/lib/"
+      - "/usr/"
+      - "/lib/x86_64-linux-gnu/"
+      - "/lib/"
+      - "/usr/X11R6/lib/x86_64-linux-gnu/"
+      - "/usr/X11R6/lib/"
+      - "/usr/X11R6/"
+      - "/usr/pkg/lib/x86_64-linux-gnu/"
+      - "/usr/pkg/lib/"
+      - "/usr/pkg/"
+      - "/opt/lib/x86_64-linux-gnu/"
+      - "/opt/lib/"
+      - "/opt/"
+      - "/usr/lib/X11/"
+    searched_directories:
+      - "/home/logan/.local/zig/"
+      - "/home/logan/.local/flutter/bin/"
+      - "/home/logan/.local/bin/"
+      - "/home/logan/bin/"
+      - "/usr/local/bin/"
+      - "/usr/bin/"
+      - "/bin/"
+      - "/usr/local/games/"
+      - "/usr/games/"
+      - "/usr/local/sbin/"
+      - "/usr/sbin/"
+      - "/sbin/"
+      - "/usr/local/lib/x86_64-linux-gnu/"
+      - "/usr/local/lib/"
+      - "/usr/local/"
+      - "/usr/lib/x86_64-linux-gnu/"
+      - "/usr/lib/"
+      - "/usr/"
+      - "/lib/x86_64-linux-gnu/"
+      - "/lib/"
+      - "/usr/X11R6/lib/x86_64-linux-gnu/"
+      - "/usr/X11R6/lib/"
+      - "/usr/X11R6/"
+      - "/usr/pkg/lib/x86_64-linux-gnu/"
+      - "/usr/pkg/lib/"
+      - "/usr/pkg/"
+      - "/opt/lib/x86_64-linux-gnu/"
+      - "/opt/lib/"
+      - "/opt/"
+      - "/usr/lib/X11/"
+    found: false
+    search_context:
+      ENV{PATH}:
+        - "/home/logan/.local/zig"
+        - "/home/logan/.local/flutter/bin"
+        - "/home/logan/.local/bin"
+        - "/home/logan/bin"
+        - "/usr/local/bin"
+        - "/usr/bin"
+        - "/bin"
+        - "/usr/local/games"
+        - "/usr/games"
+        - "/usr/local/sbin"
+        - "/usr/sbin"
+        - "/sbin"
+      CMAKE_INSTALL_PREFIX: "/usr/local"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "/usr/local"
+        - "/usr"
+        - "/"
+        - "/usr"
+        - "/usr/local"
+        - "/usr/X11R6"
+        - "/usr/pkg"
+        - "/opt"
+      CMAKE_SYSTEM_LIBRARY_PATH:
+        - "/usr/lib/X11"
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake-4.3/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
+      - "/usr/share/cmake-4.3/Modules/CheckSourceCompiles.cmake:205 (cmake_check_source_compiles)"
+      - "/usr/share/cmake-4.3/Modules/FindJNI.cmake:590 (check_source_compiles)"
+      - "flutter/ephemeral/.plugin_symlinks/jni/src/CMakeLists.txt:24 (find_package)"
+    directories:
+      source: "/home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-xX4fPt"
+      binary: "/home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-xX4fPt"
+    cmakeVariables:
+      CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/usr/bin/clang-scan-deps-21"
+      CMAKE_CXX_STDLIB_MODULES_JSON: ""
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+    buildResult:
+      variable: "JNI_INCLUDE_PATH2_OPTIONAL"
+      cached: true
+      stdout: |
+        Change Dir: '/home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-xX4fPt'
+        
+        Run Build Command(s): /usr/bin/ninja -v cmTC_0eb74
+        [1/2] /usr/bin/clang -DJNI_INCLUDE_PATH2_OPTIONAL -I/home/logan/Projects/slopped-pangolin/apps/linux/flutter/ephemeral/.plugin_symlinks/jni/src/../third_party  -MD -MT CMakeFiles/cmTC_0eb74.dir/src.c.o -MF CMakeFiles/cmTC_0eb74.dir/src.c.o.d -o CMakeFiles/cmTC_0eb74.dir/src.c.o -c /home/logan/Projects/slopped-pangolin/apps/build/linux/x64/release/CMakeFiles/CMakeScratch/TryCompile-xX4fPt/src.c
+        [2/2] : && /usr/bin/clang   CMakeFiles/cmTC_0eb74.dir/src.c.o -o cmTC_0eb74   && :
+        
+      exitCode: 0
 ...
