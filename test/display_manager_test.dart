@@ -8,6 +8,27 @@ import 'package:pangolin/services/greetd.dart';
 // The login screen's side of pangolin-dm's protocol, against a stand-in
 // daemon on a socket (dm/tests/run.sh covers the daemon itself).
 void main() {
+  test("the user list: regular and homed users, login shells, each once", () {
+    final List<LoginUser> users = LoginUser.parse([
+      "root:x:0:0:root:/root:/bin/bash",
+      "ada:x:1000:1000:Ada Lovelace,,,:/home/ada:/bin/bash",
+      "svc:x:1001:1001::/var/lib/svc:/usr/sbin/nologin",
+      "off:x:1002:1002::/home/off:/bin/false",
+      // systemd-homed's range, through nss-systemd, then again from a
+      // passwd file.
+      "logan::60052:60052:Logan:/home/logan:/usr/bin/bash",
+      "logan:x:60052:60052:Logan:/home/logan:/bin/bash",
+      // Between the ranges: systemd's own dynamic users.
+      "dyn:x:61200:61200::/:/bin/sh",
+      "nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin",
+      "short:x:1003",
+      "",
+    ].join("\n"));
+    expect(users.map((u) => u.name), ["ada", "logan"]);
+    expect(users.first.displayName, "Ada Lovelace");
+    expect(users.last.displayName, "Logan");
+  });
+
   test("frames round-trip, keys repeat, the type comes first", () {
     final Uint8List frame = PangolinDm.encode("start", [("session", "pangolin"), ("env", "A=1"), ("env", "B=2")]);
     final int length = ByteData.sublistView(frame, 0, 4).getUint32(0, Endian.little);

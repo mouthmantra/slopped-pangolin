@@ -36,14 +36,23 @@ class UserAvatar extends StatelessWidget {
   /// The account's picture (AccountsService, as GNOME sets it), if any.
   final File? picture;
 
-  /// [user]'s picture as GNOME's Settings and GDM keep it.
+  /// [user]'s picture as GNOME's Settings and GDM keep it, or for a
+  /// systemd-homed user, the one in homed's blob folder (readable while the
+  /// home is locked).
   static File? pictureOf(String user) {
-    final File file = File("/var/lib/AccountsService/icons/$user");
-    try {
-      return file.statSync().type == FileSystemEntityType.file ? file : null;
-    } on FileSystemException {
-      return null;
+    if (user.isEmpty || user.contains("/")) return null;
+    for (final String path in [
+      "/var/lib/AccountsService/icons/$user",
+      "/var/cache/systemd/home/$user/avatar",
+    ]) {
+      final File file = File(path);
+      try {
+        if (file.statSync().type == FileSystemEntityType.file) return file;
+      } on FileSystemException {
+        continue;
+      }
     }
+    return null;
   }
 
   @override

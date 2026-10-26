@@ -22,6 +22,7 @@ import 'package:display_config/display_config.dart' show SharedUserFiles;
 import 'package:flutter/material.dart';
 import 'package:pangolin/components/login/login_kit.dart';
 import 'package:pangolin/services/display_manager.dart';
+import 'package:pangolin/services/font_share.dart';
 import 'package:pangolin/services/greetd.dart';
 import 'package:pangolin/services/session.dart';
 import 'package:pangolin/services/splash_cache.dart';
@@ -375,8 +376,48 @@ class _GreeterScreenState extends State<GreeterScreen>
     _focus.requestFocus();
   }
 
+  /// Each user's interface font (FontShare), when it's installed for
+  /// everyone; read once.
+  late final Map<String, String> _fonts = () {
+    final Map<String, String> fonts = {};
+    final Map<String, bool> installed = {};
+    for (final LoginUser user in _users) {
+      final String? font = FontShare.of(user.name);
+      if (font == null || font.isEmpty) continue;
+      final bool available = installed[font] ??= () {
+        try {
+          final ProcessResult r = Process.runSync("fc-list", [font, "family"]);
+          return r.exitCode == 0 && (r.stdout as String).trim().isNotEmpty;
+        } on ProcessException {
+          return false;
+        }
+      }();
+      if (available) fonts[user.name] = font;
+    }
+    return fonts;
+  }();
+
   @override
   Widget build(BuildContext context) {
+    // The selected user's interface font, as their desktop has it. The same
+    // tree with or without one, so the password field keeps its state.
+    final String? font = _fonts[_selected?.name];
+    final ThemeData theme = Theme.of(context);
+    return Theme(
+      data: theme.copyWith(
+        textTheme: theme.textTheme.apply(fontFamily: font),
+        primaryTextTheme: theme.primaryTextTheme.apply(fontFamily: font),
+      ),
+      child: Builder(
+        builder: (context) => DefaultTextStyle.merge(
+          style: TextStyle(fontFamily: font),
+          child: _buildScreen(context),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScreen(BuildContext context) {
     final LoginUser? user = _selected;
 
     final Widget content = Column(

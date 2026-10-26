@@ -110,9 +110,9 @@ The daemon logs to the journal: `journalctl -b -u pangolin-dm`.
   before the greeter's goes, then DRM master passed over with no modeset
   when the mode stays the same (roadmap 1.9 has the options: the same VT,
   or logind's TakeDevice/PauseDevice).
-- systemd-homed beyond PAM: homed users in the user list (userdb), their
-  avatars from homed's blob folders, unlocking after a suspend that locked
-  the home (a greeter-side screen, as GNOME has).
+- systemd-homed beyond PAM: unlocking after a suspend that locked the home
+  (a greeter-side screen, as GNOME has). Homed users are in the user list
+  (through NSS) with their avatars from homed's blob folders.
 - More conversations next to the password one: fingerprint and smartcard
   (their own PAM services, run at the same time, as GDM's).
 - Autologin and timed login, fast user switching, multi-seat (logind's

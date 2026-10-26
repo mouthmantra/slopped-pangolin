@@ -156,20 +156,39 @@ class LoginUser {
 
   String get displayName => fullName.isNotEmpty ? fullName : name;
 
-  /// Regular accounts from the password database.
+  /// Regular accounts from the user database: through NSS (getent), so
+  /// systemd-homed users (nss-systemd) and directory users show too, else
+  /// /etc/passwd.
   static List<LoginUser> all() {
-    final List<LoginUser> users = [];
+    String? passwd;
     try {
-      for (final String line in File("/etc/passwd").readAsLinesSync()) {
-        final List<String> f = line.split(":");
-        if (f.length < 7) continue;
-        final int uid = int.tryParse(f[2]) ?? -1;
-        if (uid < 1000 || uid >= 60000) continue;
-        if (f[6].endsWith("nologin") || f[6].endsWith("false")) continue;
-        users.add(LoginUser(name: f[0], fullName: f[4].split(",").first.trim()));
-      }
+      final ProcessResult result = Process.runSync("getent", ["passwd"]);
+      if (result.exitCode == 0) passwd = result.stdout as String;
+    } on ProcessException {
+      // No getent: the file alone.
+    }
+    try {
+      passwd ??= File("/etc/passwd").readAsStringSync();
     } on FileSystemException {
       // No users to show: the greeter asks for a user name.
+    }
+    return parse(passwd ?? "");
+  }
+
+  /// The regular users of passwd(5) lines: UIDs 1000-59999 and homed's
+  /// 60001-60513, a login shell, each name once.
+  static List<LoginUser> parse(String passwd) {
+    final List<LoginUser> users = [];
+    final Set<String> seen = {};
+    for (final String line in passwd.split("\n")) {
+      final List<String> f = line.split(":");
+      if (f.length < 7) continue;
+      final int uid = int.tryParse(f[2]) ?? -1;
+      final bool regular = (uid >= 1000 && uid < 60000) || (uid >= 60001 && uid <= 60513);
+      if (!regular) continue;
+      if (f[6].endsWith("nologin") || f[6].endsWith("false")) continue;
+      if (!seen.add(f[0])) continue;
+      users.add(LoginUser(name: f[0], fullName: f[4].split(",").first.trim()));
     }
     return users;
   }

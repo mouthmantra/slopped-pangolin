@@ -273,6 +273,24 @@ theme (6.1).
       AOT snapshot and libflutter into the page cache while the password
       is typed; read nothing from the user's home before PAM succeeds;
       no session bus activation in the greeter.
+- [~] 1.10 The login screen's user list back, with each user's look (user,
+      2026-10-25): the user pods are gone from the login screen; bring
+      them back (check under pangolin-dm: LoginUser.all() reads only
+      /etc/passwd, so homed users need userdb too, see 1.9). Clicking a
+      user switches the screen to that user's desktop wallpaper (1.2), and
+      the login screen uses the user's interface font (the user has
+      Manrope set in Pangolin): the session shares it in
+      /var/lib/pangolin/users with the wallpaper and display setup.
+      Done: the list was empty because the user is a systemd-homed user
+      (UID 60052, not in /etc/passwd, and UIDs past 59999 were skipped).
+      LoginUser.all() reads `getent passwd` (nss-systemd lists homed
+      users), takes homed's 60001-60513 next to 1000-59999, and lists a
+      name once (test/display_manager_test.dart). Avatars fall back to
+      homed's /var/cache/systemd/home/<user>/avatar. The session shares
+      its interface font (lib/services/font_share.dart, "font" next to
+      the wallpaper); the login screen uses it for the selected user when
+      fontconfig finds it for everyone (Manrope is in /usr/share/fonts).
+      [ ] Not tried on the real login screen yet.
 
 ## 2. Displays
 

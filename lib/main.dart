@@ -46,6 +46,7 @@ import 'package:pangolin/services/splash_cache.dart';
 import 'package:pangolin/services/privacy.dart';
 import 'package:pangolin/services/vpn.dart';
 import 'package:pangolin/services/wallpaper_accent.dart';
+import 'package:pangolin/services/font_share.dart';
 import 'package:pangolin/services/wallpaper_share.dart';
 import 'package:pangolin/components/greeter/greeter_screen.dart';
 import 'package:pangolin/components/lock/lock_screen.dart';
@@ -174,6 +175,7 @@ Future<void> _runSession() async {
   unawaited(PrivacyMonitor.instance.start());
   SplashCache.follow();
   WallpaperShare.follow();
+  FontShare.follow();
   WallpaperAccent.follow();
 
   runWidget(const PangolinSessionRoot());
