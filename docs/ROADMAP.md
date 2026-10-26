@@ -374,6 +374,27 @@ theme (6.1).
       for windows. Selected area: xdpw has no region mode, so it would need
       cropping, or Pangolin's own ScreenCast backend in session/portal
       (PipeWire).
+- [~] 2.8 Windows scattered after display changes (user, 2026-10-25):
+      changing the scale or a monitor's position spreads windows across
+      the desktop, sometimes entirely out of reach, until another scale
+      change or rearrangement brings them back. Keep each window on its
+      output, at the same place relative to it (scaled with it), and pull
+      anything that ends up off every output back onto the nearest one;
+      maximized and snapped windows refit to their output's new work area.
+      Done (2026-10-25): windows kept their layout positions while outputs
+      moved around them in river's layout. Now the WM remembers each
+      output's geometry from the last manage sequence; when one moves,
+      changes size or goes away, each floating window goes to the same
+      place relative to its output (the one it overlaps most), or to the
+      nearest output left, kept inside it with its title bar reachable and
+      shrunk when it's larger (lib/services/wm/output_follow.dart,
+      test/output_follow_test.dart; _followOutputs in river.dart). Restore
+      rects of maximized and snapped windows follow too, and those windows
+      refit to the work area. Headless, two outputs: rescaling the output
+      with Settings on it (1 to 2) moved the window to its top left and
+      shrank it to fit, nothing on the other output; moving Calculator's
+      output from the left to the right took Calculator along; at 1.5 it
+      kept its relative place. [ ] Not tried on the real monitors yet.
 
 ## 3. Performance
 

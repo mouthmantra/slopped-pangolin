@@ -29,6 +29,7 @@ import 'package:pangolin/services/wm.dart';
 import 'package:pangolin/services/wm/gestures.dart';
 import 'package:pangolin/services/wm/keysyms.dart';
 import 'package:pangolin/services/wm/mirrors.dart';
+import 'package:pangolin/services/wm/output_follow.dart';
 import 'package:pangolin/services/wm/taskbar_geometry.dart';
 import 'package:pangolin_settings/pangolin_settings.dart';
 import 'package:wayland/wayland.dart';
@@ -85,6 +86,10 @@ class RiverWindowManagerService extends WindowManagerService
   final List<RiverWindow> _newWindows = [];
   final List<_Output> _outputs = [];
   final List<_Seat> _seats = [];
+
+  /// Outputs gone since the last manage sequence, where windows were last
+  /// placed against them (_followOutputs).
+  final List<Rect> _goneOutputs = [];
 
   final List<void Function()> _pendingActions = [];
 
@@ -610,13 +615,17 @@ class RiverWindowManagerService extends WindowManagerService
         output.x = x;
         output.y = y;
         _changed = true;
+        _requestManage();
       }
       ..onDimensions = (w, h) {
         output.width = w;
         output.height = h;
         _changed = true;
+        _requestManage();
       }
       ..onRemoved = () {
+        if (output.laidOut case final Rect rect) _goneOutputs.add(rect);
+        _requestManage();
         _outputs.remove(output);
         output.layerShellOutput?.destroy();
         proxy.destroy();
@@ -941,6 +950,7 @@ class RiverWindowManagerService extends WindowManagerService
     final Stopwatch watch = Stopwatch()..start();
     try {
       _manageOutputs();
+      _followOutputs();
       _manageSeats();
       _manageNewWindows();
       for (final RiverWindow w in _stack) {
@@ -1005,6 +1015,108 @@ class RiverWindowManagerService extends WindowManagerService
       }
       _defaultSet = true;
     }
+  }
+
+  /// The work area of [output]: the primary one keeps room for the taskbar.
+  Rect _workAreaOf(_Output output) =>
+      output == _primaryOutput ? workArea : output.rect;
+
+  /// Windows follow their output when it moves, changes size (a new scale)
+  /// or goes away (roadmap 2.8): to the same place relative to it, or to the
+  /// nearest output left, instead of staying at their layout position, on
+  /// another output or on none. Maximized and snapped windows take their
+  /// work area again.
+  void _followOutputs() {
+    // Each output as windows were last placed against it, and what it is
+    // now (null: gone).
+    final List<Rect> before = [];
+    final List<_Output?> after = [];
+    bool changed = false;
+    for (final _Output o in _outputs) {
+      final Rect rect = o.rect;
+      if (rect.isEmpty) continue;
+      final Rect? laidOut = o.laidOut;
+      o.laidOut = rect;
+      // A new output: nothing was placed against it yet.
+      if (laidOut == null) continue;
+      if (laidOut != rect) changed = true;
+      before.add(laidOut);
+      after.add(o);
+    }
+    for (final Rect gone in _goneOutputs) {
+      before.add(gone);
+      after.add(null);
+      changed = true;
+    }
+    _goneOutputs.clear();
+    final List<_Output> left = [
+      for (final _Output o in _outputs)
+        if (!o.rect.isEmpty) o,
+    ];
+    if (!changed || left.isEmpty) return;
+
+    Rect follow(Rect window, double topInset) {
+      final int? home = OutputFollow.homeOf(window, before);
+      if (home == null) return window;
+      final _Output target = after[home] ??
+          left[OutputFollow.nearest(
+            before[home].center,
+            [for (final _Output o in left) o.rect],
+          )!];
+      final Rect area = _workAreaOf(target);
+      if (after[home] != null && before[home] == target.rect) {
+        // Its output didn't change: only pulled back if it's off it.
+        return window.overlaps(target.rect)
+            ? window
+            : OutputFollow.fit(window, area, topInset: topInset);
+      }
+      return OutputFollow.follow(
+        window,
+        before[home],
+        target.rect,
+        area,
+        topInset: topInset,
+      );
+    }
+
+    final Rect primaryArea = workArea;
+    for (final RiverWindow w in _stack) {
+      if (w.proxy.version >= 4 && !primaryArea.isEmpty) {
+        w.proxy.setDimensionBounds(
+          primaryArea.width.toInt(),
+          primaryArea.height.toInt(),
+        );
+      }
+      if (w._fullscreen) continue;
+      final double inset = _decorationTop(w);
+      // Where unmaximizing or unsnapping brings it back.
+      final Rect? floating = w._floatingRect;
+      if (floating != null) w._floatingRect = follow(floating, inset);
+      if (w._maximized || w._snap != _Snap.none) continue;
+
+      final Rect rect = follow(w.rect, inset);
+      if (rect == w.rect) continue;
+      final _Output? output =
+          _outputs.where((o) => o.rect.contains(rect.topLeft)).firstOrNull;
+      final Rect area = output != null ? _workAreaOf(output) : primaryArea;
+      // Larger than its output at the new scale: shrunk to fit.
+      if (w._width > area.width || w._height > area.height - inset) {
+        _proposeSize(
+          w,
+          Size(
+            math.min(w._width.toDouble(), area.width),
+            math.min(w._height.toDouble(), area.height - inset),
+          ),
+        );
+      }
+      w._x = rect.left.round();
+      w._y = rect.top.round();
+      _position(w);
+      w._notify();
+      _changed = true;
+    }
+    _refitToWorkArea();
+    logger.info("Windows followed the outputs (${_outputs.length} now)");
   }
 
   void _manageSeats() {
@@ -2633,6 +2745,17 @@ class _Output {
   int y = 0;
   int width = 0;
   int height = 0;
+
+  /// Where it was when windows were last placed against it (null before the
+  /// first manage sequence that knew it).
+  Rect? laidOut;
+
+  Rect get rect => Rect.fromLTWH(
+        x.toDouble(),
+        y.toDouble(),
+        width.toDouble(),
+        height.toDouble(),
+      );
 }
 
 class _Seat {
