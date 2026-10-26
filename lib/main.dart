@@ -529,6 +529,23 @@ class _LazyRenderView extends RenderView {
 
   final _LazyPipelineOwner pipeline;
 
+  /// Flutter's Linux embedder presents nothing for a frame that draws
+  /// nothing (no layer to present: the engine skips empty ones), so the
+  /// last frame that drew something stays on screen, such as the top rows
+  /// of the taskbar after it slid out of view. A corner pixel at alpha
+  /// 1/255 keeps every frame drawn.
+  static final Paint _keepDrawn = Paint()..color = const Color(0x01000000);
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    super.paint(context, offset);
+    final double pixel = 1 / configuration.devicePixelRatio;
+    context.canvas.drawRect(
+      Rect.fromLTWH(offset.dx, offset.dy + size.height - pixel, pixel, pixel),
+      _keepDrawn,
+    );
+  }
+
   @override
   void compositeFrame() {
     if (!pipeline.dirty) return;

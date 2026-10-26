@@ -1065,10 +1065,8 @@ theme (6.1).
       - [~] Hide automatically (taskbar_autohide): windows get the whole
         screen, a 2 px strip at the bottom edge brings the bar back, it
         stays out while hovered or while an overlay/menu is open. Verified
-        headless, but: after the slide away the top ~10 px of the bar can
-        stay on screen (stale pixels in the shell's own buffer, still
-        there with river re-rendering everything; engine renders full
-        frames). Next: find which frame GTK/FlView last presented.
+        headless. The top ~10 px of the bar that stayed on screen after
+        the slide away: fixed, see 7.9.
       - [x] App menu: Full screen (grid over the screen; also a button in
         the menu, which replaces the dead edit button; launcher_fullscreen)
         and Sort apps A to Z / Category (freedesktop main categories,
@@ -1108,6 +1106,28 @@ theme (6.1).
       fakesys/fakenm.dart): join open, join WPA (key-mgmt sent), disconnect,
       Wi-Fi off, airplane on/off. [ ] Real NM; password prompt end to end;
       enterprise networks go to Settings.
+- [~] 7.9 Finish the taskbar's automatic hiding (user, 2026-10-25): a thin
+      strip of the taskbar still shows while it's hidden (7.5's
+      taskbar_autohide); hidden must be fully off screen, with only the
+      invisible 2 px edge left to bring it back.
+      Cause: once the bar is out of view the shell surface draws nothing,
+      and Flutter's Linux embedder presents nothing for such a frame (the
+      engine makes no layer for a frame without drawing,
+      HasEngineRenderedContents; fl_compositor_opengl_present_layers
+      returns early on zero layers): the framebuffer and the damage stay as
+      they were, and the last frame that drew something (the bar's top 9
+      rows) stays on screen. Any surface of the shell that goes from
+      something to nothing did this (a popup closing with the bar hidden).
+      Found headless on the Intel GPU (river gles2, WAYLAND_DEBUG: the
+      shell's damage stops at the frame with 9 rows left). Fixed in the
+      shell: its views' root draws one corner pixel at alpha 1/255
+      (_LazyRenderView in lib/main.dart), so no frame is empty; verified
+      headless, the bar goes 19, 9, 0 rows and stays gone, 4 of 4 times
+      (before: stuck at 9, 2 of 2), and the corner pixel is at most one
+      level darker than the wallpaper. The proper fix is in the embedder:
+      on zero layers, clear the framebuffer and report what the previous
+      frame drew as damage (pangolin-linux-embedder.patch, with the next
+      engine build). [ ] Not tried on the real machine yet.
 
 ## 8. Window management and polish
 
