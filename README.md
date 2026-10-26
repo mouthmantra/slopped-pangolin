@@ -19,7 +19,7 @@
   <img width="100%" src="./media/APPS.png" >
 </p>
 
-> Calculator and Appearance Settings.
+> Redesigned Files app and Settings.
 
 ## Pangolin as a desktop session
 
