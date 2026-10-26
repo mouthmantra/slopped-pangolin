@@ -227,8 +227,7 @@ class _InputPageState extends State<InputPage> {
               icon: Icons.ads_click_rounded,
               title: "Primary button",
               subtitle: "Also on the touchpad",
-              trailing: SegmentedButton<bool>(
-                showSelectedIcon: false,
+              trailing: ZenitSegmentedButton<bool>(
                 segments: const [
                   ButtonSegment(value: false, label: Text("Left")),
                   ButtonSegment(value: true, label: Text("Right")),
@@ -331,8 +330,7 @@ class _InputPageState extends State<InputPage> {
                 icon: Icons.back_hand_outlined,
                 title: "Fingers for gestures",
                 subtitle: "Swipes with other finger counts scroll",
-                trailing: SegmentedButton<int>(
-                  showSelectedIcon: false,
+                trailing: ZenitSegmentedButton<int>(
                   segments: const [
                     ButtonSegment(value: 3, label: Text("Three")),
                     ButtonSegment(value: 4, label: Text("Four")),

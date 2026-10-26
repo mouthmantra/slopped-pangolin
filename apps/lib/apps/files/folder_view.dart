@@ -1438,63 +1438,23 @@ class _ViewSwitcher extends StatelessWidget {
   final ValueChanged<FilesViewMode> onView;
 
   @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return Container(
-      height: 34,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.onSurface.withValues(alpha: theme.brightness == Brightness.dark ? 0.08 : 0.06),
-        borderRadius: BorderRadius.circular(17),
-      ),
-      child: SingleChildScrollView(
+  Widget build(BuildContext context) => SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+        child: ZenitSegmentedButton<FilesViewMode>(
+          height: 34,
+          segments: [
             for (final FilesViewMode mode in FilesViewMode.values)
-              Tooltip(
-                message: labels ? "" : mode.label,
-                child: Material(
-                  color: mode == view ? theme.colorScheme.primary : Colors.transparent,
-                  shape: const StadiumBorder(),
-                  child: InkWell(
-                    customBorder: const StadiumBorder(),
-                    onTap: () => onView(mode),
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: labels ? 14 : 10),
-                      child: SizedBox(
-                        height: 34,
-                        child: Row(
-                          children: [
-                            Icon(
-                              mode.icon,
-                              size: 16,
-                              color: mode == view
-                                  ? theme.colorScheme.onPrimary
-                                  : theme.colorScheme.onSurface.withValues(alpha: 0.8),
-                            ),
-                            if (labels) ...[
-                              const SizedBox(width: 6),
-                              Text(
-                                mode.label,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  fontSize: 13,
-                                  color: mode == view ? theme.colorScheme.onPrimary : null,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+              ButtonSegment(
+                value: mode,
+                icon: Icon(mode.icon),
+                label: labels ? Text(mode.label) : null,
+                tooltip: labels ? null : mode.label,
               ),
           ],
+          selected: {view},
+          onSelectionChanged: (modes) => onView(modes.first),
         ),
-      ),
-    );
-  }
+      );
 }
 
 /// A file's Papirus icon (beige folders), or for pictures at a size where

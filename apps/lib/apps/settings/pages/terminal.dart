@@ -94,8 +94,7 @@ class TerminalSettingsPage extends StatelessWidget {
                 SettingsRow(
                   icon: Icons.text_fields_rounded,
                   title: "Cursor",
-                  trailing: SegmentedButton<String>(
-                    showSelectedIcon: false,
+                  trailing: ZenitSegmentedButton<String>(
                     segments: const [
                       ButtonSegment(value: "block", label: Text("Block")),
                       ButtonSegment(

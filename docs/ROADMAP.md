@@ -1350,6 +1350,24 @@ theme (6.1).
       Settings most of all. Find whether it's the blur (6.7), the
       embedder's damage (8.11) or the apps redrawing; part of the visual
       bug sweep (8.15).
+- [~] 8.20 Rough edges on pill selectors at 100% scale (user, 2026-10-25):
+      the pill-shaped segmented selectors (Settings' choices, Files' view
+      switcher) have visibly jagged edges on lower DPI displays and at
+      100% scaling. Anti-aliased, pixel-aligned shapes at every scale.
+      Cause: Material's SegmentedButton clips its segments to its outline,
+      a path (InkWell's customBorder does the same for hover and press),
+      and Impeller on desktop OpenGL has no multisampling, so path clips
+      aren't antialiased; rounded rectangles with one radius are (card
+      borders and the accent swatches were smooth in the same capture).
+      Now ZenitSegmentedButton (zenit_ui; SegmentedButton's parameters
+      for one selection) draws a track and the selected choice in the
+      accent color, hover, press and focus only as such rounded
+      rectangles: Settings' eight selectors and Files' view switcher use
+      it. Headless at 100%: the stepped end of the selected segment is
+      smooth now. Other stadium and circle shapes with ink may have the
+      same clip (17 places, e.g. the overview's and screenshot tool's
+      pills): part of the sweep (8.15). [ ] Not tried on the real
+      displays yet.
 - [x] 8.8 Overview close button hard to hit (user report 2026-10-17). It sat
       half outside its window's slot, and Flutter only hit-tests inside a
       widget's bounds: half the button ignored clicks, and moving onto it

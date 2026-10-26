@@ -123,8 +123,7 @@ class AppearancePage extends StatelessWidget {
                       icon: Icons.style_outlined,
                       title: "Other apps",
                       subtitle: "How GTK apps look",
-                      trailing: SegmentedButton<String>(
-                        showSelectedIcon: false,
+                      trailing: ZenitSegmentedButton<String>(
                         segments: const [
                           ButtonSegment(value: "dahlia", label: Text("dahliaOS")),
                           ButtonSegment(value: "adwaita", label: Text("Adwaita")),
@@ -264,8 +263,7 @@ class AppearancePage extends StatelessWidget {
                       icon: Icons.align_horizontal_left_rounded,
                       title: "App icons",
                       subtitle: "Where the taskbar shows apps",
-                      trailing: SegmentedButton<String>(
-                        showSelectedIcon: false,
+                      trailing: ZenitSegmentedButton<String>(
                         segments: const [
                           ButtonSegment(value: "center", label: Text("Center")),
                           ButtonSegment(value: "left", label: Text("Left")),
@@ -289,8 +287,7 @@ class AppearancePage extends StatelessWidget {
                     return SettingsRow(
                       icon: Icons.height_rounded,
                       title: "Size",
-                      trailing: SegmentedButton<String>(
-                        showSelectedIcon: false,
+                      trailing: ZenitSegmentedButton<String>(
                         segments: const [
                           ButtonSegment(value: "small", label: Text("Small")),
                           ButtonSegment(value: "medium", label: Text("Medium")),
@@ -377,8 +374,7 @@ class AppearancePage extends StatelessWidget {
                     return SettingsRow(
                       icon: Icons.sort_rounded,
                       title: "Sort apps",
-                      trailing: SegmentedButton<String>(
-                        showSelectedIcon: false,
+                      trailing: ZenitSegmentedButton<String>(
                         segments: const [
                           ButtonSegment(value: "name", label: Text("A to Z")),
                           ButtonSegment(
@@ -825,8 +821,7 @@ class _PointerGroup extends StatelessWidget {
             SettingsRow(
               icon: Icons.format_size_rounded,
               title: "Pointer size",
-              trailing: SegmentedButton<int>(
-                showSelectedIcon: false,
+              trailing: ZenitSegmentedButton<int>(
                 segments: [
                   for (final int s in _sizes)
                     ButtonSegment(

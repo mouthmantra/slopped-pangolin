@@ -35,6 +35,8 @@ export 'package:zenit_ui/src/components/radio_button/radio_button.dart';
 // Zenit section
 export 'package:zenit_ui/src/components/blur/blur_region.dart';
 export 'package:zenit_ui/src/components/section/section.dart';
+
+export 'package:zenit_ui/src/components/segmented_button/segmented_button.dart';
 // Zenit slider
 export 'package:zenit_ui/src/components/slider/slider.dart';
 // Zenit switch
