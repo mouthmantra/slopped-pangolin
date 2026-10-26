@@ -634,6 +634,11 @@ theme (6.1).
             runs, and river then drops to 30 fps for a few frames. Find
             the trigger, avoid the repaint. Also: the first details frame
             (labels) rasters in ~18 ms.
+- [ ] 3.5 Flutter apps still at 60 fps (user, 2026-10-25): the shell and the
+      apps don't go above 60 fps on high refresh rate displays, despite
+      Pangolin's embedder (third_party/flutter_engine). Find what still
+      ties them to 60 (the embedder's frame clock, GTK's frame clock, the
+      compositor's frame callbacks) and verify at 165 Hz.
 
 ## 4. Apps
 
@@ -820,6 +825,12 @@ theme (6.1).
       "Welcome!", a description cut off with an ellipsis, chips
       (Customizable, Lightweight, Private, Open source), page dots, Back
       and Next.) The new design is still to be decided with the user.
+- [ ] 4.10 Total app refactor, except Calculator, Activity Monitor, Disks,
+      Settings, Files and Terminal (user, 2026-10-25): the other dahliaOS
+      apps (Clock, Gallery, Logs, Text Editor, App Store, Welcome; 4.9 is
+      Welcome's) rewritten to the same standard as those. All apps get
+      more animations: page and view changes, lists, dialogs, selection,
+      in the dahliaOS style.
 
 ## 5. Files, desktop icons, associations
 
@@ -1257,6 +1268,11 @@ theme (6.1).
       with the user's layout (eDP-1 and the MST DP-8 side by side) and
       with displays stacked vertically (the top edge shared). Goes
       with 8.9's snap zones.
+- [ ] 8.19 Flashing screens, most noticeable in Settings (user,
+      2026-10-25): parts of the screen flash while using the apps,
+      Settings most of all. Find whether it's the blur (6.7), the
+      embedder's damage (8.11) or the apps redrawing; part of the visual
+      bug sweep (8.15).
 - [x] 8.8 Overview close button hard to hit (user report 2026-10-17). It sat
       half outside its window's slot, and Flutter only hit-tests inside a
       widget's bounds: half the button ignored clicks, and moving onto it
