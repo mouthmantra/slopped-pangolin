@@ -19,7 +19,7 @@
 
 Name:           pangolin-desktop
 Version:        1.1.0
-Release:        21%{?dist}
+Release:        22%{?dist}
 Summary:        The dahliaOS desktop (Pangolin) on the river Wayland compositor
 
 # Pangolin and the dahliaOS apps: Apache-2.0; river and the Papirus icons
@@ -232,6 +232,17 @@ systemctl daemon-reload >/dev/null 2>&1 || :
 %ghost %attr(0644,pangolin-greeter,pangolin-greeter) %{_localstatedir}/log/PangolinGreeter.log
 
 %changelog
+* Sun Oct 25 2026 Logan <loganctorres1@gmail.com> - 1.1.0-22
+- The login screen lists users again, systemd-homed ones included, with
+  their avatars; it shows each user's wallpaper and interface font
+- Requires google-roboto-mono-fonts: Roboto Mono is the default monospace
+  font (Terminal, Text Editor, Logs)
+- Terminal draws its cursor and selection in the accent color
+- The hidden taskbar leaves no strip on screen
+- Windows stay on their display after a scale or arrangement change, and
+  come to the nearest display when theirs is unplugged
+- Smooth pill selectors in Settings and Files at 100% scale
+
 * Sun Oct 25 2026 Logan <loganctorres1@gmail.com> - 1.1.0-21
 - pangolin-dm, Pangolin's own display manager (built like GDM: a daemon, a
   PAM session worker per login, the login screen as its own user), in the
