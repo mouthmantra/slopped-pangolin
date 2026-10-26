@@ -51,6 +51,8 @@ BuildRequires:  xz
 Requires:       /usr/bin/dbus-run-session
 Requires:       xkeyboard-config
 Requires:       hicolor-icon-theme
+# The default monospace font: Terminal, Text Editor, Logs.
+Requires:       google-roboto-mono-fonts
 Recommends:     xdg-desktop-portal-wlr
 Recommends:     xdg-desktop-portal-gtk
 Recommends:     polkit

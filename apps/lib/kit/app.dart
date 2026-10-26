@@ -235,8 +235,8 @@ class DahliaApp extends StatelessWidget {
         final PreferencesService prefs = PreferencesService.current;
         final Color? accent = customization.accentColor.resolve();
         final String? font = prefs.get<String>(SessionSetting.interfaceFont.key);
-        final String? monospace =
-            prefs.get<String>(SessionSetting.monospaceFont.key);
+        final String? monospace = SessionFonts.monospace(
+            prefs.get<String>(SessionSetting.monospaceFont.key));
         return MaterialApp(
           title: spec.title,
           debugShowCheckedModeBanner: false,

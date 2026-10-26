@@ -324,8 +324,8 @@ class PangolinApp extends StatelessWidget {
         final Color? accent = service.accentColor.resolve();
         final String? font =
             prefs.get<String>(SessionSetting.interfaceFont.key);
-        final String? monospace =
-            prefs.get<String>(SessionSetting.monospaceFont.key);
+        final String? monospace = SessionFonts.monospace(
+            prefs.get<String>(SessionSetting.monospaceFont.key));
 
         ThemeData themed(Brightness brightness) {
           final ThemeData theme = createZenitTheme(

@@ -22,6 +22,8 @@ limitations under the License.
 /// alongside dahlia_shared's through [sessionScheme].
 library;
 
+import 'dart:io';
+
 import 'package:dsettings/dsettings.dart';
 
 enum SessionSetting<T extends Object> {
@@ -94,7 +96,7 @@ enum SessionSetting<T extends Object> {
   interfaceFont<String>("interface_font", ""),
 
   /// Monospace font family (terminal, text editor, logs); empty for the
-  /// system's monospace font.
+  /// default ([SessionFonts.defaultMonospace]).
   monospaceFont<String>("monospace_font", ""),
 
   /// Animate windows opening, closing, minimizing and changing size.
@@ -258,4 +260,23 @@ enum GestureAction {
 
   static GestureAction parse(String? value) =>
       values.where((a) => a.value == value).firstOrNull ?? none;
+}
+
+/// The fonts that stand in when [SessionSetting.interfaceFont] or
+/// [SessionSetting.monospaceFont] is empty.
+abstract final class SessionFonts {
+  /// Roboto Mono, which Pangolin's packages depend on, when fontconfig has
+  /// it (looked up once); null leaves the system's monospace font.
+  static final String? defaultMonospace = () {
+    try {
+      final ProcessResult r = Process.runSync("fc-list", [":family=Roboto Mono", "family"]);
+      return r.exitCode == 0 && (r.stdout as String).trim().isNotEmpty ? "Roboto Mono" : null;
+    } on ProcessException {
+      return null;
+    }
+  }();
+
+  /// The monospace family for the setting's value [chosen].
+  static String? monospace(String? chosen) =>
+      chosen != null && chosen.isNotEmpty ? chosen : defaultMonospace;
 }

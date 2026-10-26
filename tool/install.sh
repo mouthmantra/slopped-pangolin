@@ -552,6 +552,13 @@ if [ "$xdpw_found" = 0 ]; then
     echo "  install it with your package manager, e.g. sudo dnf install xdg-desktop-portal-wlr"
     echo "  (apt install xdg-desktop-portal-wlr, pacman -S xdg-desktop-portal-wlr, apk add xdg-desktop-portal-wlr)"
 fi
+# Roboto Mono, the default monospace font (Terminal, Text Editor, Logs);
+# without it they use the system's monospace font.
+if command -v fc-list >/dev/null 2>&1 && [ -z "$(fc-list ':family=Roboto Mono' family 2>/dev/null)" ]; then
+    echo "Note: Pangolin's monospace font, Roboto Mono, isn't installed:"
+    echo "  sudo dnf install google-roboto-mono-fonts (pacman -S ttf-roboto-mono),"
+    echo "  or from fonts.google.com/specimen/Roboto+Mono into ~/.local/share/fonts"
+fi
 [ -x "$PREFIX/libexec/pangolin/river" ] ||
     echo "Note: river isn't built yet: run tool/build.sh (needs zig) and install again."
 if [ "${GREETER_READY:-0}" = 1 ]; then

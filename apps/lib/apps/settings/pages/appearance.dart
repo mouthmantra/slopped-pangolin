@@ -519,6 +519,11 @@ class _WallpaperThumb extends StatelessWidget {
   }
 }
 
+/// The monospace choice that leaves the setting empty.
+String get _defaultMonospaceLabel => SessionFonts.defaultMonospace == null
+    ? "System default"
+    : "${SessionFonts.defaultMonospace} (default)";
+
 /// Interface and monospace fonts of the shell and the dahliaOS apps.
 class _FontsGroup extends StatelessWidget {
   const _FontsGroup();
@@ -564,8 +569,8 @@ class _FontsGroup extends StatelessWidget {
               title: "Monospace",
               subtitle: "Terminal, text editor and logs",
               trailing: _FontButton(
-                label: mono.isEmpty ? "System default" : mono,
-                family: mono.isEmpty ? "monospace" : mono,
+                label: mono.isEmpty ? _defaultMonospaceLabel : mono,
+                family: SessionFonts.monospace(mono) ?? "monospace",
                 onPressed: () =>
                     pick(SessionSetting.monospaceFont, monospace: true),
               ),
@@ -686,7 +691,9 @@ class _FontPickerState extends State<_FontPicker> {
                         final String family = shown[i];
                         final bool selected = family == widget.current;
                         final String? previewFamily = family.isEmpty
-                            ? (widget.monospace ? "monospace" : null)
+                            ? (widget.monospace
+                                ? SessionFonts.monospace(family) ?? "monospace"
+                                : null)
                             : family;
                         return Material(
                           color: selected
@@ -705,7 +712,7 @@ class _FontPickerState extends State<_FontPicker> {
                                   Text(
                                     family.isEmpty
                                         ? (widget.monospace
-                                            ? "System default"
+                                            ? _defaultMonospaceLabel
                                             : "Inter (default)")
                                         : family,
                                     style: TextStyle(

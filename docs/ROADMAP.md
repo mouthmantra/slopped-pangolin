@@ -1016,6 +1016,16 @@ theme (6.1).
       are captured, with a check that flags any frame whose brightness
       jumps (a flash detector), slowed down with PANGOLIN_ANIMATION_SCALE
       to look at them.
+- [~] 6.8 Roboto Mono as a dependency (user, 2026-10-25): the RPM requires
+      it (Fedora: google-roboto-mono-fonts) and install.sh names it, so
+      Pangolin's monospace text (Terminal, Text Editor, Logs) can count on
+      it; decide whether it becomes the default monospace font when none
+      is chosen (today the system's monospace).
+      Done: `Requires: google-roboto-mono-fonts`; install.sh notes when
+      fontconfig doesn't have it. It is the default monospace font when
+      none is chosen (SessionFonts in pangolin_settings: looked up once
+      with fc-list, else the system's monospace), and Settings > Appearance
+      calls it "Roboto Mono (default)". [ ] Not in a built RPM yet.
 
 ## 7. Quick Settings and Settings
 
